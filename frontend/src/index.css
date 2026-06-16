@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-graph: #c9974a;
+  --color-graph-dim: #c9974a26;
+  --color-vector: #4fb3a3;
+  --color-vector-dim: #4fb3a326;
+  --color-hybrid: #9b8cf0;
+  --color-hybrid-dim: #9b8cf026;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: #0a0a0c;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: #c9974a40;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #2a2a30;
+  border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #3a3a42;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out;
+}
+
+.prose-answer p {
+  margin: 0 0 0.9em;
+}
+.prose-answer p:last-child {
+  margin-bottom: 0;
+}
+.prose-answer strong {
+  color: #e4e4e7;
+  font-weight: 600;
+}
+.prose-answer ul,
+.prose-answer ol {
+  margin: 0 0 0.9em;
+  padding-left: 1.25em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+.prose-answer li {
+  padding-left: 0.25em;
+}
+.prose-answer code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: #1c1c20;
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+  color: #d4d4d8;
+}
+.prose-answer a {
+  color: #c9974a;
+  text-decoration: underline;
+  text-decoration-color: #c9974a4d;
+}

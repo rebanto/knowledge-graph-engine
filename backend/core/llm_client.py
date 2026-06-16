@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 _client = None
-MODEL = "gemini-flash-latest"
+MODEL = "gemini-flash-lite-latest"
 
 
 class DailyQuotaExhausted(Exception):

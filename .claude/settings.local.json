@@ -18,7 +18,26 @@
       "Bash(.venv/Scripts/python.exe scripts/ask.py \"What concepts are most commonly associated with reinforcement learning papers?\")",
       "Bash(.venv/Scripts/python.exe scripts/ask.py \"Which authors have written the most papers in this dataset?\")",
       "Bash(.venv/Scripts/python.exe scripts/ask.py \"What has Yijun Chen worked on, and what topics does it relate to?\")",
-      "Bash(.venv/Scripts/pip.exe install *)"
+      "Bash(.venv/Scripts/pip.exe install *)",
+      "Bash(.venv/Scripts/python.exe -m uvicorn backend.main:app --port 8000)",
+      "Bash(timeout 20 bash -c 'until curl -s http://localhost:8000/health > /dev/null 2>&1; do sleep 0.5; done')",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s http://localhost:8000/api/reports)",
+      "Bash(npm create *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(timeout 15 bash -c 'until curl -s http://localhost:5173 > /dev/null 2>&1; do sleep 0.5; done')",
+      "Bash(mkdir -p \"C:\\\\Users\\\\reban\\\\Projects\\\\knowledge-graph-engine\\\\.claude\" 2>&1; ls \"C:\\\\Users\\\\reban\\\\Projects\\\\knowledge-graph-engine\\\\.claude\" 2>&1)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(/c/Windows/System32/taskkill.exe //F //PID 30648)",
+      "Bash(/c/Windows/System32/taskkill.exe //F //PID 23460)",
+      "Bash(.venv/Scripts/python.exe -m uvicorn backend.main:app --port 8000 --reload)",
+      "Bash(timeout 15 bash -c 'until curl -s http://localhost:8000/health > /dev/null 2>&1; do sleep 0.5; done')",
+      "Bash(curl -s -X POST http://localhost:8000/api/question -H \"Content-Type: application/json\" -d '{\"question\": \"test question please\"}')",
+      "Bash(/c/Windows/System32/taskkill.exe //F //PID 11276)",
+      "Bash(/c/Windows/System32/taskkill.exe //F //PID 29972)",
+      "Bash(/c/Windows/System32/taskkill.exe //F //PID 24264)",
+      "Bash(.venv/Scripts/python.exe -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload)"
     ]
   }
 }
