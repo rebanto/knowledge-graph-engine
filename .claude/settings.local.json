@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(docker compose *)",
-      "Bash(Start-Sleep -Seconds 30)"
+      "Bash(Start-Sleep -Seconds 30)",
+      "Bash(.venv/Scripts/python.exe scripts/test_gemini.py)",
+      "Bash(.venv/Scripts/python.exe scripts/seed_arxiv.py --max 5)",
+      "Bash(.venv/Scripts/python.exe -c ' *)",
+      "Bash(.venv/Scripts/python.exe scripts/seed_arxiv.py --max 500)"
     ]
   }
 }

@@ -21,9 +21,11 @@ from backend.ingestion.entity_resolver import EntityResolver
 
 WORKSPACE_ID = "arxiv_seed"
 
-# Gemini free tier: 15 RPM → 1 call per 4s to stay safe
-# Each paper = 1 LLM call (entity extraction)
-RATE_LIMIT_DELAY = 4.0
+# gemini-2.5-flash free tier: ~10 RPM → 1 call per 7s to stay safe
+# Each paper = 1 LLM call (entity extraction). Free tier also caps daily
+# requests (RPD) — if you hit a 429 with "PerDay" in the message, the run
+# has to resume tomorrow or you need a billing-enabled key.
+RATE_LIMIT_DELAY = 7.0
 
 
 def main():

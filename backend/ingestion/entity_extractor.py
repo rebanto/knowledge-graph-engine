@@ -49,7 +49,7 @@ def extract_entities(text: str) -> dict:
     prompt = EXTRACTION_PROMPT.format(text=text[:4000])
 
     response = get_client().models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
         contents=prompt,
         config=types.GenerateContentConfig(response_mime_type="application/json"),
     )
