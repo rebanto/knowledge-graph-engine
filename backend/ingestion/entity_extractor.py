@@ -2,11 +2,16 @@ import os
 import json
 from google import genai
 from google.genai import types
+from google.genai.errors import ClientError
 from dotenv import load_dotenv
 
 load_dotenv()
 
 _client = None
+
+
+class DailyQuotaExhausted(Exception):
+    """Raised when the Gemini free-tier per-day request quota is hit."""
 
 VALID_ENTITY_TYPES = {"Person", "Organization", "Paper", "Concept", "Event", "Topic"}
 VALID_EDGE_TYPES = {
@@ -48,11 +53,16 @@ def get_client():
 def extract_entities(text: str) -> dict:
     prompt = EXTRACTION_PROMPT.format(text=text[:4000])
 
-    response = get_client().models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(response_mime_type="application/json"),
-    )
+    try:
+        response = get_client().models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+    except ClientError as e:
+        if "PerDay" in str(e):
+            raise DailyQuotaExhausted(str(e)) from e
+        raise
 
     try:
         data = json.loads(response.text)

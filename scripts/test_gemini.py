@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Quick diagnostic: try several Gemini models and report which work."""
+"""Diagnostic: try several Gemini models, report success or the exact quota/limit in the error."""
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -15,24 +16,24 @@ client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 models_to_try = [
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
     "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
+    "gemini-2.5-pro",
+    "gemini-3-flash-preview",
 ]
 
 for model in models_to_try:
-    print(f"\nTrying {model}...")
+    print(f"\n{model}...")
     try:
-        response = client.models.generate_content(
-            model=model,
-            contents="Say OK.",
-        )
+        response = client.models.generate_content(model=model, contents="Say OK.")
         print(f"  SUCCESS: {response.text.strip()}")
     except Exception as e:
-        print(f"  FAILED: {e}")
-
-print("\nListing models available to this key:")
-try:
-    for m in client.models.list():
-        print(f"  {m.name}")
-except Exception as e:
-    print(f"  Could not list models: {e}")
+        msg = str(e)
+        quota_matches = re.findall(r"quotaId': '([^']+)'.*?quotaValue': '(\d+)'", msg)
+        if quota_matches:
+            for quota_id, value in quota_matches:
+                print(f"  LIMIT: {quota_id} = {value}")
+        else:
+            print(f"  FAILED: {msg[:200]}")

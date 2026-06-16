@@ -108,6 +108,24 @@ def merge_edge(
         )
 
 
+def is_paper_processed(paper_id: str) -> bool:
+    with get_driver().session() as session:
+        result = session.run(
+            "MATCH (n:Paper {arxiv_id: $paper_id}) RETURN n.entities_extracted AS done",
+            paper_id=paper_id,
+        )
+        record = result.single()
+        return bool(record and record["done"])
+
+
+def mark_paper_processed(paper_id: str) -> None:
+    with get_driver().session() as session:
+        session.run(
+            "MATCH (n:Paper {arxiv_id: $paper_id}) SET n.entities_extracted = true",
+            paper_id=paper_id,
+        )
+
+
 def get_node_count() -> int:
     with get_driver().session() as session:
         result = session.run("MATCH (n) RETURN count(n) AS count")

@@ -5,10 +5,14 @@ from backend.ingestion.entity_extractor import extract_entities
 from backend.ingestion.entity_resolver import EntityResolver
 
 
-def process_paper(paper: dict, workspace_id: str, resolver: EntityResolver) -> None:
+def process_paper(paper: dict, workspace_id: str, resolver: EntityResolver) -> bool:
+    """Returns True if the paper was processed, False if it was already done (skipped)."""
     paper_id = paper["id"]
     title = paper["title"]
     text = f"{title}. {paper['abstract']}"
+
+    if neo4j_db.is_paper_processed(paper_id):
+        return False
 
     # 1. Paper node
     neo4j_db.merge_paper(paper_id, title, workspace_id, {
@@ -77,3 +81,6 @@ def process_paper(paper: dict, workspace_id: str, resolver: EntityResolver) -> N
                 "context": rel.get("context", "")[:500],
             },
         )
+
+    neo4j_db.mark_paper_processed(paper_id)
+    return True

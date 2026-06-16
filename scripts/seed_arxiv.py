@@ -18,6 +18,7 @@ from backend.db.chroma import get_chunk_count
 from backend.ingestion.fetcher import fetch_arxiv_papers
 from backend.ingestion.worker import process_paper
 from backend.ingestion.entity_resolver import EntityResolver
+from backend.ingestion.entity_extractor import DailyQuotaExhausted
 
 WORKSPACE_ID = "arxiv_seed"
 
@@ -42,24 +43,38 @@ def main():
     print(f"Fetched {len(papers)} papers.\n")
 
     resolver = EntityResolver(threshold=0.85)
-    success, failed = 0, 0
+    success, already_done, failed = 0, 0, 0
+    quota_hit = False
 
     for i, paper in enumerate(papers, 1):
         print(f"[{i}/{len(papers)}] {paper['title'][:72]}...")
+        processed = False
         try:
-            process_paper(paper, WORKSPACE_ID, resolver)
-            success += 1
+            processed = process_paper(paper, WORKSPACE_ID, resolver)
+            if processed:
+                success += 1
+            else:
+                already_done += 1
+                print("  already ingested, skipped")
+        except DailyQuotaExhausted:
+            print("\nGemini daily quota exhausted. Stopping here — re-run this script "
+                  "tomorrow (or after the quota resets) to continue from where you left off.")
+            quota_hit = True
+            break
         except Exception as e:
             print(f"  SKIP: {e}")
             failed += 1
 
-        if i < len(papers):
+        # Only the papers that made an LLM call need the rate-limit pause
+        if processed and i < len(papers):
             time.sleep(RATE_LIMIT_DELAY)
 
     close_driver()
 
     print(f"\n{'='*60}")
-    print(f"Ingestion complete: {success} succeeded, {failed} failed")
+    status = "STOPPED (daily quota hit)" if quota_hit else "Ingestion complete"
+    print(f"{status}: {success} newly ingested, {already_done} already done, {failed} failed")
+    print(f"Remaining for next run: {len(papers) - success - already_done - failed}")
     print(f"Neo4j nodes : {get_node_count()}")
     print(f"Neo4j edges : {get_edge_count()}")
     print(f"Chroma chunks: {get_chunk_count(WORKSPACE_ID)}")
