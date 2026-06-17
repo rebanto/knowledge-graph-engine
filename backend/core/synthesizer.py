@@ -1,26 +1,215 @@
 import json
-from backend.core.llm_client import generate_text
+from backend.core.llm_client import generate_json, generate_text
 
-SYNTHESIS_PROMPT = """Answer the research question using ONLY the structured results below.
-Do not use any outside knowledge. Cite sources inline using the paper titles or entity names given.
+# The synthesizer returns structured JSON — prose answer + typed insight objects
+# so the frontend can render charts, flow diagrams, stat grids, etc.
+SYNTHESIS_PROMPT = """You are an expert research analyst with deep expertise in knowledge graphs and academic research.
 
-The results were already retrieved by a query built specifically to answer this question —
-e.g. "graph" records are rows from a database query that matched the entities named in the
-question (their names may not be repeated in every row, but the rows ARE the answer to the
-question). "vector" chunks are document excerpts semantically matched to the question.
+Question: {question}
+Retrieval method used: {retrieval_type}
 
-Only say there is not enough information if the results list is genuinely empty or clearly
-unrelated to the question.
+Retrieved data (graph records, entity stats, and document passages):
+{results}
+
+Return ONLY valid JSON with this exact structure. Every field is required.
+
+{{
+  "answer": "Your detailed markdown analysis. Requirements: (1) Open with a direct 1–2 sentence answer grounded in the data. (2) Trace specific relationship chains found in the data using arrow notation, e.g.: **Geoffrey Hinton** → AUTHORED → *Deep Residual Learning* → CITED BY 3 subsequent papers in this dataset. (3) Report actual numbers and statistics from the retrieved data. (4) Identify non-obvious connections and patterns between entities. (5) Note any conflict_flag=true edges — these represent disputed or contradictory claims. (6) Use **bold** for entity names, *italics* for paper titles. Write at minimum 3 substantive paragraphs when data is rich enough to support it.",
+
+  "key_entities": [
+    {{"name": "exact name from the data", "type": "Person|Paper|Concept|Organization|Topic|Event", "role": "one sentence on why this entity matters for the question"}}
+  ],
+
+  "insights": [
+    /* Pick 1–3 insight types from the list below that genuinely fit the retrieved data.
+       DO NOT invent numbers or entities not found in the data. */
+
+    /* BAR_CHART — rankings, counts, or distributions (use when you see aggregation results) */
+    {{
+      "type": "bar_chart",
+      "title": "descriptive title max 50 chars",
+      "x_label": "axis label",
+      "y_label": "axis label",
+      "color": "#c9974a",
+      "data": [{{"name": "label ≤25 chars", "value": 42}}]
+    }},
+
+    /* FLOW_PATH — chain of connections (use when data shows a traversal path) */
+    {{
+      "type": "flow_path",
+      "title": "title",
+      "steps": [
+        {{"entity": "EntityA", "entity_type": "Person", "relation": null}},
+        {{"entity": "PaperB", "entity_type": "Paper", "relation": "AUTHORED"}},
+        {{"entity": "ConceptC", "entity_type": "Concept", "relation": "INTRODUCES"}}
+      ]
+    }},
+
+    /* STAT_GRID — key numbers (always include at least this type) */
+    {{
+      "type": "stat_grid",
+      "stats": [
+        {{"label": "Results Found", "value": "12", "subtitle": "from graph query"}},
+        {{"label": "Unique Authors", "value": "7", "subtitle": "across all papers"}}
+      ]
+    }},
+
+    /* COMPARISON_TABLE — comparing multiple entities on same properties */
+    {{
+      "type": "comparison_table",
+      "title": "title",
+      "columns": ["Entity", "Property 1", "Property 2"],
+      "rows": [["Row value 1", "val", "val"], ["Row 2", "val", "val"]]
+    }},
+
+    /* TIMELINE — chronological events when dates/years are present */
+    {{
+      "type": "timeline",
+      "title": "title",
+      "events": [
+        {{"year": "2017", "label": "short label max 40 chars", "detail": "optional longer context"}}
+      ]
+    }}
+  ]
+}}
+
+Hard rules:
+- Every entity name, date, count, and relationship in the answer and insights MUST appear in the retrieved data above.
+- If data is sparse: write a short honest answer and include only a stat_grid with "Results Found: 0".
+- key_entities: 2–6 items, most important only.
+- insights: 1–3 items maximum, no filler. stat_grid should almost always be present.
+- bar_chart: max 12 bars; data values must be real numbers extracted or computed from the retrieved data.
+- The "answer" field must contain valid markdown only. No JSON inside the answer string.
+"""
+
+_FALLBACK_PROMPT = """Answer this research question using ONLY the provided data. Do not use outside knowledge.
 
 Question: {question}
 
-Retrieved results (JSON):
+Data:
 {results}
 
-Write a concise, well-cited prose answer."""
+Write a concise, well-cited prose answer (2–4 paragraphs). Bold entity names."""
 
 
-def synthesize_answer(question: str, results: dict) -> str:
-    return generate_text(
-        SYNTHESIS_PROMPT.format(question=question, results=json.dumps(results, indent=2)[:6000])
+def synthesize_answer(question: str, results: dict, retrieval_type: str = "hybrid") -> dict:
+    """
+    Returns dict with 'answer' (str), 'key_entities' (list), 'insights' (list).
+    Always succeeds — falls back to plain text synthesis on JSON failure.
+    """
+    prompt = SYNTHESIS_PROMPT.format(
+        question=question,
+        retrieval_type=retrieval_type,
+        results=json.dumps(results, indent=2, default=str)[:8000],
     )
+
+    structured = generate_json(prompt)
+    answer = structured.get("answer", "").strip()
+
+    if not answer:
+        # JSON parse failed or answer was empty — fall back to plain text
+        answer = generate_text(
+            _FALLBACK_PROMPT.format(
+                question=question,
+                results=json.dumps(results, default=str)[:5000],
+            )
+        )
+        return {"answer": answer, "key_entities": [], "insights": []}
+
+    return {
+        "answer": answer,
+        "key_entities": _clean_entities(structured.get("key_entities", [])),
+        "insights": _clean_insights(structured.get("insights", [])),
+    }
+
+
+def _clean_entities(raw: list) -> list:
+    valid = []
+    for e in raw:
+        if isinstance(e, dict) and e.get("name") and e.get("type"):
+            valid.append({
+                "name": str(e["name"])[:100],
+                "type": str(e.get("type", "Concept")),
+                "role": str(e.get("role", ""))[:200],
+            })
+    return valid[:6]
+
+
+def _clean_insights(raw: list) -> list:
+    valid_types = {"bar_chart", "flow_path", "stat_grid", "comparison_table", "timeline"}
+    out = []
+    for ins in raw:
+        if not isinstance(ins, dict):
+            continue
+        t = ins.get("type")
+        if t not in valid_types:
+            continue
+        try:
+            if t == "bar_chart":
+                data = [
+                    {"name": str(d.get("name", ""))[:30], "value": float(d.get("value", 0))}
+                    for d in (ins.get("data") or [])
+                    if isinstance(d, dict)
+                ]
+                if data:
+                    out.append({
+                        "type": t,
+                        "title": str(ins.get("title", ""))[:60],
+                        "x_label": str(ins.get("x_label", "")),
+                        "y_label": str(ins.get("y_label", "")),
+                        "color": str(ins.get("color", "#c9974a")),
+                        "data": data[:14],
+                    })
+            elif t == "flow_path":
+                steps = [
+                    {
+                        "entity": str(s.get("entity", ""))[:80],
+                        "entity_type": str(s.get("entity_type", "Concept")),
+                        "relation": s.get("relation"),
+                    }
+                    for s in (ins.get("steps") or [])
+                    if isinstance(s, dict)
+                ]
+                if len(steps) >= 2:
+                    out.append({"type": t, "title": str(ins.get("title", ""))[:60], "steps": steps[:10]})
+            elif t == "stat_grid":
+                stats = [
+                    {
+                        "label": str(s.get("label", ""))[:40],
+                        "value": str(s.get("value", ""))[:20],
+                        "subtitle": str(s.get("subtitle", ""))[:60] if s.get("subtitle") else None,
+                    }
+                    for s in (ins.get("stats") or [])
+                    if isinstance(s, dict)
+                ]
+                if stats:
+                    out.append({"type": t, "stats": stats[:8]})
+            elif t == "comparison_table":
+                cols = [str(c)[:40] for c in (ins.get("columns") or [])]
+                rows = [
+                    [str(v)[:60] for v in row]
+                    for row in (ins.get("rows") or [])
+                    if isinstance(row, list)
+                ]
+                if cols and rows:
+                    out.append({
+                        "type": t,
+                        "title": str(ins.get("title", ""))[:60],
+                        "columns": cols,
+                        "rows": rows[:15],
+                    })
+            elif t == "timeline":
+                events = [
+                    {
+                        "year": str(e.get("year", ""))[:10],
+                        "label": str(e.get("label", ""))[:60],
+                        "detail": str(e.get("detail", ""))[:200] if e.get("detail") else None,
+                    }
+                    for e in (ins.get("events") or [])
+                    if isinstance(e, dict)
+                ]
+                if events:
+                    out.append({"type": t, "title": str(ins.get("title", ""))[:60], "events": events[:20]})
+        except Exception:
+            continue
+    return out[:4]

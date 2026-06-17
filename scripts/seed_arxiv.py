@@ -15,8 +15,8 @@ load_dotenv()
 
 from backend.db.neo4j import setup_constraints, close_driver, get_node_count, get_edge_count
 from backend.db.chroma import get_chunk_count
-from backend.ingestion.fetcher import fetch_arxiv_papers
-from backend.ingestion.worker import process_paper
+from backend.ingestion.fetchers.arxiv import fetch_arxiv
+from backend.ingestion.worker import process_document
 from backend.ingestion.entity_resolver import EntityResolver
 from backend.ingestion.entity_extractor import DailyQuotaExhausted
 
@@ -39,7 +39,7 @@ def main():
     setup_constraints()
 
     print(f"\nFetching up to {args.max} papers from ArXiv (last {args.days} days)...")
-    papers = fetch_arxiv_papers(max_results=args.max, days_back=args.days)
+    papers = fetch_arxiv("cs.AI,cs.LG,cs.CL", max_results=args.max, days_back=args.days)
     print(f"Fetched {len(papers)} papers.\n")
 
     resolver = EntityResolver(threshold=0.85)
@@ -50,7 +50,7 @@ def main():
         print(f"[{i}/{len(papers)}] {paper['title'][:72]}...")
         processed = False
         try:
-            processed = process_paper(paper, WORKSPACE_ID, resolver)
+            processed = process_document(paper, WORKSPACE_ID, resolver)
             if processed:
                 success += 1
             else:

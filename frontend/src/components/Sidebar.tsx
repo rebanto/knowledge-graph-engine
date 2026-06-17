@@ -1,6 +1,7 @@
 import { Network, Plus } from "lucide-react";
-import type { ReportSummary } from "../types";
+import type { ReportSummary, Workspace } from "../types";
 import { relativeTime } from "../lib/time";
+import { WorkspaceSelector } from "./WorkspaceSelector";
 
 const DOT: Record<string, string> = {
   graph: "bg-graph",
@@ -13,9 +14,22 @@ interface SidebarProps {
   activeId: string | null;
   onSelect: (report: ReportSummary) => void;
   onNew: () => void;
+  workspaces: Workspace[];
+  workspaceId: string;
+  onWorkspaceChange: (id: string) => void;
+  onCreateWorkspace: (name: string, domain: string) => Promise<void>;
 }
 
-export function Sidebar({ reports, activeId, onSelect, onNew }: SidebarProps) {
+export function Sidebar({
+  reports,
+  activeId,
+  onSelect,
+  onNew,
+  workspaces,
+  workspaceId,
+  onWorkspaceChange,
+  onCreateWorkspace,
+}: SidebarProps) {
   return (
     <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-zinc-800/60 bg-[#0c0c0e]">
       <div className="flex items-center gap-2 px-5 pt-6 pb-5">
@@ -27,6 +41,13 @@ export function Sidebar({ reports, activeId, onSelect, onNew }: SidebarProps) {
           <p className="text-[11px] leading-none text-zinc-500">Knowledge graph engine</p>
         </div>
       </div>
+
+      <WorkspaceSelector
+        workspaces={workspaces}
+        activeId={workspaceId}
+        onSelect={onWorkspaceChange}
+        onCreate={onCreateWorkspace}
+      />
 
       <div className="px-3">
         <button

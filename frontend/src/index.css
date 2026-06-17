@@ -10,6 +10,14 @@
   --color-vector-dim: #4fb3a326;
   --color-hybrid: #9b8cf0;
   --color-hybrid-dim: #9b8cf026;
+
+  --color-node-paper: #c9974a;
+  --color-node-person: #4fb3a3;
+  --color-node-concept: #9b8cf0;
+  --color-node-organization: #6b9bd1;
+  --color-node-topic: #d97a9c;
+  --color-node-event: #7cb88f;
+  --color-node-conflict: #e2574c;
 }
 
 html {

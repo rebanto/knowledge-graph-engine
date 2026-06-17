@@ -2,11 +2,17 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.db.postgres import Base, engine
-from backend.api.routes import questions
+from backend.db.postgres import Base, engine, SessionLocal
+from backend.db.models import Workspace
+from backend.api.routes import questions, graph, workspaces, sources
 from backend.core.llm_client import DailyQuotaExhausted
 
 Base.metadata.create_all(bind=engine)
+
+with SessionLocal() as db:
+    if not db.query(Workspace).filter(Workspace.id == "arxiv_seed").first():
+        db.add(Workspace(id="arxiv_seed", name="ArXiv AI/ML Research", domain="AI/ML research"))
+        db.commit()
 
 app = FastAPI(title="Knowledge Graph Research Engine")
 
@@ -30,6 +36,9 @@ def handle_quota_exhausted(request: Request, exc: DailyQuotaExhausted):
 
 
 app.include_router(questions.router, prefix="/api")
+app.include_router(graph.router, prefix="/api")
+app.include_router(workspaces.router, prefix="/api")
+app.include_router(sources.router, prefix="/api")
 
 
 @app.get("/health")

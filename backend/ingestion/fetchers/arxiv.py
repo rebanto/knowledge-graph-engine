@@ -3,11 +3,16 @@ import feedparser
 from datetime import datetime, timedelta
 
 ARXIV_API = "http://export.arxiv.org/api/query"
-CATEGORIES = ["cs.AI", "cs.LG", "cs.CL"]
+DEFAULT_CATEGORIES = ["cs.AI", "cs.LG", "cs.CL"]
 
 
-def fetch_arxiv_papers(max_results: int = 500, days_back: int = 90) -> list[dict]:
-    category_query = " OR ".join(f"cat:{c}" for c in CATEGORIES)
+def fetch_arxiv(query: str, max_results: int = 50, days_back: int = 90) -> list[dict]:
+    """
+    query: comma-separated ArXiv category codes, e.g. "cs.AI,cs.LG,cs.CL".
+    Falls back to a sane default if blank.
+    """
+    categories = [c.strip() for c in query.split(",") if c.strip()] or DEFAULT_CATEGORIES
+    category_query = " OR ".join(f"cat:{c}" for c in categories)
     start_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y%m%d")
 
     params = {
@@ -22,18 +27,18 @@ def fetch_arxiv_papers(max_results: int = 500, days_back: int = 90) -> list[dict
     response.raise_for_status()
 
     feed = feedparser.parse(response.text)
-    papers = []
+    documents = []
 
     for entry in feed.entries:
         arxiv_id = entry.id.split("/abs/")[-1]
-        papers.append({
+        documents.append({
             "id": arxiv_id,
             "title": entry.title.replace("\n", " ").strip(),
-            "abstract": entry.summary.replace("\n", " ").strip(),
+            "text": entry.summary.replace("\n", " ").strip(),
             "authors": [a.name for a in getattr(entry, "authors", [])],
             "categories": [t.term for t in getattr(entry, "tags", [])],
             "url": entry.id,
             "published": entry.get("published", ""),
         })
 
-    return papers
+    return documents

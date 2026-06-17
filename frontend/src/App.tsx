@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { Network, MessageSquare, Database } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { QuestionInput } from "./components/QuestionInput";
 import { AnswerView } from "./components/AnswerView";
 import { EmptyState } from "./components/EmptyState";
-import { askQuestion, listReports, getReport } from "./api";
-import type { QuestionResponse, ReportSummary } from "./types";
+import { GraphViewer } from "./components/GraphViewer";
+import { SourceManager } from "./components/SourceManager";
+import { askQuestion, listReports, getReport, listWorkspaces, createWorkspace } from "./api";
+import type { QuestionResponse, ReportSummary, Workspace } from "./types";
+
+type Tab = "ask" | "explore" | "sources";
 
 function describeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
@@ -17,20 +22,28 @@ function describeError(err: unknown): string {
 }
 
 export default function App() {
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspaceId, setWorkspaceId] = useState("arxiv_seed");
+  const [tab, setTab] = useState<Tab>("ask");
   const [reports, setReports] = useState<ReportSummary[]>([]);
   const [active, setActive] = useState<QuestionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    listReports().then(setReports).catch(() => {});
+    listWorkspaces().then(setWorkspaces).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    setActive(null);
+    listReports(workspaceId).then(setReports).catch(() => {});
+  }, [workspaceId]);
 
   async function handleSubmit(question: string) {
     setLoading(true);
     setError(null);
     try {
-      const result = await askQuestion(question);
+      const result = await askQuestion(question, workspaceId);
       setActive(result);
       setReports((prev) => [
         {
@@ -59,32 +72,81 @@ export default function App() {
     }
   }
 
+  async function handleCreateWorkspace(name: string, domain: string) {
+    const workspace = await createWorkspace(name, domain);
+    setWorkspaces((prev) => [...prev, workspace]);
+    setWorkspaceId(workspace.id);
+  }
+
   return (
     <div className="flex h-screen bg-[#0a0a0c]">
       <Sidebar
         reports={reports}
         activeId={active?.id ?? null}
-        onSelect={handleSelect}
-        onNew={() => setActive(null)}
+        onSelect={(r) => {
+          setTab("ask");
+          handleSelect(r);
+        }}
+        onNew={() => {
+          setTab("ask");
+          setActive(null);
+        }}
+        workspaces={workspaces}
+        workspaceId={workspaceId}
+        onWorkspaceChange={setWorkspaceId}
+        onCreateWorkspace={handleCreateWorkspace}
       />
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <div className="border-b border-zinc-800/60 px-8 py-4">
-          <div className="mx-auto max-w-2xl">
-            <QuestionInput onSubmit={handleSubmit} loading={loading} />
-            {error && <p className="mt-2 text-[12.5px] text-rose-400/80">{error}</p>}
-          </div>
+        <div className="flex items-center gap-1 border-b border-zinc-800/60 px-8 pt-3">
+          {([
+            { id: "ask"     as const, label: "Ask",          icon: MessageSquare },
+            { id: "explore" as const, label: "Explore graph", icon: Network },
+            { id: "sources" as const, label: "Sources",       icon: Database },
+          ]).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-[12.5px] font-medium transition-colors ${
+                tab === t.id
+                  ? "border-zinc-100 text-zinc-100"
+                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              <t.icon size={13} />
+              {t.label}
+            </button>
+          ))}
         </div>
 
-        <div className="min-w-0 flex-1 overflow-y-auto scrollbar-thin">
-          {active ? (
-            <div className="mx-auto max-w-2xl px-8 py-8">
-              <AnswerView report={active} />
+        {tab === "ask" ? (
+          <>
+            <div className="border-b border-zinc-800/60 px-8 py-4">
+              <div className="mx-auto max-w-2xl">
+                <QuestionInput onSubmit={handleSubmit} loading={loading} />
+                {error && <p className="mt-2 text-[12.5px] text-rose-400/80">{error}</p>}
+              </div>
             </div>
-          ) : (
-            <EmptyState onPick={handleSubmit} />
-          )}
-        </div>
+
+            <div className="min-w-0 flex-1 overflow-y-auto scrollbar-thin">
+              {active ? (
+                <div className="mx-auto max-w-2xl px-8 py-8">
+                  <AnswerView report={active} />
+                </div>
+              ) : (
+                <EmptyState onPick={handleSubmit} />
+              )}
+            </div>
+          </>
+        ) : tab === "explore" ? (
+          <div className="min-w-0 flex-1">
+            <GraphViewer workspaceId={workspaceId} />
+          </div>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <SourceManager workspaceId={workspaceId} />
+          </div>
+        )}
       </main>
     </div>
   );

@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 venv/
 chroma_data/
+uploads/
 *.egg-info/
 .pytest_cache/
 node_modules/

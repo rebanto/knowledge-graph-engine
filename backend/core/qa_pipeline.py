@@ -15,6 +15,7 @@ def answer_question(question: str, workspace_id: str, use_cache: bool = True) ->
     qtype = routing["type"]
 
     graph_records: list[dict] = []
+    entity_stats: list[dict] = []
     vector_chunks: list[dict] = []
     cypher = None
     results: dict = {}
@@ -24,16 +25,21 @@ def answer_question(question: str, workspace_id: str, use_cache: bool = True) ->
             graph_result = run_graph_query(question, workspace_id)
             cypher = graph_result["cypher"]
             graph_records = graph_result["records"]
-            results["graph"] = graph_records
+            entity_stats = graph_result.get("entity_stats", [])
+            results["graph_records"] = graph_records
+            if entity_stats:
+                # Give the synthesizer degree context so it can mention citation counts etc.
+                results["entity_degree_context"] = entity_stats
         except UnsafeQueryError:
             pass
 
     if qtype in ("vector", "hybrid"):
-        vector_result = run_vector_query(question, workspace_id)
+        # Increase to 8 chunks for richer context
+        vector_result = run_vector_query(question, workspace_id, top_k=8)
         vector_chunks = vector_result["chunks"]
-        results["vector"] = vector_chunks
+        results["vector_passages"] = vector_chunks
 
-    answer = synthesize_answer(question, results)
+    synthesis = synthesize_answer(question, results, retrieval_type=qtype)
 
     result = {
         "type": qtype,
@@ -41,7 +47,9 @@ def answer_question(question: str, workspace_id: str, use_cache: bool = True) ->
         "cypher": cypher,
         "graph_records": graph_records,
         "vector_chunks": vector_chunks,
-        "answer": answer,
+        "answer": synthesis["answer"],
+        "key_entities": synthesis.get("key_entities", []),
+        "insights": synthesis.get("insights", []),
         "cached": False,
     }
 

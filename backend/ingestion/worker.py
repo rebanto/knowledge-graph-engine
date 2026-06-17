@@ -3,45 +3,49 @@ from backend.db import chroma as chroma_db
 from backend.ingestion.chunker import chunk_text
 from backend.ingestion.entity_extractor import extract_entities
 from backend.ingestion.entity_resolver import EntityResolver
+from backend.ingestion.conflict_detector import check_and_flag_conflict
 
 
-def process_paper(paper: dict, workspace_id: str, resolver: EntityResolver) -> bool:
-    """Returns True if the paper was processed, False if it was already done (skipped)."""
-    paper_id = paper["id"]
-    title = paper["title"]
-    text = f"{title}. {paper['abstract']}"
+def process_document(doc: dict, workspace_id: str, resolver: EntityResolver) -> bool:
+    """
+    doc: generic document shape — {id, title, text, authors, categories, url, published}.
+    Returns True if the document was processed, False if it was already done (skipped).
+    """
+    doc_id = doc["id"]
+    title = doc["title"]
+    body = f"{title}. {doc['text']}" if doc.get("text") else title
 
-    if neo4j_db.is_paper_processed(paper_id):
+    if neo4j_db.is_paper_processed(doc_id):
         return False
 
-    # 1. Paper node
-    neo4j_db.merge_paper(paper_id, title, workspace_id, {
-        "url": paper["url"],
-        "published": paper["published"],
-        "categories": ", ".join(paper["categories"]),
+    # 1. Paper node (generic document node, regardless of source type)
+    neo4j_db.merge_paper(doc_id, title, workspace_id, {
+        "url": doc.get("url", ""),
+        "published": doc.get("published", ""),
+        "categories": ", ".join(doc.get("categories", [])),
     })
 
-    # 2. Author nodes + AUTHORED edges (structured from ArXiv metadata — no LLM needed)
-    for author_name in paper["authors"]:
+    # 2. Author nodes + AUTHORED edges (structured from source metadata — no LLM needed)
+    for author_name in doc.get("authors", []):
         resolved = resolver.resolve(author_name, "Person")
         neo4j_db.merge_node("Person", resolved, workspace_id)
         neo4j_db.merge_edge(
             resolved, "Person",
-            paper_id, "Paper",
+            doc_id, "Paper",
             "AUTHORED", workspace_id,
-            {"source_document_id": paper_id, "confidence": 1.0},
+            {"source_document_id": doc_id, "confidence": 1.0},
         )
 
-    # 3. Embed abstract chunks → ChromaDB
-    chunks = chunk_text(text)
+    # 3. Embed body chunks → ChromaDB
+    chunks = chunk_text(body)
     chroma_db.add_chunks(workspace_id, [
         {
-            "id": f"{paper_id}_chunk_{i}",
+            "id": f"{doc_id}_chunk_{i}",
             "text": chunk,
             "metadata": {
-                "source_url": paper["url"],
+                "source_url": doc.get("url", ""),
                 "source_title": title,
-                "source_date": paper["published"],
+                "source_date": doc.get("published", ""),
                 "chunk_index": i,
                 "workspace_id": workspace_id,
             },
@@ -49,8 +53,8 @@ def process_paper(paper: dict, workspace_id: str, resolver: EntityResolver) -> b
         for i, chunk in enumerate(chunks)
     ])
 
-    # 4. LLM entity + relationship extraction from abstract
-    extraction = extract_entities(text)
+    # 4. LLM entity + relationship extraction from body text
+    extraction = extract_entities(body)
 
     entity_type_map = {e["name"]: e["type"] for e in extraction["entities"]}
     resolved_names: dict[str, str] = {}
@@ -76,11 +80,14 @@ def process_paper(paper: dict, workspace_id: str, resolver: EntityResolver) -> b
             tgt, tgt_type,
             rel["type"], workspace_id,
             {
-                "source_document_id": paper_id,
+                "source_document_id": doc_id,
                 "confidence": rel.get("confidence", 0.8),
                 "context": rel.get("context", "")[:500],
             },
         )
 
-    neo4j_db.mark_paper_processed(paper_id)
+        if rel["type"] in ("SUPPORTS", "CONTRADICTS"):
+            check_and_flag_conflict(src, tgt, rel["type"], doc_id, workspace_id)
+
+    neo4j_db.mark_paper_processed(doc_id)
     return True
