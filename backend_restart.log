@@ -360,3 +360,18 @@ INFO:     127.0.0.1:63226 - "GET /api/workspaces/arxiv_seed/sources HTTP/1.1" 20
 INFO:     127.0.0.1:63226 - "GET /api/workspaces/arxiv_seed/sources HTTP/1.1" 200 OK
 INFO:     127.0.0.1:50344 - "GET /api/question/stream?question=Which+authors+have+written+the+most+papers+in+this+dataset%3F&workspace_id=arxiv_seed HTTP/1.1" 404 Not Found
 INFO:     127.0.0.1:50344 - "GET /api/question/stream?question=Which+authors+have+written+the+most+papers+in+this+dataset%3F&workspace_id=arxiv_seed HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49582 - "GET /api/workspaces HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49582 - "GET /api/workspaces HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57775 - "GET /api/workspaces/arxiv_seed/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49582 - "GET /api/workspaces/arxiv_seed/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50151 - "GET /api/reports?workspace_id=arxiv_seed HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50151 - "GET /api/reports?workspace_id=arxiv_seed HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50151 - "GET /api/question/stream?question=Which+authors+have+written+the+most+papers+in+this+dataset%3F&workspace_id=arxiv_seed HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50151 - "OPTIONS /api/question HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49582 - "POST /api/question HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61543 - "GET /api/workspaces/arxiv_seed/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61543 - "GET /api/workspaces/arxiv_seed/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61543 - "GET /api/workspaces/arxiv_seed/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56148 - "GET /api/workspaces/arxiv_seed/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55750 - "GET /api/workspaces/arxiv_seed/sources HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49243 - "GET /api/workspaces/arxiv_seed/sources HTTP/1.1" 200 OK

@@ -66,10 +66,12 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # Worker is run locally in development (see dev.ps1).
+  # Enable for production: docker compose --profile production up
   worker:
     build: .
+    profiles: ["production"]
     command: rq worker ingestion ingestion_bulk --with-scheduler
-    container_name: kgre-worker
     env_file: .env
     depends_on:
       postgres:
@@ -86,7 +88,6 @@ services:
       resources:
         limits:
           memory: 1g
-      replicas: 1
     restart: unless-stopped
 
 volumes:

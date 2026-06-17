@@ -45,6 +45,10 @@ export function streamQuestion(
   const params = new URLSearchParams({ question, workspace_id: workspaceId });
   const es = new EventSource(`${BASE_URL}/api/question/stream?${params}`);
 
+  // Track whether the stream completed successfully so we can ignore the
+  // connection-close error that fires after we call es.close() on done.
+  let finished = false;
+
   es.addEventListener("routing", (e) => {
     try { callbacks.onRouting?.(JSON.parse(e.data).type); } catch {}
   });
@@ -52,20 +56,47 @@ export function streamQuestion(
     try { callbacks.onProgress?.(JSON.parse(e.data).status); } catch {}
   });
   es.addEventListener("done", (e) => {
+    finished = true;
     try { callbacks.onDone?.(JSON.parse(e.data)); } catch {}
     es.close();
   });
+
+  // The "error" listener catches two different things:
+  //   1. Server-sent `event: error` frames → e.data has JSON payload
+  //   2. Native connection errors (backend down, 404, CORS) → e.data is null
+  // We ignore errors after a successful done to avoid a spurious call on close.
   es.addEventListener("error", (e) => {
-    try {
-      const d = JSON.parse((e as MessageEvent).data ?? "{}");
-      callbacks.onError?.(d.detail ?? "Streaming failed.");
-    } catch {
-      callbacks.onError?.("Streaming failed.");
+    if (finished) return;
+
+    const data = (e as MessageEvent).data;
+    if (data) {
+      // Server explicitly sent an error event with a payload
+      try {
+        const d = JSON.parse(data);
+        callbacks.onError?.(d.detail ?? "The server reported an error.");
+      } catch {
+        callbacks.onError?.("The server reported an error.");
+      }
+      es.close();
+    } else {
+      // Connection-level failure — fall back to regular POST so the user
+      // still gets an answer even if streaming isn't available.
+      es.close();
+      callbacks.onProgress?.("Falling back to direct request…");
+      askQuestion(question, workspaceId)
+        .then((result) => callbacks.onDone?.(result))
+        .catch(() =>
+          callbacks.onError?.(
+            "Couldn't reach the backend. Make sure it's running on port 8000.",
+          ),
+        );
     }
-    es.close();
   });
 
-  return () => es.close();
+  return () => {
+    finished = true;
+    es.close();
+  };
 }
 
 export async function listReports(workspaceId = "arxiv_seed") {
