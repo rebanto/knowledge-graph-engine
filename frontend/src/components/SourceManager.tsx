@@ -58,7 +58,10 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
   const [adding, setAdding] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollIntervalRef = useRef(2000);
+  const unchangedCountRef = useRef(0);
+  const prevStatusKeyRef = useRef("");
 
   const refresh = useCallback(() => {
     listSources(workspaceId).then(setSources).finally(() => setLoading(false));
@@ -67,20 +70,46 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
   useEffect(() => {
     setLoading(true);
     setSources([]);
+    pollIntervalRef.current = 2000;
+    unchangedCountRef.current = 0;
+    prevStatusKeyRef.current = "";
     refresh();
   }, [workspaceId, refresh]);
 
-  // Poll while any source is pending/running
+  // Exponential-backoff polling while any source is pending/running
   useEffect(() => {
     const hasPending = sources.some((s) => s.status === "pending" || s.status === "running");
-    if (hasPending && !pollRef.current) {
-      pollRef.current = setInterval(refresh, 4000);
-    } else if (!hasPending && pollRef.current) {
-      clearInterval(pollRef.current);
+
+    if (pollRef.current) {
+      clearTimeout(pollRef.current);
       pollRef.current = null;
     }
+
+    if (!hasPending) {
+      pollIntervalRef.current = 2000;
+      unchangedCountRef.current = 0;
+      return;
+    }
+
+    // Check if status key changed
+    const statusKey = sources.map((s) => `${s.id}:${s.status}`).join("|");
+    if (statusKey === prevStatusKeyRef.current) {
+      unchangedCountRef.current += 1;
+    } else {
+      unchangedCountRef.current = 0;
+      prevStatusKeyRef.current = statusKey;
+    }
+
+    // Stop polling after 5 consecutive unchanged responses
+    if (unchangedCountRef.current >= 5) return;
+
+    const delay = pollIntervalRef.current;
+    pollIntervalRef.current = Math.min(delay * 2, 30_000);
+
+    pollRef.current = setTimeout(refresh, delay);
+
     return () => {
-      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
     };
   }, [sources, refresh]);
 

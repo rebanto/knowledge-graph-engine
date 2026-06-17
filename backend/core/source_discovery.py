@@ -14,8 +14,8 @@ physics.soc-ph  cond-mat.mes-hall  math.OC  astro-ph.IM
 Workspace description: {description}"""
 
 
-def suggest_arxiv_categories(description: str) -> list[str]:
-    data = generate_json(DISCOVERY_PROMPT.format(description=description))
+async def suggest_arxiv_categories(description: str) -> list[str]:
+    data = await generate_json(DISCOVERY_PROMPT.format(description=description))
     cats = data.get("categories", [])
     valid = [
         c for c in cats

@@ -1,6 +1,9 @@
 import re
 from backend.core.llm_client import generate_json
-from backend.db.neo4j import get_driver
+from backend.db.neo4j import get_async_driver
+from backend.db.redis import get_cached_cypher, set_cached_cypher
+from backend.core.resilience import neo4j_breaker, CircuitBreakerError
+from backend.core.observability import cache_hits_total, cache_misses_total
 
 SCHEMA = """Node labels: Person, Organization, Paper, Concept, Event, Topic
 
@@ -60,8 +63,8 @@ class UnsafeQueryError(Exception):
     pass
 
 
-def question_to_cypher(question: str, workspace_id: str) -> str:
-    data = generate_json(
+async def question_to_cypher(question: str, workspace_id: str) -> str:
+    data = await generate_json(
         CYPHER_PROMPT.format(schema=SCHEMA, workspace_id=workspace_id, question=question)
     )
     cypher = data.get("cypher", "").strip()
@@ -70,21 +73,25 @@ def question_to_cypher(question: str, workspace_id: str) -> str:
     return cypher
 
 
-def _exec(cypher: str, params: dict | None = None, timeout: int = 15) -> list[dict]:
-    with get_driver().session() as session:
-        result = session.run(cypher, **(params or {}), timeout=timeout)
-        return [record.data() for record in result]
+async def _exec(cypher: str, params: dict | None = None, timeout: int = 15) -> list[dict]:
+    # Check circuit breaker before attempting Neo4j
+    try:
+        neo4j_breaker.call(lambda: None)
+    except CircuitBreakerError:
+        raise
+
+    driver = await get_async_driver()
+    async with driver.session() as session:
+        result = await session.run(cypher, **(params or {}))
+        records = await result.data()
+        return records
 
 
-def _entity_degree_context(workspace_id: str, names: list[str]) -> list[dict]:
-    """
-    For the top entities found in main query results, fetch their degree so the
-    synthesizer can state things like "Paper X is cited by N works in this corpus."
-    """
+async def _entity_degree_context(workspace_id: str, names: list[str]) -> list[dict]:
     if not names:
         return []
     try:
-        rows = _exec(
+        return await _exec(
             """
             UNWIND $names AS nm
             MATCH (n {name: nm, workspace_id: $ws})
@@ -97,16 +104,23 @@ def _entity_degree_context(workspace_id: str, names: list[str]) -> list[dict]:
             {"names": names[:20], "ws": workspace_id},
             timeout=8,
         )
-        return rows
     except Exception:
         return []
 
 
-def run_graph_query(question: str, workspace_id: str) -> dict:
-    cypher = question_to_cypher(question, workspace_id)
-    records = _exec(cypher)
+async def run_graph_query(question: str, workspace_id: str) -> dict:
+    cypher = await question_to_cypher(question, workspace_id)
 
-    # Pull out entity-looking string values for the secondary stats pass
+    # L2 cache: Cypher results are cached for 5 min (graph changes slowly)
+    cached_records = await get_cached_cypher(cypher)
+    if cached_records is not None:
+        cache_hits_total.labels(cache="cypher").inc()
+        return {"cypher": cypher, "records": cached_records, "entity_stats": []}
+
+    cache_misses_total.labels(cache="cypher").inc()
+    records = await _exec(cypher)
+
+    # Pull entity-looking strings for the secondary stats pass
     candidate_names: list[str] = []
     for row in records[:40]:
         for v in row.values():
@@ -114,10 +128,8 @@ def run_graph_query(question: str, workspace_id: str) -> dict:
                 candidate_names.append(v)
 
     unique_names = list(dict.fromkeys(candidate_names))[:20]
-    entity_stats = _entity_degree_context(workspace_id, unique_names)
+    entity_stats = await _entity_degree_context(workspace_id, unique_names)
 
-    return {
-        "cypher": cypher,
-        "records": records,
-        "entity_stats": entity_stats,
-    }
+    await set_cached_cypher(cypher, records)
+
+    return {"cypher": cypher, "records": records, "entity_stats": entity_stats}

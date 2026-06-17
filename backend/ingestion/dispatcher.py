@@ -8,8 +8,8 @@ FETCHERS = {
 }
 
 
-def fetch_documents_for_source(source) -> list[dict]:
+async def fetch_documents_for_source(source) -> list[dict]:
     fetcher = FETCHERS.get(source.type)
     if fetcher is None:
         raise ValueError(f"Unknown source type: {source.type}")
-    return fetcher(source)
+    return await fetcher(source)

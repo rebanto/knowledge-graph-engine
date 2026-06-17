@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Network, MessageSquare, Database } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
@@ -7,8 +7,9 @@ import { AnswerView } from "./components/AnswerView";
 import { EmptyState } from "./components/EmptyState";
 import { GraphViewer } from "./components/GraphViewer";
 import { SourceManager } from "./components/SourceManager";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import {
-  askQuestion, listReports, getReport, listWorkspaces, createWorkspace,
+  streamQuestion, listReports, getReport, listWorkspaces, createWorkspace,
   listSources, discoverSources,
 } from "./api";
 import type { QuestionResponse, ReportSummary, Workspace } from "./types";
@@ -31,46 +32,70 @@ export default function App() {
   const [reports, setReports] = useState<ReportSummary[]>([]);
   const [active, setActive] = useState<QuestionResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sourceCount, setSourceCount] = useState<number | null>(null);
   const [discovering, setDiscovering] = useState(false);
+  const cancelStreamRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    listWorkspaces().then(setWorkspaces).catch(() => {});
+    listWorkspaces()
+      .then(setWorkspaces)
+      .catch((err) => setError(describeError(err)));
   }, []);
 
   useEffect(() => {
     setActive(null);
     setSourceCount(null);
-    listReports(workspaceId).then(setReports).catch(() => {});
-    listSources(workspaceId).then((s) => setSourceCount(s.length)).catch(() => setSourceCount(0));
+    listReports(workspaceId)
+      .then(setReports)
+      .catch((err) => setError(describeError(err)));
+    listSources(workspaceId)
+      .then((s) => setSourceCount(s.length))
+      .catch(() => setSourceCount(0));
   }, [workspaceId]);
+
+  // Cancel in-flight stream when component unmounts
+  useEffect(() => () => { cancelStreamRef.current?.(); }, []);
 
   const activeWorkspace = workspaces.find((w) => w.id === workspaceId) ?? null;
   const hasSources = sourceCount === null ? true : sourceCount > 0;
 
-  async function handleSubmit(question: string) {
+  function handleSubmit(question: string) {
+    // Cancel any in-flight stream from a previous question
+    cancelStreamRef.current?.();
+
     setLoading(true);
     setError(null);
-    try {
-      const result = await askQuestion(question, workspaceId);
-      setActive(result);
-      setReports((prev) => [
-        {
-          id: result.id,
-          question: result.question,
-          answer: result.answer,
-          retrieval_type: result.retrieval_type,
-          version: result.version,
-          created_at: result.created_at,
-        },
-        ...prev,
-      ]);
-    } catch (err) {
-      setError(describeError(err));
-    } finally {
-      setLoading(false);
-    }
+    setStreamStatus("Analyzing question…");
+
+    const cancel = streamQuestion(question, workspaceId, {
+      onProgress: (status) => setStreamStatus(status),
+      onRouting: () => {},
+      onDone: (result) => {
+        setActive(result);
+        setStreamStatus(null);
+        setLoading(false);
+        setReports((prev) => [
+          {
+            id: result.id,
+            question: result.question,
+            answer: result.answer,
+            retrieval_type: result.retrieval_type,
+            version: result.version,
+            created_at: result.created_at,
+          },
+          ...prev,
+        ]);
+      },
+      onError: (detail) => {
+        setError(detail);
+        setStreamStatus(null);
+        setLoading(false);
+      },
+    });
+
+    cancelStreamRef.current = cancel;
   }
 
   async function handleSelect(report: ReportSummary) {
@@ -100,7 +125,7 @@ export default function App() {
         setSourceCount(sources.length);
         if (sources.length > 0) setTab("sources");
       } catch {
-        // Discovery failed silently — user can retry from the empty state
+        // Discovery failed — user can retry from the empty state
       } finally {
         setDiscovering(false);
       }
@@ -161,6 +186,9 @@ export default function App() {
             <div className="border-b border-zinc-800/60 px-8 py-4">
               <div className="mx-auto max-w-2xl">
                 <QuestionInput onSubmit={handleSubmit} loading={loading} />
+                {streamStatus && (
+                  <p className="mt-2 text-[12px] text-zinc-500">{streamStatus}</p>
+                )}
                 {error && <p className="mt-2 text-[12.5px] text-rose-400/80">{error}</p>}
               </div>
             </div>
@@ -168,7 +196,9 @@ export default function App() {
             <div className="min-w-0 flex-1 overflow-y-auto scrollbar-thin">
               {active ? (
                 <div className="mx-auto max-w-2xl px-8 py-8">
-                  <AnswerView report={active} />
+                  <ErrorBoundary>
+                    <AnswerView report={active} />
+                  </ErrorBoundary>
                 </div>
               ) : (
                 <EmptyState
@@ -184,11 +214,15 @@ export default function App() {
           </>
         ) : tab === "explore" ? (
           <div className="min-w-0 flex-1">
-            <GraphViewer workspaceId={workspaceId} />
+            <ErrorBoundary>
+              <GraphViewer workspaceId={workspaceId} />
+            </ErrorBoundary>
           </div>
         ) : (
           <div className="min-w-0 flex-1">
-            <SourceManager workspaceId={workspaceId} />
+            <ErrorBoundary>
+              <SourceManager workspaceId={workspaceId} />
+            </ErrorBoundary>
           </div>
         )}
       </main>

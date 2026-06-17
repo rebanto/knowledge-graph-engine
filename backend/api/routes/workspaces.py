@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db.postgres import get_db
+from backend.db.postgres import get_async_db
 from backend.db.models import Workspace, Source
 from backend.db.queue import get_queue
 from backend.ingestion.jobs import run_ingestion_job
@@ -14,12 +15,13 @@ router = APIRouter()
 
 
 @router.get("/workspaces", response_model=list[WorkspaceResponse])
-def list_workspaces(db: Session = Depends(get_db)):
-    return db.query(Workspace).order_by(Workspace.created_at.asc()).all()
+async def list_workspaces(db: AsyncSession = Depends(get_async_db)):
+    result = await db.execute(select(Workspace).order_by(Workspace.created_at.asc()))
+    return result.scalars().all()
 
 
 @router.post("/workspaces", response_model=WorkspaceResponse)
-def create_workspace(req: WorkspaceCreate, db: Session = Depends(get_db)):
+async def create_workspace(req: WorkspaceCreate, db: AsyncSession = Depends(get_async_db)):
     workspace = Workspace(
         id=str(uuid.uuid4()),
         name=req.name,
@@ -28,31 +30,34 @@ def create_workspace(req: WorkspaceCreate, db: Session = Depends(get_db)):
         created_at=datetime.now(timezone.utc),
     )
     db.add(workspace)
-    db.commit()
-    db.refresh(workspace)
+    await db.commit()
+    await db.refresh(workspace)
     return workspace
 
 
 @router.post("/workspaces/{workspace_id}/discover", response_model=list[SourceResponse])
-def discover_sources(workspace_id: str, db: Session = Depends(get_db)):
-    workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+async def discover_sources(workspace_id: str, db: AsyncSession = Depends(get_async_db)):
+    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
+    workspace = result.scalar_one_or_none()
     if not workspace:
         raise HTTPException(404, "Workspace not found")
     if not workspace.description:
         raise HTTPException(400, "Set a workspace description before auto-discovering sources")
 
-    categories = suggest_arxiv_categories(workspace.description)
+    categories = await suggest_arxiv_categories(workspace.description)
     if not categories:
         raise HTTPException(422, "Could not determine relevant sources from the description")
 
     created = []
     for cat in categories:
-        exists = db.query(Source).filter(
-            Source.workspace_id == workspace_id,
-            Source.url == cat,
-            Source.type == "arxiv_feed",
-        ).first()
-        if exists:
+        exists_result = await db.execute(
+            select(Source).where(
+                Source.workspace_id == workspace_id,
+                Source.url == cat,
+                Source.type == "arxiv_feed",
+            )
+        )
+        if exists_result.scalar_one_or_none():
             continue
         source = Source(
             id=str(uuid.uuid4()),
@@ -63,8 +68,8 @@ def discover_sources(workspace_id: str, db: Session = Depends(get_db)):
             created_at=datetime.now(timezone.utc),
         )
         db.add(source)
-        db.commit()
-        db.refresh(source)
+        await db.commit()
+        await db.refresh(source)
         get_queue().enqueue(run_ingestion_job, source.id, job_timeout=1800)
         created.append(source)
 

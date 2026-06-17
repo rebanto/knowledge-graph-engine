@@ -1,16 +1,17 @@
-import requests
+import asyncio
 import feedparser
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
+
+import aiohttp
 
 ARXIV_API = "http://export.arxiv.org/api/query"
 DEFAULT_CATEGORIES = ["cs.AI", "cs.LG", "cs.CL"]
 
+_feed_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="feedparser")
 
-def fetch_arxiv(query: str, max_results: int = 50, days_back: int = 90) -> list[dict]:
-    """
-    query: comma-separated ArXiv category codes, e.g. "cs.AI,cs.LG,cs.CL".
-    Falls back to a sane default if blank.
-    """
+
+async def fetch_arxiv(query: str, max_results: int = 50, days_back: int = 90) -> list[dict]:
     categories = [c.strip() for c in query.split(",") if c.strip()] or DEFAULT_CATEGORIES
     category_query = " OR ".join(f"cat:{c}" for c in categories)
     start_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y%m%d")
@@ -23,12 +24,15 @@ def fetch_arxiv(query: str, max_results: int = 50, days_back: int = 90) -> list[
         "sortOrder": "descending",
     }
 
-    response = requests.get(ARXIV_API, params=params, timeout=60)
-    response.raise_for_status()
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
+        async with session.get(ARXIV_API, params=params) as resp:
+            resp.raise_for_status()
+            text = await resp.text()
 
-    feed = feedparser.parse(response.text)
+    loop = asyncio.get_event_loop()
+    feed = await loop.run_in_executor(_feed_executor, feedparser.parse, text)
+
     documents = []
-
     for entry in feed.entries:
         arxiv_id = entry.id.split("/abs/")[-1]
         documents.append({

@@ -1,8 +1,6 @@
 import json
 from backend.core.llm_client import generate_json, generate_text
 
-# The synthesizer returns structured JSON — prose answer + typed insight objects
-# so the frontend can render charts, flow diagrams, stat grids, etc.
 SYNTHESIS_PROMPT = """You are an expert research analyst with deep expertise in knowledge graphs and academic research.
 
 Question: {question}
@@ -92,23 +90,18 @@ Data:
 Write a concise, well-cited prose answer (2–4 paragraphs). Bold entity names."""
 
 
-def synthesize_answer(question: str, results: dict, retrieval_type: str = "hybrid") -> dict:
-    """
-    Returns dict with 'answer' (str), 'key_entities' (list), 'insights' (list).
-    Always succeeds — falls back to plain text synthesis on JSON failure.
-    """
+async def synthesize_answer(question: str, results: dict, retrieval_type: str = "hybrid") -> dict:
     prompt = SYNTHESIS_PROMPT.format(
         question=question,
         retrieval_type=retrieval_type,
         results=json.dumps(results, indent=2, default=str)[:8000],
     )
 
-    structured = generate_json(prompt)
+    structured = await generate_json(prompt)
     answer = structured.get("answer", "").strip()
 
     if not answer:
-        # JSON parse failed or answer was empty — fall back to plain text
-        answer = generate_text(
+        answer = await generate_text(
             _FALLBACK_PROMPT.format(
                 question=question,
                 results=json.dumps(results, default=str)[:5000],

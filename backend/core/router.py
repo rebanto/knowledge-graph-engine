@@ -1,4 +1,6 @@
 from backend.core.llm_client import generate_json
+from backend.db.redis import get_cached_route, set_cached_route
+from backend.core.observability import cache_hits_total, cache_misses_total
 
 VALID_TYPES = {"graph", "vector", "hybrid"}
 
@@ -24,9 +26,19 @@ When in doubt between graph and hybrid, prefer hybrid — it runs both retriever
 Question: {question}"""
 
 
-def classify_question(question: str) -> dict:
-    data = generate_json(ROUTER_PROMPT.format(question=question))
+async def classify_question(question: str, workspace_id: str = "") -> dict:
+    # L2 cache: route classification is stable for 24h
+    cached = await get_cached_route(workspace_id, question)
+    if cached:
+        cache_hits_total.labels(cache="route").inc()
+        return cached
+
+    cache_misses_total.labels(cache="route").inc()
+    data = await generate_json(ROUTER_PROMPT.format(question=question))
     qtype = data.get("type")
     if qtype not in VALID_TYPES:
         qtype = "hybrid"
-    return {"type": qtype, "reasoning": data.get("reasoning", "")}
+    result = {"type": qtype, "reasoning": data.get("reasoning", "")}
+
+    await set_cached_route(workspace_id, question, result)
+    return result

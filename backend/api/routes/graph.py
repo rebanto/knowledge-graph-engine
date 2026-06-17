@@ -7,8 +7,8 @@ router = APIRouter()
 
 
 @router.get("/graph", response_model=GraphResponse)
-def get_graph(
+async def get_graph(
     workspace_id: str = Query(default="arxiv_seed"),
     limit: int = Query(default=150, le=500),
 ):
-    return get_graph_data(workspace_id, limit)
+    return await get_graph_data(workspace_id, limit)
