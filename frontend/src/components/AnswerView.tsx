@@ -30,9 +30,6 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
             <span className="font-mono text-[11px] text-zinc-600">v{report.version}</span>
           )}
         </div>
-        {report.reasoning && (
-          <p className="mt-2 text-[12.5px] italic text-zinc-600">{report.reasoning}</p>
-        )}
       </div>
 
       {/* Key entities row — shown when backend returns structured entities */}

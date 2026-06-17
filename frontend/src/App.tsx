@@ -7,7 +7,10 @@ import { AnswerView } from "./components/AnswerView";
 import { EmptyState } from "./components/EmptyState";
 import { GraphViewer } from "./components/GraphViewer";
 import { SourceManager } from "./components/SourceManager";
-import { askQuestion, listReports, getReport, listWorkspaces, createWorkspace } from "./api";
+import {
+  askQuestion, listReports, getReport, listWorkspaces, createWorkspace,
+  listSources, discoverSources,
+} from "./api";
 import type { QuestionResponse, ReportSummary, Workspace } from "./types";
 
 type Tab = "ask" | "explore" | "sources";
@@ -15,7 +18,7 @@ type Tab = "ask" | "explore" | "sources";
 function describeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
     if (err.response?.data?.detail) return err.response.data.detail;
-    if (!err.response) return "Couldn't reach the knowledge graph engine. Is the backend running?";
+    if (!err.response) return "Couldn't connect to the server. Is the backend running?";
     return `Request failed (${err.response.status}).`;
   }
   return "Something went wrong.";
@@ -29,6 +32,8 @@ export default function App() {
   const [active, setActive] = useState<QuestionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sourceCount, setSourceCount] = useState<number | null>(null);
+  const [discovering, setDiscovering] = useState(false);
 
   useEffect(() => {
     listWorkspaces().then(setWorkspaces).catch(() => {});
@@ -36,8 +41,13 @@ export default function App() {
 
   useEffect(() => {
     setActive(null);
+    setSourceCount(null);
     listReports(workspaceId).then(setReports).catch(() => {});
+    listSources(workspaceId).then((s) => setSourceCount(s.length)).catch(() => setSourceCount(0));
   }, [workspaceId]);
+
+  const activeWorkspace = workspaces.find((w) => w.id === workspaceId) ?? null;
+  const hasSources = sourceCount === null ? true : sourceCount > 0;
 
   async function handleSubmit(question: string) {
     setLoading(true);
@@ -72,10 +82,43 @@ export default function App() {
     }
   }
 
-  async function handleCreateWorkspace(name: string, domain: string) {
-    const workspace = await createWorkspace(name, domain);
+  async function handleCreateWorkspace(
+    name: string,
+    domain: string,
+    description: string,
+    autoDiscover: boolean,
+  ) {
+    const workspace = await createWorkspace(name, domain, description || undefined);
     setWorkspaces((prev) => [...prev, workspace]);
     setWorkspaceId(workspace.id);
+    setSourceCount(0);
+
+    if (autoDiscover && description) {
+      setDiscovering(true);
+      try {
+        const sources = await discoverSources(workspace.id);
+        setSourceCount(sources.length);
+        if (sources.length > 0) setTab("sources");
+      } catch {
+        // Discovery failed silently — user can retry from the empty state
+      } finally {
+        setDiscovering(false);
+      }
+    }
+  }
+
+  async function handleDiscover() {
+    setDiscovering(true);
+    setError(null);
+    try {
+      const sources = await discoverSources(workspaceId);
+      setSourceCount((prev) => (prev ?? 0) + sources.length);
+      if (sources.length > 0) setTab("sources");
+    } catch (err) {
+      setError(describeError(err));
+    } finally {
+      setDiscovering(false);
+    }
   }
 
   return (
@@ -83,14 +126,8 @@ export default function App() {
       <Sidebar
         reports={reports}
         activeId={active?.id ?? null}
-        onSelect={(r) => {
-          setTab("ask");
-          handleSelect(r);
-        }}
-        onNew={() => {
-          setTab("ask");
-          setActive(null);
-        }}
+        onSelect={(r) => { setTab("ask"); handleSelect(r); }}
+        onNew={() => { setTab("ask"); setActive(null); }}
         workspaces={workspaces}
         workspaceId={workspaceId}
         onWorkspaceChange={setWorkspaceId}
@@ -100,9 +137,9 @@ export default function App() {
       <main className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center gap-1 border-b border-zinc-800/60 px-8 pt-3">
           {([
-            { id: "ask"     as const, label: "Ask",          icon: MessageSquare },
-            { id: "explore" as const, label: "Explore graph", icon: Network },
-            { id: "sources" as const, label: "Sources",       icon: Database },
+            { id: "ask"     as const, label: "Ask",     icon: MessageSquare },
+            { id: "explore" as const, label: "Graph",   icon: Network },
+            { id: "sources" as const, label: "Sources", icon: Database },
           ]).map((t) => (
             <button
               key={t.id}
@@ -134,7 +171,14 @@ export default function App() {
                   <AnswerView report={active} />
                 </div>
               ) : (
-                <EmptyState onPick={handleSubmit} />
+                <EmptyState
+                  onPick={handleSubmit}
+                  hasSources={hasSources}
+                  hasDescription={!!activeWorkspace?.description}
+                  onGoToSources={() => setTab("sources")}
+                  onDiscover={handleDiscover}
+                  discovering={discovering}
+                />
               )}
             </div>
           </>

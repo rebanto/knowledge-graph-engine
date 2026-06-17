@@ -37,8 +37,13 @@ export async function listWorkspaces() {
   return data;
 }
 
-export async function createWorkspace(name: string, domain: string) {
-  const { data } = await client.post<Workspace>("/api/workspaces", { name, domain });
+export async function createWorkspace(name: string, domain: string, description?: string) {
+  const { data } = await client.post<Workspace>("/api/workspaces", { name, domain, description });
+  return data;
+}
+
+export async function discoverSources(workspaceId: string) {
+  const { data } = await client.post<Source[]>(`/api/workspaces/${workspaceId}/discover`);
   return data;
 }
 

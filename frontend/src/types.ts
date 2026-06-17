@@ -140,6 +140,7 @@ export interface Workspace {
   id: string;
   name: string;
   domain: string;
+  description?: string | null;
   created_at: string;
 }
 

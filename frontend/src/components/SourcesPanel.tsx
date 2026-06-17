@@ -165,16 +165,16 @@ export function SourcesPanel({ cypher, graphRecords, vectorChunks }: SourcesPane
   return (
     <div className="mt-2">
       {cypher && (
-        <Disclosure title="Cypher query" count={1}>
+        <Disclosure title="Query" count={1}>
           <pre className="overflow-x-auto rounded-lg border border-zinc-800/60 bg-zinc-900/40 p-3 font-mono text-[12px] leading-relaxed text-zinc-400">
             {cypher}
           </pre>
         </Disclosure>
       )}
-      <Disclosure title="Graph results" count={graphRecords.length}>
+      <Disclosure title="Graph records" count={graphRecords.length}>
         <GraphTable records={graphRecords} />
       </Disclosure>
-      <Disclosure title="Source passages" count={vectorChunks.length}>
+      <Disclosure title="Source documents" count={vectorChunks.length}>
         <div className="flex flex-col gap-2">
           {vectorChunks.map((chunk, i) => (
             <ChunkCard key={i} chunk={chunk} />

@@ -22,7 +22,7 @@ export function QuestionInput({ onSubmit, loading }: QuestionInputProps) {
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Ask about entities, relationships, or research findings…"
+        placeholder="Search the knowledge graph…"
         disabled={loading}
         className="w-full rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3.5 pr-12 text-[14px] text-zinc-100 placeholder:text-zinc-500 outline-none transition-colors focus:border-zinc-600 disabled:opacity-60"
       />

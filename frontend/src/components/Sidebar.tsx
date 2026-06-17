@@ -38,7 +38,7 @@ export function Sidebar({
         </div>
         <div>
           <p className="text-sm font-semibold tracking-tight text-zinc-100">Lattice</p>
-          <p className="text-[11px] leading-none text-zinc-500">Knowledge graph engine</p>
+          <p className="text-[11px] leading-none text-zinc-500">Research intelligence</p>
         </div>
       </div>
 
@@ -61,7 +61,7 @@ export function Sidebar({
 
       <div className="mt-5 flex-1 overflow-y-auto px-3 pb-4 scrollbar-thin">
         <p className="px-2 pb-2 text-[11px] font-medium uppercase tracking-wider text-zinc-600">
-          Recent
+          History
         </p>
         <div className="flex flex-col gap-0.5">
           {reports.map((r) => (
@@ -82,7 +82,7 @@ export function Sidebar({
             </button>
           ))}
           {reports.length === 0 && (
-            <p className="px-2 py-3 text-[12px] text-zinc-600">No questions asked yet.</p>
+            <p className="px-2 py-3 text-[12px] text-zinc-600">No history yet.</p>
           )}
         </div>
       </div>

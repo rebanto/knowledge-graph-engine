@@ -1,19 +1,19 @@
-import { GitBranch, Sparkles, Layers } from "lucide-react";
+import { GitBranch, Search, Layers } from "lucide-react";
 import type { RetrievalType } from "../types";
 
 const CONFIG: Record<RetrievalType, { label: string; icon: typeof GitBranch; className: string }> = {
   graph: {
-    label: "Graph traversal",
+    label: "Graph",
     icon: GitBranch,
     className: "text-graph bg-graph-dim border-graph/30",
   },
   vector: {
-    label: "Semantic search",
-    icon: Sparkles,
+    label: "Documents",
+    icon: Search,
     className: "text-vector bg-vector-dim border-vector/30",
   },
   hybrid: {
-    label: "Hybrid retrieval",
+    label: "Graph + Documents",
     icon: Layers,
     className: "text-hybrid bg-hybrid-dim border-hybrid/30",
   },

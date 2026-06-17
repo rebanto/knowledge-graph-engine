@@ -61,12 +61,14 @@ class GraphResponse(BaseModel):
 class WorkspaceCreate(BaseModel):
     name: str
     domain: str
+    description: str | None = None
 
 
 class WorkspaceResponse(BaseModel):
     id: str
     name: str
     domain: str
+    description: str | None = None
     created_at: datetime
 
     class Config:

@@ -1,30 +1,44 @@
 import { useState } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus, Loader2 } from "lucide-react";
 import type { Workspace } from "../types";
 
 interface WorkspaceSelectorProps {
   workspaces: Workspace[];
   activeId: string;
   onSelect: (id: string) => void;
-  onCreate: (name: string, domain: string) => Promise<void>;
+  onCreate: (name: string, domain: string, description: string, autoDiscover: boolean) => Promise<void>;
 }
 
 export function WorkspaceSelector({ workspaces, activeId, onSelect, onCreate }: WorkspaceSelectorProps) {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
   const [domain, setDomain] = useState("");
+  const [description, setDescription] = useState("");
+  const [autoDiscover, setAutoDiscover] = useState(false);
 
   const active = workspaces.find((w) => w.id === activeId);
+
+  function reset() {
+    setName("");
+    setDomain("");
+    setDescription("");
+    setAutoDiscover(false);
+    setCreating(false);
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !domain.trim()) return;
-    await onCreate(name.trim(), domain.trim());
-    setName("");
-    setDomain("");
-    setCreating(false);
-    setOpen(false);
+    setSaving(true);
+    try {
+      await onCreate(name.trim(), domain.trim(), description.trim(), autoDiscover && !!description.trim());
+      reset();
+      setOpen(false);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -47,10 +61,7 @@ export function WorkspaceSelector({ workspaces, activeId, onSelect, onCreate }: 
           {workspaces.map((w) => (
             <button
               key={w.id}
-              onClick={() => {
-                onSelect(w.id);
-                setOpen(false);
-              }}
+              onClick={() => { onSelect(w.id); setOpen(false); }}
               className={`w-full rounded-md px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${
                 w.id === activeId ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-800/60"
               }`}
@@ -61,26 +72,55 @@ export function WorkspaceSelector({ workspaces, activeId, onSelect, onCreate }: 
 
           <div className="mt-1 border-t border-zinc-800 pt-1">
             {creating ? (
-              <form onSubmit={handleCreate} className="flex flex-col gap-1.5 p-1.5">
+              <form onSubmit={handleCreate} className="flex flex-col gap-2 p-1.5">
                 <input
                   autoFocus
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Workspace name"
-                  className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                  className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-500"
                 />
                 <input
                   value={domain}
                   onChange={(e) => setDomain(e.target.value)}
-                  placeholder="Domain, e.g. climate policy"
-                  className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                  placeholder="Short label, e.g. climate policy"
+                  className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-500"
                 />
-                <button
-                  type="submit"
-                  className="mt-0.5 rounded-md bg-zinc-100 py-1 text-[12px] font-medium text-zinc-900 hover:bg-white"
-                >
-                  Create
-                </button>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Optional: describe the research area in 1–2 sentences. Used to auto-discover relevant sources."
+                  rows={3}
+                  className="resize-none rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-500 leading-relaxed"
+                />
+                {description.trim() && (
+                  <label className="flex cursor-pointer items-center gap-2 px-0.5 text-[11.5px] text-zinc-400 hover:text-zinc-200">
+                    <input
+                      type="checkbox"
+                      checked={autoDiscover}
+                      onChange={(e) => setAutoDiscover(e.target.checked)}
+                      className="h-3 w-3 rounded accent-zinc-300"
+                    />
+                    Auto-discover sources after creation
+                  </label>
+                )}
+                <div className="flex gap-1.5">
+                  <button
+                    type="submit"
+                    disabled={saving || !name.trim() || !domain.trim()}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-zinc-100 py-1.5 text-[12px] font-medium text-zinc-900 hover:bg-white disabled:opacity-40"
+                  >
+                    {saving ? <Loader2 size={12} className="animate-spin" /> : null}
+                    {saving ? "Creating…" : "Create"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={reset}
+                    className="rounded-md border border-zinc-700 px-3 py-1.5 text-[12px] text-zinc-500 hover:text-zinc-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </form>
             ) : (
               <button

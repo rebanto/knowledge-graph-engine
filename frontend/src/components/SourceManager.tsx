@@ -257,7 +257,11 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
                         {statusLabel}
                       </span>
                     </div>
-                    <p className="mt-0.5 truncate font-mono text-[12px] text-zinc-300">{src.url}</p>
+                    <p className="mt-0.5 truncate font-mono text-[12px] text-zinc-300">
+                      {src.type === "pdf_upload"
+                        ? src.url.replace(/^.*[\\/]/, "").replace(/^[0-9a-f-]{36}_/, "")
+                        : src.url}
+                    </p>
                     {src.last_error && (
                       <p className="mt-1 text-[11px] text-rose-400/80">{src.last_error}</p>
                     )}

@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from backend.db.postgres import Base, engine, SessionLocal
 from backend.db.models import Workspace
@@ -8,6 +9,11 @@ from backend.api.routes import questions, graph, workspaces, sources
 from backend.core.llm_client import DailyQuotaExhausted
 
 Base.metadata.create_all(bind=engine)
+
+# Safe migration: add columns that may not exist in an older DB
+with engine.connect() as _conn:
+    _conn.execute(text("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS description TEXT"))
+    _conn.commit()
 
 with SessionLocal() as db:
     if not db.query(Workspace).filter(Workspace.id == "arxiv_seed").first():
