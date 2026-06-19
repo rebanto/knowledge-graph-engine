@@ -19,9 +19,12 @@ from rq.worker import SimpleWorker
 
 if __name__ == "__main__":
     conn = Redis.from_url(os.environ["REDIS_URL"])
-    queue = Queue("ingestion", connection=conn)
-    print("Ingestion worker listening on queue 'ingestion'...")
-    # SimpleWorker runs jobs in-process instead of forking — required on
-    # Windows, since rq's default Worker relies on os.fork().
-    worker = SimpleWorker([queue], connection=conn)
+    queues = [
+        Queue("ingestion", connection=conn),
+        Queue("ingestion_bulk", connection=conn),
+    ]
+    print("Ingestion worker listening on: ingestion, ingestion_bulk")
+    # SimpleWorker runs jobs in-process (no forking) — required on Windows
+    # because rq's default Worker uses os.fork() which doesn't exist on Windows.
+    worker = SimpleWorker(queues, connection=conn)
     worker.work()

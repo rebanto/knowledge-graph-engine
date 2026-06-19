@@ -12,7 +12,7 @@ class Workspace(Base):
     name = Column(String, nullable=False)
     domain = Column(String, nullable=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class Report(Base):
@@ -26,7 +26,7 @@ class Report(Base):
     reasoning = Column(Text, nullable=True)
     sources_used = Column(JSONB, nullable=True)
     version = Column(Integer, default=1)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
 
 
 class Source(Base):
@@ -39,8 +39,8 @@ class Source(Base):
     status = Column(String, default="pending")  # pending, running, success, error
     error_count = Column(Integer, default=0)
     last_error = Column(Text, nullable=True)
-    last_fetched = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_fetched = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class IngestionJob(Base):
@@ -51,5 +51,5 @@ class IngestionJob(Base):
     document_url = Column(Text, nullable=True)
     status = Column(String, default="queued")  # queued, running, success, failed
     error = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at = Column(DateTime(timezone=True), nullable=True)

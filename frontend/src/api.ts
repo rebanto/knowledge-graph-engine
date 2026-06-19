@@ -156,3 +156,23 @@ export async function uploadPdf(workspaceId: string, file: File) {
   );
   return data;
 }
+
+export async function getSourceJobs(workspaceId: string, sourceId: string, limit = 50) {
+  const { data } = await client.get<import("./types").SourceJobsResponse>(
+    `/api/workspaces/${workspaceId}/sources/${sourceId}/jobs`,
+    { params: { limit } },
+  );
+  return data;
+}
+
+export async function retrySource(workspaceId: string, sourceId: string) {
+  const { data } = await client.post<{ status: string; source: Source }>(
+    `/api/workspaces/${workspaceId}/sources/${sourceId}/retry`,
+  );
+  return data;
+}
+
+export async function getQueueStatus() {
+  const { data } = await client.get<import("./types").QueueStatus>("/api/system/queue");
+  return data;
+}

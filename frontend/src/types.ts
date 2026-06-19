@@ -158,3 +158,39 @@ export interface Source {
   last_fetched: string | null;
   created_at: string;
 }
+
+export interface IngestionJob {
+  id: string;
+  document_url: string | null;
+  status: "running" | "success" | "failed";
+  error: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface SourceJobsResponse {
+  total: number;
+  success: number;
+  failed: number;
+  running: number;
+  jobs: IngestionJob[];
+}
+
+export interface WorkerInfo {
+  name: string;
+  state: string;
+  queues: string[];
+  current_job_id: string | null;
+}
+
+export interface QueueInfo {
+  queued: number;
+  started: number;
+  failed: number;
+}
+
+export interface QueueStatus {
+  worker_count: number;
+  workers: WorkerInfo[];
+  queues: Record<string, QueueInfo>;
+}

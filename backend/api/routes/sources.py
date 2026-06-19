@@ -2,15 +2,15 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, UploadFile, File
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.postgres import get_async_db
-from backend.db.models import Source
+from backend.db.models import Source, IngestionJob
 from backend.db.queue import get_queue
 from backend.ingestion.jobs import run_ingestion_job
-from backend.models.schemas import SourceCreate, SourceResponse
+from backend.models.schemas import SourceCreate, SourceResponse, SourceJobsResponse
 
 router = APIRouter()
 
@@ -70,6 +70,65 @@ async def upload_pdf_source(
 
     get_queue().enqueue(run_ingestion_job, source.id, job_timeout=1800)
     return source
+
+
+@router.get("/workspaces/{workspace_id}/sources/{source_id}/jobs", response_model=SourceJobsResponse)
+async def list_source_jobs(
+    workspace_id: str,
+    source_id: str,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_async_db),
+):
+    source_result = await db.execute(
+        select(Source).where(Source.id == source_id, Source.workspace_id == workspace_id)
+    )
+    if not source_result.scalar_one_or_none():
+        raise HTTPException(404, "Source not found")
+
+    counts_result = await db.execute(
+        select(IngestionJob.status, func.count(IngestionJob.id))
+        .where(IngestionJob.source_id == source_id)
+        .group_by(IngestionJob.status)
+    )
+    counts: dict[str, int] = dict(counts_result.all())
+
+    jobs_result = await db.execute(
+        select(IngestionJob)
+        .where(IngestionJob.source_id == source_id)
+        .order_by(IngestionJob.created_at.desc())
+        .limit(limit)
+    )
+    jobs = jobs_result.scalars().all()
+
+    return {
+        "total": sum(counts.values()),
+        "success": counts.get("success", 0),
+        "failed": counts.get("failed", 0),
+        "running": counts.get("running", 0),
+        "jobs": jobs,
+    }
+
+
+@router.post("/workspaces/{workspace_id}/sources/{source_id}/retry")
+async def retry_source(
+    workspace_id: str,
+    source_id: str,
+    db: AsyncSession = Depends(get_async_db),
+):
+    result = await db.execute(
+        select(Source).where(Source.id == source_id, Source.workspace_id == workspace_id)
+    )
+    source = result.scalar_one_or_none()
+    if not source:
+        raise HTTPException(404, "Source not found")
+
+    source.status = "pending"
+    source.last_error = None
+    await db.commit()
+    await db.refresh(source)
+
+    get_queue().enqueue(run_ingestion_job, source.id, job_timeout=1800)
+    return {"status": "queued", "source": source}
 
 
 @router.delete("/workspaces/{workspace_id}/sources/{source_id}")

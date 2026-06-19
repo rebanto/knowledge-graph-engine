@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 from pydantic import BaseModel
 
 
@@ -87,9 +87,29 @@ class SourceResponse(BaseModel):
     url: str
     status: str
     error_count: int
-    last_error: str | None = None
-    last_fetched: datetime | None = None
+    last_error: Optional[str] = None
+    last_fetched: Optional[datetime] = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class IngestionJobBrief(BaseModel):
+    id: str
+    document_url: Optional[str] = None
+    status: str
+    error: Optional[str] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SourceJobsResponse(BaseModel):
+    total: int
+    success: int
+    failed: int
+    running: int
+    jobs: list[IngestionJobBrief]

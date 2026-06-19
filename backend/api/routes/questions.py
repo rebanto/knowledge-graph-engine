@@ -93,7 +93,43 @@ async def stream_question(
             if cached:
                 yield {"event": "routing", "data": json.dumps({"type": cached["type"]})}
                 yield {"event": "progress", "data": json.dumps({"status": "Served from cache"})}
-                yield {"event": "done", "data": json.dumps({**cached, "cached": True})}
+                # Still save a versioned report so the history sidebar stays consistent
+                count_result = await db.execute(
+                    select(func.count(Report.id)).where(
+                        Report.workspace_id == workspace_id,
+                        Report.question == question,
+                    )
+                )
+                version = (count_result.scalar() or 0) + 1
+                report = Report(
+                    id=str(uuid.uuid4()),
+                    workspace_id=workspace_id,
+                    question=question,
+                    answer=cached["answer"],
+                    retrieval_type=cached["type"],
+                    reasoning=cached.get("reasoning", ""),
+                    sources_used={
+                        "cypher": cached.get("cypher"),
+                        "graph_records": cached.get("graph_records", []),
+                        "vector_chunks": cached.get("vector_chunks", []),
+                        "key_entities": cached.get("key_entities", []),
+                        "insights": cached.get("insights", []),
+                    },
+                    version=version,
+                    created_at=datetime.now(timezone.utc),
+                )
+                db.add(report)
+                await db.commit()
+                await db.refresh(report)
+                yield {"event": "done", "data": json.dumps({
+                    **cached,
+                    "retrieval_type": cached["type"],
+                    "id": report.id,
+                    "question": question,
+                    "version": version,
+                    "created_at": report.created_at.isoformat(),
+                    "cached": True,
+                }, default=str)}
                 return
 
             # Route the question
@@ -190,7 +226,14 @@ async def stream_question(
             await db.commit()
             await db.refresh(report)
 
-            final = {**result, "id": report.id, "version": version, "created_at": report.created_at.isoformat()}
+            final = {
+                **result,
+                "retrieval_type": result["type"],
+                "id": report.id,
+                "question": question,
+                "version": version,
+                "created_at": report.created_at.isoformat(),
+            }
             yield {"event": "done", "data": json.dumps(final, default=str)}
 
         except Exception as exc:

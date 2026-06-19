@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 
 from backend.db.postgres import async_engine, AsyncSessionLocal, Base
 from backend.db.models import Workspace
-from backend.api.routes import questions, graph, workspaces, sources
+from backend.api.routes import questions, graph, workspaces, sources, system
 from backend.core.llm_client import DailyQuotaExhausted
 from backend.core.observability import (
     RequestIDMiddleware, generate_latest, CONTENT_TYPE_LATEST, log,
@@ -31,6 +31,34 @@ async def lifespan(app: FastAPI):
         await conn.execute(
             text("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS description TEXT")
         )
+        # Safe migration: upgrade TIMESTAMP WITHOUT TIME ZONE → TIMESTAMPTZ
+        # Only runs when the column is still the old naive type; no-ops otherwise.
+        await conn.execute(text("""
+            DO $$
+            DECLARE
+                col record;
+            BEGIN
+                FOR col IN
+                    SELECT table_name, column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND data_type = 'timestamp without time zone'
+                      AND (table_name, column_name) IN (
+                        ('workspaces',    'created_at'),
+                        ('reports',       'created_at'),
+                        ('sources',       'created_at'),
+                        ('sources',       'last_fetched'),
+                        ('ingestion_jobs','created_at'),
+                        ('ingestion_jobs','completed_at')
+                      )
+                LOOP
+                    EXECUTE format(
+                        'ALTER TABLE %I ALTER COLUMN %I TYPE TIMESTAMPTZ USING %I AT TIME ZONE ''UTC''',
+                        col.table_name, col.column_name, col.column_name
+                    );
+                END LOOP;
+            END $$;
+        """))
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(Workspace).where(Workspace.id == "arxiv_seed"))
@@ -79,6 +107,7 @@ app.include_router(questions.router, prefix="/api")
 app.include_router(graph.router, prefix="/api")
 app.include_router(workspaces.router, prefix="/api")
 app.include_router(sources.router, prefix="/api")
+app.include_router(system.router, prefix="/api")
 
 
 # ── Observability ──────────────────────────────────────────────────────────────
