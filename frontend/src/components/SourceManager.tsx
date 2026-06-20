@@ -22,8 +22,8 @@ const TYPE_META: Record<SourceType, {
   arxiv_feed: {
     label: "ArXiv",
     Icon: BookOpen,
-    placeholder: "cs.AI",
-    hint: "ArXiv category slug — e.g. cs.AI · cs.LG · cs.CL · stat.ML",
+    placeholder: "cs.AI, cs.LG · 2401.12345 · graph neural networks",
+    hint: "Category (cs.AI, stat.ML), paper ID or arxiv.org link, or search keywords. Comma-separate multiple categories.",
   },
   rss: {
     label: "RSS",

@@ -33,12 +33,16 @@ _CONCURRENCY = 5     # max parallel documents per source
 _MAX_RETRIES = 3
 
 
-def run_ingestion_job(source_id: str) -> None:
-    """Synchronous RQ entry point. Wraps async work with asyncio.run()."""
-    asyncio.run(_run_async(source_id))
+def run_ingestion_job(source_id: str, force: bool = False) -> None:
+    """Synchronous RQ entry point. Wraps async work with asyncio.run().
+
+    force=True re-extracts and re-embeds documents that were already processed
+    (used by the re-ingest endpoints to refresh sources after a pipeline change).
+    """
+    asyncio.run(_run_async(source_id, force=force))
 
 
-async def _run_async(source_id: str) -> None:
+async def _run_async(source_id: str, force: bool = False) -> None:
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(Source).where(Source.id == source_id))
         source = result.scalar_one_or_none()
@@ -58,8 +62,9 @@ async def _run_async(source_id: str) -> None:
             await db.commit()
             return
 
-        # Resume from checkpoint: skip documents already processed
-        checkpoint = await get_checkpoint(source_id)
+        # Resume from checkpoint: skip documents already processed.
+        # On a forced re-ingest we want every document reprocessed, so ignore it.
+        checkpoint = None if force else await get_checkpoint(source_id)
         skip_until = checkpoint
         filtered = []
         for doc in documents:
@@ -89,7 +94,7 @@ async def _run_async(source_id: str) -> None:
                     await job_db.commit()
 
                 try:
-                    await process_document(doc, workspace_id, resolver)
+                    await process_document(doc, workspace_id, resolver, force=force)
                     status, error = "success", None
                     await set_checkpoint(source_id, doc.get("url", ""))
                 except Exception as exc:

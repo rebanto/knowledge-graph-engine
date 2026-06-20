@@ -131,6 +131,58 @@ async def retry_source(
     return {"status": "queued", "source": source}
 
 
+@router.post("/workspaces/{workspace_id}/sources/{source_id}/reingest")
+async def reingest_source(
+    workspace_id: str,
+    source_id: str,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Force a full re-ingest of one source.
+
+    Unlike /retry, this re-extracts and re-embeds documents that were already
+    processed (force=True bypasses the 'already processed' checkpoint). Use after
+    a pipeline change so existing sources pick up the new extraction. Safe to
+    replay: Neo4j MERGE + ChromaDB upsert mean no duplicates.
+    """
+    result = await db.execute(
+        select(Source).where(Source.id == source_id, Source.workspace_id == workspace_id)
+    )
+    source = result.scalar_one_or_none()
+    if not source:
+        raise HTTPException(404, "Source not found")
+
+    source.status = "pending"
+    source.last_error = None
+    await db.commit()
+
+    get_queue().enqueue(run_ingestion_job, source.id, force=True, job_timeout=1800)
+    return {"status": "queued", "source_id": source.id}
+
+
+@router.post("/workspaces/{workspace_id}/sources/reingest")
+async def reingest_workspace(
+    workspace_id: str,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Force a full re-ingest of every source in the workspace."""
+    result = await db.execute(
+        select(Source).where(Source.workspace_id == workspace_id)
+    )
+    sources = result.scalars().all()
+    if not sources:
+        raise HTTPException(404, "No sources in workspace")
+
+    for source in sources:
+        source.status = "pending"
+        source.last_error = None
+    await db.commit()
+
+    for source in sources:
+        get_queue().enqueue(run_ingestion_job, source.id, force=True, job_timeout=1800)
+
+    return {"status": "queued", "count": len(sources), "source_ids": [s.id for s in sources]}
+
+
 @router.delete("/workspaces/{workspace_id}/sources/{source_id}")
 async def delete_source(
     workspace_id: str, source_id: str, db: AsyncSession = Depends(get_async_db)

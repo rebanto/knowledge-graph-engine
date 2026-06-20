@@ -90,11 +90,17 @@ Data:
 Write a concise, well-cited prose answer (2–4 paragraphs). Bold entity names."""
 
 
+# Large enough to hold the full retrieved set (top-k vector chunks + graph
+# records). The old 8k cap silently dropped most retrieved chunks before the
+# LLM saw them, which made answers miss content that was actually retrieved.
+_SYNTH_INPUT_CHARS = 40000
+
+
 async def synthesize_answer(question: str, results: dict, retrieval_type: str = "hybrid") -> dict:
     prompt = SYNTHESIS_PROMPT.format(
         question=question,
         retrieval_type=retrieval_type,
-        results=json.dumps(results, indent=2, default=str)[:8000],
+        results=json.dumps(results, indent=2, default=str)[:_SYNTH_INPUT_CHARS],
     )
 
     structured = await generate_json(prompt)

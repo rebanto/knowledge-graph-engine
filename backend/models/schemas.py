@@ -82,7 +82,15 @@ class WorkspaceResponse(BaseModel):
 
 
 class SourceCreate(BaseModel):
-    type: str  # arxiv_feed, rss, web_url
+    # type: arxiv_feed | rss | web_url | pdf_upload
+    # For arxiv_feed, `url` is NOT necessarily a URL — it accepts:
+    #   • category codes  (cs.AI, stat.ML)
+    #   • paper IDs       (2401.12345, 2401.12345v2, math/0211159)
+    #   • arxiv.org URLs  (https://arxiv.org/abs/2401.12345)
+    #   • free-text query (graph neural network interpretability)
+    # For pdf_upload, `url` is the server-side file path set by the upload endpoint.
+    # For rss / web_url, `url` is a standard HTTP/HTTPS URL.
+    type: str
     url: str
 
 

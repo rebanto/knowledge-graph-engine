@@ -18,12 +18,23 @@ async def fetch_pdf(file_path: str, source_url: str = "") -> list[dict]:
     text = await loop.run_in_executor(_pdf_executor, _read_pdf, file_path)
 
     title = Path(file_path).stem
+
+    # A scanned/image-only PDF yields little or no extractable text. Fail loudly
+    # instead of silently "succeeding" with just the filename as content — that
+    # leaves the document unsearchable and is the kind of silent gap that makes
+    # later questions return nothing.
+    if len(text.strip()) < 50:
+        raise ValueError(
+            f"PDF '{title}' produced no extractable text "
+            f"({len(text.strip())} chars). It may be scanned/image-only and needs OCR."
+        )
+
     doc_id = hashlib.sha256(file_path.encode()).hexdigest()[:16]
 
     return [{
         "id": doc_id,
         "title": title,
-        "text": text[:20000],
+        "text": text,  # full document — chunked downstream, no truncation
         "authors": [],
         "categories": [],
         "url": source_url or file_path,

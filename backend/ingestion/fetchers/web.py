@@ -1,14 +1,22 @@
+import ssl
 import hashlib
 
 import aiohttp
+import certifi
 from bs4 import BeautifulSoup
 
 USER_AGENT = "Mozilla/5.0 (compatible; KnowledgeGraphEngine/1.0; +ingestion bot)"
 
+# Verify TLS against certifi's CA bundle (see arxiv.py for rationale).
+_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+
 
 async def fetch_web_url(url: str) -> list[dict]:
     headers = {"User-Agent": USER_AGENT}
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+    connector = aiohttp.TCPConnector(ssl=_SSL_CONTEXT)
+    async with aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(total=20), connector=connector
+    ) as session:
         async with session.get(url, headers=headers) as resp:
             resp.raise_for_status()
             text = await resp.text()
@@ -25,7 +33,7 @@ async def fetch_web_url(url: str) -> list[dict]:
     return [{
         "id": doc_id,
         "title": title,
-        "text": body[:8000],
+        "text": body,  # full page text — chunked downstream, no truncation
         "authors": [],
         "categories": [],
         "url": url,

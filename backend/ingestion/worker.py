@@ -7,15 +7,21 @@ from backend.ingestion.entity_resolver import EntityResolver
 from backend.ingestion.conflict_detector import check_and_flag_conflict
 
 
-async def process_document(doc: dict, workspace_id: str, resolver: EntityResolver) -> bool:
+async def process_document(
+    doc: dict, workspace_id: str, resolver: EntityResolver, force: bool = False
+) -> bool:
     """
     Returns True if the document was processed, False if already done (skipped).
+
+    When force=True the "already processed" checkpoint is ignored, so the
+    document is re-extracted and re-embedded. This is safe to replay because
+    Neo4j writes use MERGE and ChromaDB writes use upsert with deterministic IDs.
     """
     doc_id = doc["id"]
     title = doc["title"]
     body = f"{title}. {doc['text']}" if doc.get("text") else title
 
-    if await neo4j_db.is_paper_processed(doc_id):
+    if not force and await neo4j_db.is_paper_processed(doc_id):
         return False
 
     # 1. Paper node
@@ -39,10 +45,17 @@ async def process_document(doc: dict, workspace_id: str, resolver: EntityResolve
     # 3. Embed body chunks → ChromaDB (run in parallel with entity extraction)
     chunks = chunk_text(body)
 
+    # Deterministic chunk ID per CLAUDE.md so upserts are idempotent across
+    # re-ingests. Fall back to doc_id when a source has no URL (e.g. local PDF).
+    chunk_source = doc.get("url") or doc_id
+
     async def _embed():
+        # Replace any prior chunks for this document so a re-ingest is a clean
+        # overwrite (handles ID-format changes and shrinking content).
+        await chroma_db.delete_chunks_for_source(workspace_id, chunk_source)
         await chroma_db.add_chunks(workspace_id, [
             {
-                "id": f"{doc_id}_chunk_{i}",
+                "id": f"{workspace_id}:{chunk_source}:{i}",
                 "text": chunk,
                 "metadata": {
                     "source_url": doc.get("url", ""),
@@ -56,7 +69,12 @@ async def process_document(doc: dict, workspace_id: str, resolver: EntityResolve
         ])
 
     async def _extract():
-        return await extract_entities(body)
+        # Embedding gets the full body so every sentence is searchable.
+        # Entity extraction is capped: the graph needs key named entities and
+        # relationships (dense in the opening sections), not every paragraph.
+        # Sending the whole document would make many LLM calls and risk hitting
+        # context limits with no meaningful gain for the knowledge graph.
+        return await extract_entities(body[:12_000])
 
     # Run embedding and entity extraction in parallel
     _, extraction = await asyncio.gather(_embed(), _extract())

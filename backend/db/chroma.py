@@ -42,12 +42,23 @@ def _add_chunks_sync(workspace_id: str, chunks: list[dict]):
     model = _get_model()
     texts = [c["text"] for c in chunks]
     embeddings = model.encode(texts, show_progress_bar=False).tolist()
-    _get_collection_sync(workspace_id).add(
+    # upsert (not add) so re-ingesting a document — e.g. after a worker
+    # reassignment in Phase 3 — is a no-op rather than a duplicate-ID crash.
+    _get_collection_sync(workspace_id).upsert(
         ids=[c["id"] for c in chunks],
         documents=texts,
         embeddings=embeddings,
         metadatas=[c["metadata"] for c in chunks],
     )
+
+
+def _delete_chunks_for_source_sync(workspace_id: str, source_url: str):
+    if not source_url:
+        return
+    # Remove every chunk previously written for this document so a re-ingest
+    # replaces its chunk set rather than accumulating stale/duplicate chunks
+    # (e.g. after the chunk-ID format changed or the document content shrank).
+    _get_collection_sync(workspace_id).delete(where={"source_url": source_url})
 
 
 def _embed_text_sync(text: str) -> list[float]:
@@ -78,6 +89,10 @@ async def get_collection(workspace_id: str):
 
 async def add_chunks(workspace_id: str, chunks: list[dict]):
     await _run(_add_chunks_sync, workspace_id, chunks)
+
+
+async def delete_chunks_for_source(workspace_id: str, source_url: str):
+    await _run(_delete_chunks_for_source_sync, workspace_id, source_url)
 
 
 async def embed_text(text: str) -> list[float]:
