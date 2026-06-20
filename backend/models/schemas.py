@@ -64,6 +64,12 @@ class WorkspaceCreate(BaseModel):
     description: str | None = None
 
 
+class WorkspaceUpdate(BaseModel):
+    name: str | None = None
+    domain: str | None = None
+    description: str | None = None
+
+
 class WorkspaceResponse(BaseModel):
     id: str
     name: str

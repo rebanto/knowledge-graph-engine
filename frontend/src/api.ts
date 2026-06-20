@@ -128,6 +128,22 @@ export async function createWorkspace(name: string, domain: string, description?
   return data;
 }
 
+export async function updateWorkspace(
+  workspaceId: string,
+  fields: { name?: string; domain?: string; description?: string },
+) {
+  const { data } = await client.put<Workspace>(`/api/workspaces/${workspaceId}`, fields);
+  return data;
+}
+
+export async function deleteWorkspace(workspaceId: string) {
+  await client.delete(`/api/workspaces/${workspaceId}`);
+}
+
+export async function deleteReport(reportId: string) {
+  await client.delete(`/api/reports/${reportId}`);
+}
+
 export async function discoverSources(workspaceId: string) {
   const { data } = await client.post<Source[]>(`/api/workspaces/${workspaceId}/discover`);
   return data;

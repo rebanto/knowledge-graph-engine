@@ -2,7 +2,7 @@ import uuid
 import json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
@@ -276,3 +276,13 @@ async def get_report(report_id: str, db: AsyncSession = Depends(get_async_db)):
         cached=False,
         created_at=report.created_at,
     )
+
+
+@router.delete("/reports/{report_id}", status_code=204)
+async def delete_report(report_id: str, db: AsyncSession = Depends(get_async_db)):
+    result = await db.execute(select(Report).where(Report.id == report_id))
+    report = result.scalar_one_or_none()
+    if not report:
+        raise HTTPException(404, "Report not found")
+    await db.delete(report)
+    await db.commit()

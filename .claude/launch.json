@@ -1,1 +1,1 @@
-{"version":"0.0.1","configurations":[{"name":"frontend","runtimeExecutable":"pnpm","runtimeArgs":["run","dev"],"cwd":"${workspaceRoot}/frontend","port":5173}]}
+{"version":"0.0.1","configurations":[{"name":"frontend","runtimeExecutable":"pnpm","runtimeArgs":["run","dev"],"cwd":"${workspaceRoot}/frontend","port":5173,"autoPort":true}]}

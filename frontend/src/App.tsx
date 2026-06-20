@@ -10,6 +10,7 @@ import { SourceManager } from "./components/SourceManager";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import {
   streamQuestion, listReports, getReport, listWorkspaces, createWorkspace,
+  updateWorkspace, deleteWorkspace, deleteReport,
   listSources, discoverSources,
 } from "./api";
 import type { QuestionResponse, ReportSummary, Workspace } from "./types";
@@ -132,6 +133,38 @@ export default function App() {
     }
   }
 
+  async function handleUpdateWorkspace(
+    id: string,
+    name: string,
+    domain: string,
+    description: string,
+  ) {
+    const updated = await updateWorkspace(id, { name, domain, description: description || undefined });
+    setWorkspaces((prev) => prev.map((w) => (w.id === id ? updated : w)));
+  }
+
+  async function handleDeleteWorkspace(id: string) {
+    await deleteWorkspace(id);
+    setWorkspaces((prev) => {
+      const remaining = prev.filter((w) => w.id !== id);
+      if (workspaceId === id) {
+        const next = remaining[0];
+        if (next) setWorkspaceId(next.id);
+      }
+      return remaining;
+    });
+    if (workspaceId === id) {
+      setReports([]);
+      setActive(null);
+    }
+  }
+
+  async function handleDeleteReport(reportId: string) {
+    await deleteReport(reportId);
+    setReports((prev) => prev.filter((r) => r.id !== reportId));
+    if (active?.id === reportId) setActive(null);
+  }
+
   async function handleDiscover() {
     setDiscovering(true);
     setError(null);
@@ -153,10 +186,13 @@ export default function App() {
         activeId={active?.id ?? null}
         onSelect={(r) => { setTab("ask"); handleSelect(r); }}
         onNew={() => { setTab("ask"); setActive(null); }}
+        onDeleteReport={handleDeleteReport}
         workspaces={workspaces}
         workspaceId={workspaceId}
         onWorkspaceChange={setWorkspaceId}
         onCreateWorkspace={handleCreateWorkspace}
+        onUpdateWorkspace={handleUpdateWorkspace}
+        onDeleteWorkspace={handleDeleteWorkspace}
       />
 
       <main className="flex min-w-0 flex-1 flex-col">

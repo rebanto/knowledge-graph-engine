@@ -5,10 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.postgres import get_async_db
-from backend.db.models import Workspace, Source
+from backend.db.models import Workspace, Source, IngestionJob
 from backend.db.queue import get_queue
 from backend.ingestion.jobs import run_ingestion_job
-from backend.models.schemas import WorkspaceCreate, WorkspaceResponse, SourceResponse
+from backend.models.schemas import WorkspaceCreate, WorkspaceUpdate, WorkspaceResponse, SourceResponse
 from backend.core.source_discovery import suggest_arxiv_categories
 
 router = APIRouter()
@@ -74,3 +74,46 @@ async def discover_sources(workspace_id: str, db: AsyncSession = Depends(get_asy
         created.append(source)
 
     return created
+
+
+@router.put("/workspaces/{workspace_id}", response_model=WorkspaceResponse)
+async def update_workspace(
+    workspace_id: str, req: WorkspaceUpdate, db: AsyncSession = Depends(get_async_db)
+):
+    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
+    workspace = result.scalar_one_or_none()
+    if not workspace:
+        raise HTTPException(404, "Workspace not found")
+    if req.name is not None:
+        workspace.name = req.name
+    if req.domain is not None:
+        workspace.domain = req.domain
+    if req.description is not None:
+        workspace.description = req.description
+    await db.commit()
+    await db.refresh(workspace)
+    return workspace
+
+
+@router.delete("/workspaces/{workspace_id}", status_code=204)
+async def delete_workspace(workspace_id: str, db: AsyncSession = Depends(get_async_db)):
+    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
+    workspace = result.scalar_one_or_none()
+    if not workspace:
+        raise HTTPException(404, "Workspace not found")
+    # Delete related sources and their jobs first
+    sources_result = await db.execute(select(Source).where(Source.workspace_id == workspace_id))
+    for source in sources_result.scalars().all():
+        jobs_result = await db.execute(
+            select(IngestionJob).where(IngestionJob.source_id == source.id)
+        )
+        for job in jobs_result.scalars().all():
+            await db.delete(job)
+        await db.delete(source)
+    # Delete related reports
+    from backend.db.models import Report
+    reports_result = await db.execute(select(Report).where(Report.workspace_id == workspace_id))
+    for report in reports_result.scalars().all():
+        await db.delete(report)
+    await db.delete(workspace)
+    await db.commit()

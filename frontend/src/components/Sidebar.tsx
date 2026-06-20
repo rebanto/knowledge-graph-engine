@@ -1,4 +1,5 @@
-import { Network, Plus } from "lucide-react";
+import { useState } from "react";
+import { Network, Plus, Trash2, Loader2 } from "lucide-react";
 import type { ReportSummary, Workspace } from "../types";
 import { relativeTime } from "../lib/time";
 import { WorkspaceSelector } from "./WorkspaceSelector";
@@ -14,10 +15,13 @@ interface SidebarProps {
   activeId: string | null;
   onSelect: (report: ReportSummary) => void;
   onNew: () => void;
+  onDeleteReport: (reportId: string) => Promise<void>;
   workspaces: Workspace[];
   workspaceId: string;
   onWorkspaceChange: (id: string) => void;
-  onCreateWorkspace: (name: string, domain: string) => Promise<void>;
+  onCreateWorkspace: (name: string, domain: string, description: string, autoDiscover: boolean) => Promise<void>;
+  onUpdateWorkspace: (id: string, name: string, domain: string, description: string) => Promise<void>;
+  onDeleteWorkspace: (id: string) => Promise<void>;
 }
 
 export function Sidebar({
@@ -25,11 +29,26 @@ export function Sidebar({
   activeId,
   onSelect,
   onNew,
+  onDeleteReport,
   workspaces,
   workspaceId,
   onWorkspaceChange,
   onCreateWorkspace,
+  onUpdateWorkspace,
+  onDeleteWorkspace,
 }: SidebarProps) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDelete(reportId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setDeletingId(reportId);
+    try {
+      await onDeleteReport(reportId);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-zinc-800/60 bg-[#0c0c0e]">
       <div className="flex items-center gap-2 px-5 pt-6 pb-5">
@@ -47,6 +66,8 @@ export function Sidebar({
         activeId={workspaceId}
         onSelect={onWorkspaceChange}
         onCreate={onCreateWorkspace}
+        onUpdate={onUpdateWorkspace}
+        onDelete={onDeleteWorkspace}
       />
 
       <div className="px-3">
@@ -65,21 +86,37 @@ export function Sidebar({
         </p>
         <div className="flex flex-col gap-0.5">
           {reports.map((r) => (
-            <button
+            <div
               key={r.id}
-              onClick={() => onSelect(r)}
-              className={`group flex flex-col gap-1 rounded-md px-2.5 py-2 text-left transition-colors ${
+              className={`group relative flex flex-col gap-1 rounded-md px-2.5 py-2 transition-colors ${
                 activeId === r.id ? "bg-zinc-800/70" : "hover:bg-zinc-900"
               }`}
             >
-              <div className="flex items-center gap-1.5">
-                <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${DOT[r.retrieval_type]}`} />
-                <p className="truncate text-[13px] leading-tight text-zinc-300 group-hover:text-zinc-100">
-                  {r.question}
-                </p>
-              </div>
-              <p className="pl-3 text-[11px] text-zinc-600">{relativeTime(r.created_at)}</p>
-            </button>
+              <button
+                onClick={() => onSelect(r)}
+                className="flex flex-col gap-1 text-left w-full"
+              >
+                <div className="flex items-center gap-1.5 pr-5">
+                  <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${DOT[r.retrieval_type]}`} />
+                  <p className="truncate text-[13px] leading-tight text-zinc-300 group-hover:text-zinc-100">
+                    {r.question}
+                  </p>
+                </div>
+                <p className="pl-3 text-[11px] text-zinc-600">{relativeTime(r.created_at)}</p>
+              </button>
+
+              <button
+                onClick={(e) => handleDelete(r.id, e)}
+                disabled={deletingId === r.id}
+                title="Delete this query"
+                className="absolute right-1.5 top-1.5 hidden rounded p-1 text-zinc-600 transition-colors hover:bg-zinc-700/60 hover:text-rose-400 group-hover:flex disabled:opacity-40"
+              >
+                {deletingId === r.id
+                  ? <Loader2 size={11} className="animate-spin" />
+                  : <Trash2 size={11} />
+                }
+              </button>
+            </div>
           ))}
           {reports.length === 0 && (
             <p className="px-2 py-3 text-[12px] text-zinc-600">No history yet.</p>
