@@ -2,7 +2,10 @@ import axios from "axios";
 import axiosRetry from "axios-retry";
 import type { GraphData, QuestionResponse, ReportSummary, Workspace, Source } from "./types";
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000";
+// Default to same-origin ("") so requests go through Vite's /api proxy in dev
+// (and through whatever serves the built frontend in prod). Set VITE_API_URL to
+// point directly at a backend if you need to bypass the proxy.
+const BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
 const client = axios.create({
   baseURL: BASE_URL,

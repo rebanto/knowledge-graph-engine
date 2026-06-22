@@ -16,7 +16,6 @@ from backend.core.graph_retriever import run_graph_query, UnsafeQueryError
 from backend.core.vector_retriever import run_vector_query
 from backend.core.synthesizer import synthesize_answer
 from backend.core.resilience import CircuitBreakerError
-from backend.db.redis import get_cached_answer, set_cached_answer
 import asyncio
 
 router = APIRouter()
@@ -88,50 +87,6 @@ async def stream_question(
     """
     async def generate():
         try:
-            # Check cache first
-            cached = await get_cached_answer(workspace_id, question)
-            if cached:
-                yield {"event": "routing", "data": json.dumps({"type": cached["type"]})}
-                yield {"event": "progress", "data": json.dumps({"status": "Served from cache"})}
-                # Still save a versioned report so the history sidebar stays consistent
-                count_result = await db.execute(
-                    select(func.count(Report.id)).where(
-                        Report.workspace_id == workspace_id,
-                        Report.question == question,
-                    )
-                )
-                version = (count_result.scalar() or 0) + 1
-                report = Report(
-                    id=str(uuid.uuid4()),
-                    workspace_id=workspace_id,
-                    question=question,
-                    answer=cached["answer"],
-                    retrieval_type=cached["type"],
-                    reasoning=cached.get("reasoning", ""),
-                    sources_used={
-                        "cypher": cached.get("cypher"),
-                        "graph_records": cached.get("graph_records", []),
-                        "vector_chunks": cached.get("vector_chunks", []),
-                        "key_entities": cached.get("key_entities", []),
-                        "insights": cached.get("insights", []),
-                    },
-                    version=version,
-                    created_at=datetime.now(timezone.utc),
-                )
-                db.add(report)
-                await db.commit()
-                await db.refresh(report)
-                yield {"event": "done", "data": json.dumps({
-                    **cached,
-                    "retrieval_type": cached["type"],
-                    "id": report.id,
-                    "question": question,
-                    "version": version,
-                    "created_at": report.created_at.isoformat(),
-                    "cached": True,
-                }, default=str)}
-                return
-
             # Route the question
             yield {"event": "progress", "data": json.dumps({"status": "Analyzing question…"})}
             routing = await classify_question(question, workspace_id)
@@ -194,8 +149,6 @@ async def stream_question(
                 "insights": synthesis.get("insights", []),
                 "cached": False,
             }
-
-            await set_cached_answer(workspace_id, question, result)
 
             # Save report
             count_result = await db.execute(

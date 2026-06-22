@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
-import { Network, MessageSquare, Database } from "lucide-react";
+import { Network, MessageSquare, Database, Loader2, ArrowRight } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { QuestionInput } from "./components/QuestionInput";
 import { AnswerView } from "./components/AnswerView";
@@ -36,8 +36,10 @@ export default function App() {
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sourceCount, setSourceCount] = useState<number | null>(null);
+  const [processingCount, setProcessingCount] = useState(0);
   const [discovering, setDiscovering] = useState(false);
   const cancelStreamRef = useRef<(() => void) | null>(null);
+  const sourcePollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     listWorkspaces()
@@ -45,16 +47,36 @@ export default function App() {
       .catch((err) => setError(describeError(err)));
   }, []);
 
+  const refreshSources = useCallback(async () => {
+    try {
+      const sources = await listSources(workspaceId);
+      setSourceCount(sources.length);
+      setProcessingCount(
+        sources.filter((s) => s.status === "pending" || s.status === "running").length,
+      );
+    } catch {
+      setSourceCount(0);
+      setProcessingCount(0);
+    }
+  }, [workspaceId]);
+
+  // Poll source statuses while any are still ingesting so the banner auto-clears.
+  useEffect(() => {
+    if (sourcePollRef.current) { clearTimeout(sourcePollRef.current); sourcePollRef.current = null; }
+    if (processingCount === 0) return;
+    sourcePollRef.current = setTimeout(refreshSources, 4000);
+    return () => { if (sourcePollRef.current) clearTimeout(sourcePollRef.current); };
+  }, [processingCount, refreshSources]);
+
   useEffect(() => {
     setActive(null);
     setSourceCount(null);
+    setProcessingCount(0);
     listReports(workspaceId)
       .then(setReports)
       .catch((err) => setError(describeError(err)));
-    listSources(workspaceId)
-      .then((s) => setSourceCount(s.length))
-      .catch(() => setSourceCount(0));
-  }, [workspaceId]);
+    refreshSources();
+  }, [workspaceId, refreshSources]);
 
   // Cancel in-flight stream when component unmounts
   useEffect(() => () => { cancelStreamRef.current?.(); }, []);
@@ -226,6 +248,25 @@ export default function App() {
                   <p className="mt-2 text-[12px] text-zinc-500">{streamStatus}</p>
                 )}
                 {error && <p className="mt-2 text-[12.5px] text-rose-400/80">{error}</p>}
+                {processingCount > 0 && !loading && (
+                  <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-amber-500/6 px-3 py-2">
+                    <div className="flex items-center gap-2 text-[12px] text-amber-300/80">
+                      <Loader2 size={11} className="animate-spin flex-shrink-0" />
+                      <span>
+                        {processingCount === 1
+                          ? "1 source is still ingesting"
+                          : `${processingCount} sources are still ingesting`}
+                        {" — queries won't include their content yet"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setTab("sources")}
+                      className="flex flex-shrink-0 items-center gap-1 text-[11.5px] text-amber-400/70 hover:text-amber-300"
+                    >
+                      View <ArrowRight size={10} />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 

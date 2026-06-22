@@ -151,11 +151,12 @@ async def flush_resolver_registry(
 # ── Cache invalidation ─────────────────────────────────────────────────────────
 
 async def invalidate_workspace_caches(workspace_id: str) -> None:
-    """Delete route + Cypher caches for a workspace after new ingestion completes."""
+    """Delete route, Cypher, and any legacy answer caches after new ingestion."""
     client = get_async_client()
-    # Scan for keys matching the workspace prefix and delete them
-    # We use SCAN to avoid blocking Redis with KEYS on large datasets
-    for pattern in [f"route:*", f"cypher:*"]:
+    # SCAN instead of KEYS so we don't block Redis on large keyspaces.
+    # qa:* is swept defensively — answer caching is disabled, but old entries
+    # written before that change would otherwise be served stale indefinitely.
+    for pattern in ["route:*", "cypher:*", "qa:*"]:
         cursor = 0
         while True:
             cursor, keys = await client.scan(cursor, match=pattern, count=200)

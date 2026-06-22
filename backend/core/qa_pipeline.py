@@ -4,39 +4,20 @@ from backend.core.graph_retriever import run_graph_query, UnsafeQueryError
 from backend.core.vector_retriever import run_vector_query
 from backend.core.synthesizer import synthesize_answer
 from backend.core.resilience import CircuitBreakerError
-from backend.db.redis import (
-    get_cached_answer, set_cached_answer,
-    acquire_inflight_lock, release_inflight_lock, wait_for_inflight,
-)
-from backend.core.observability import cache_hits_total, cache_misses_total
+from backend.core.observability import cache_misses_total
 
 
-async def answer_question(question: str, workspace_id: str, use_cache: bool = True) -> dict:
-    # ── L2 cache: check for a previously computed answer ──────────────────────
-    if use_cache:
-        cached = await get_cached_answer(workspace_id, question)
-        if cached:
-            cache_hits_total.labels(cache="answer").inc()
-            return {**cached, "cached": True}
-
+async def answer_question(question: str, workspace_id: str) -> dict:
+    # Answer caching is intentionally absent: a cached answer taken before a
+    # new source finishes ingesting would silently omit that source's content,
+    # making it look like the engine doesn't know about the new data.
+    # Embedding, route-classification, and Cypher caches still apply — only the
+    # final synthesised answer is always freshly computed.
     cache_misses_total.labels(cache="answer").inc()
-
-    # ── In-flight deduplication: if another request is already answering this
-    # identical question, wait for it to finish and return the cached result.
-    acquired = await acquire_inflight_lock(workspace_id, question)
-    if not acquired:
-        result = await wait_for_inflight(workspace_id, question)
-        if result:
-            return {**result, "cached": True}
-        # Timed out waiting — fall through and compute independently
-
-    try:
-        return await _compute_answer(question, workspace_id, use_cache)
-    finally:
-        await release_inflight_lock(workspace_id, question)
+    return await _compute_answer(question, workspace_id)
 
 
-async def _compute_answer(question: str, workspace_id: str, use_cache: bool) -> dict:
+async def _compute_answer(question: str, workspace_id: str) -> dict:
     routing = await classify_question(question, workspace_id)
     qtype = routing["type"]
 
@@ -81,7 +62,7 @@ async def _compute_answer(question: str, workspace_id: str, use_cache: bool) -> 
 
     synthesis = await synthesize_answer(question, results, retrieval_type=qtype)
 
-    result = {
+    return {
         "type": qtype,
         "reasoning": routing["reasoning"],
         "cypher": cypher,
@@ -92,8 +73,3 @@ async def _compute_answer(question: str, workspace_id: str, use_cache: bool) -> 
         "insights": synthesis.get("insights", []),
         "cached": False,
     }
-
-    if use_cache:
-        await set_cached_answer(workspace_id, question, result)
-
-    return result

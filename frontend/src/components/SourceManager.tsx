@@ -657,7 +657,21 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
               <form onSubmit={handleAdd} className="flex gap-2">
                 <input
                   value={addUrl}
-                  onChange={(e) => setAddUrl(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setAddUrl(val);
+                    // Auto-switch to Web URL when a non-arxiv https:// address is
+                    // typed into the ArXiv field — prevents the silent wrong-type bug
+                    // where a Wikipedia URL gets submitted as an arxiv_feed and finds 0 docs.
+                    if (
+                      addType === "arxiv_feed" &&
+                      /^https?:\/\//i.test(val) &&
+                      !/arxiv\.org/i.test(val)
+                    ) {
+                      setAddType("web_url");
+                    }
+                    setFormError(null);
+                  }}
                   placeholder={TYPE_META[addType].placeholder}
                   className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-[13px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-600"
                 />
