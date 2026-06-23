@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package coordinator;
+
+// Phase 3 — distributed worker pool.
+// The coordinator hands out batches of document URLs to workers and tracks
+// their liveness via heartbeats. If a worker stops heartbeating, its batch is
+// re-enqueued and handed to another worker. Idempotent writes (Neo4j MERGE,
+// ChromaDB upsert, conditional Postgres UPDATE) make a double-processed
+// document harmless.
+
+service Coordinator {
+  rpc Register(RegisterRequest)     returns (RegisterResponse);
+  rpc RequestWork(WorkRequest)      returns (WorkBatch);
+  rpc Heartbeat(HeartbeatRequest)   returns (HeartbeatAck);
+  rpc ReportCompletion(BatchResult) returns (CompletionAck);
+}
+
+message RegisterRequest {
+  string worker_id = 1;
+  string host      = 2;
+}
+
+message RegisterResponse {
+  bool   accepted        = 1;
+  int32  heartbeat_secs  = 2;  // how often the worker should heartbeat
+}
+
+message WorkRequest {
+  string worker_id = 1;
+  int32  max_docs  = 2;  // how many documents the worker can take
+}
+
+message WorkBatch {
+  string          batch_id = 1;
+  repeated DocRef docs     = 2;  // empty when no work is available
+}
+
+message DocRef {
+  string source_id    = 1;
+  string document_url = 2;
+  string workspace_id = 3;
+}
+
+message HeartbeatRequest {
+  string worker_id = 1;
+  string batch_id  = 2;
+  string status    = 3;  // "idle" | "processing"
+  int32  completed = 4;
+  int32  total     = 5;
+}
+
+message HeartbeatAck {
+  bool keep_going = 1;  // false tells the worker to drop the batch (e.g. reassigned)
+}
+
+message BatchResult {
+  string          batch_id  = 1;
+  string          worker_id = 2;
+  repeated string succeeded = 3;  // document_urls processed OK
+  repeated string failed    = 4;  // document_urls that errored
+}
+
+message CompletionAck {
+  bool received = 1;
+}

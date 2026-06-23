@@ -25,6 +25,47 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # ── Phase 4: extra Neo4j shards (opt-in) ──────────────────────────────────────
+  # The 'neo4j' service above is shard 0. These add shards 1 and 2. Enable with:
+  #   docker compose --profile sharding up -d
+  # and set USE_SHARDING=true + NUM_SHARDS=3 in .env. Without the profile the
+  # system runs single-node (the default and the fallback per CLAUDE.md).
+  neo4j-1:
+    image: neo4j:5.18-community
+    container_name: kgre-neo4j-1
+    profiles: ["sharding"]
+    ports:
+      - "7475:7474"
+      - "7688:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-kgre_dev_password}
+      NEO4J_server_memory_heap_max__size: 512m
+    volumes:
+      - neo4j_1_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    restart: unless-stopped
+
+  neo4j-2:
+    image: neo4j:5.18-community
+    container_name: kgre-neo4j-2
+    profiles: ["sharding"]
+    ports:
+      - "7476:7474"
+      - "7689:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-kgre_dev_password}
+      NEO4J_server_memory_heap_max__size: 512m
+    volumes:
+      - neo4j_2_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     container_name: kgre-postgres
@@ -90,8 +131,55 @@ services:
           memory: 1g
     restart: unless-stopped
 
+  # ── Phase 3: distributed worker pool (opt-in) ─────────────────────────────────
+  # Replaces the single RQ worker with a coordinator + N workers over gRPC.
+  # Enable with: docker compose --profile distributed up -d --scale dworker=3
+  # The simple RQ worker (run via dev.ps1) remains the default + fallback.
+  coordinator:
+    build: .
+    container_name: kgre-coordinator
+    profiles: ["distributed"]
+    command: python -m backend.coordinator.server
+    env_file: .env
+    ports:
+      - "50051:50051"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    environment:
+      COORDINATOR_PORT: "50051"
+      REDIS_URL: redis://redis:6379
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-kgre}:${POSTGRES_PASSWORD:-kgre_dev_password}@postgres:5432/${POSTGRES_DB:-kgre}
+      NEO4J_URI: bolt://neo4j:7687
+    restart: unless-stopped
+
+  dworker:
+    build: .
+    profiles: ["distributed"]
+    command: python -m backend.coordinator.worker_client
+    env_file: .env
+    depends_on:
+      - coordinator
+    environment:
+      COORDINATOR_HOST: coordinator
+      COORDINATOR_PORT: "50051"
+      REDIS_URL: redis://redis:6379
+      POSTGRES_URL: postgresql://${POSTGRES_USER:-kgre}:${POSTGRES_PASSWORD:-kgre_dev_password}@postgres:5432/${POSTGRES_DB:-kgre}
+      NEO4J_URI: bolt://neo4j:7687
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    restart: unless-stopped
+
 volumes:
   neo4j_data:
   neo4j_logs:
+  neo4j_1_data:
+  neo4j_2_data:
   postgres_data:
   redis_data:

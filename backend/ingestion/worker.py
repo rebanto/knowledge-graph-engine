@@ -1,10 +1,23 @@
 import asyncio
 from backend.db import neo4j as neo4j_db
 from backend.db import chroma as chroma_db
+from backend.db import shard_router
 from backend.ingestion.chunker import chunk_text
 from backend.ingestion.entity_extractor import extract_entities
 from backend.ingestion.entity_resolver import EntityResolver
 from backend.ingestion.conflict_detector import check_and_flag_conflict
+
+
+def _graph():
+    """The graph write/read backend for ingestion.
+
+    Returns the consistent-hash shard router when USE_SHARDING=true (Phase 4),
+    otherwise the single-node Neo4j module (Phases 1-3, the default + fallback).
+    Both expose the same merge_paper / merge_node / merge_edge /
+    mark_paper_processed surface, so the pipeline below is identical regardless
+    of the physical graph layout.
+    """
+    return shard_router.get_router() if shard_router.is_enabled() else neo4j_db
 
 
 # How the Paper node is linked to each extracted entity type. This is the fix
@@ -61,10 +74,11 @@ async def process_document(
     if not force and await chroma_db.has_chunks_for_source(workspace_id, chunk_source):
         return False
 
+    g = _graph()
     categories = [c for c in (doc.get("categories") or []) if c]
 
     # 1. Paper node
-    await neo4j_db.merge_paper(doc_id, title, workspace_id, {
+    await g.merge_paper(doc_id, title, workspace_id, {
         "url": doc.get("url", ""),
         "published": doc.get("published", ""),
         "categories": ", ".join(categories),
@@ -73,8 +87,8 @@ async def process_document(
     # 2. Author nodes + AUTHORED edges (structured metadata — no LLM)
     for author_name in doc.get("authors", []):
         canonical = resolver.resolve(author_name, "Person")
-        await neo4j_db.merge_node("Person", canonical, workspace_id, source_id=source_id)
-        await neo4j_db.merge_edge(
+        await g.merge_node("Person", canonical, workspace_id, source_id=source_id)
+        await g.merge_edge(
             canonical, "Person",
             doc_id, "Paper",
             "AUTHORED", workspace_id,
@@ -86,8 +100,8 @@ async def process_document(
     #    LLM-free, and connect every paper sharing a category — the backbone of
     #    inter-paper structure.
     for cat in categories:
-        await neo4j_db.merge_node("Topic", cat, workspace_id, source_id=source_id)
-        await neo4j_db.merge_edge(
+        await g.merge_node("Topic", cat, workspace_id, source_id=source_id)
+        await g.merge_edge(
             doc_id, "Paper",
             cat, "Topic",
             "ABOUT", workspace_id,
@@ -135,12 +149,12 @@ async def process_document(
         etype = entity["type"]
         canonical = resolver.resolve(entity["name"], etype)
         resolved_names[entity["name"]] = canonical
-        await neo4j_db.merge_node(etype, canonical, workspace_id, source_id=source_id)
+        await g.merge_node(etype, canonical, workspace_id, source_id=source_id)
 
         if etype in _PAPER_LINK_SKIP:
             continue
         link = _PAPER_LINK.get(etype, "MENTIONS")
-        await neo4j_db.merge_edge(
+        await g.merge_edge(
             doc_id, "Paper",
             canonical, etype,
             link, workspace_id,
@@ -160,7 +174,7 @@ async def process_document(
         src_type = entity_type_map.get(src_raw, "Concept")
         tgt_type = entity_type_map.get(tgt_raw, "Concept")
 
-        await neo4j_db.merge_edge(
+        await g.merge_edge(
             src, src_type,
             tgt, tgt_type,
             rel["type"], workspace_id,
@@ -172,8 +186,11 @@ async def process_document(
             source_id=source_id,
         )
 
-        if rel["type"] in ("SUPPORTS", "CONTRADICTS"):
+        # Conflict detection scans for contradictory edges; that scan is a
+        # single-node feature. Skip it under sharding where the two endpoints
+        # may live on different shards — the simple path keeps full detection.
+        if rel["type"] in ("SUPPORTS", "CONTRADICTS") and not shard_router.is_enabled():
             await check_and_flag_conflict(src, tgt, rel["type"], doc_id, workspace_id)
 
-    await neo4j_db.mark_paper_processed(doc_id)
+    await g.mark_paper_processed(doc_id)
     return True

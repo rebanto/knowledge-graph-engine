@@ -4,13 +4,13 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
-from sqlalchemy import text, select
+from sqlalchemy import text, select, update
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from backend.db.postgres import async_engine, AsyncSessionLocal, Base
-from backend.db.models import Workspace
+from backend.db.models import Workspace, Source
 from backend.api.routes import questions, graph, workspaces, sources, system
 from backend.core.llm_client import DailyQuotaExhausted
 from backend.core.observability import (
@@ -31,6 +31,13 @@ async def lifespan(app: FastAPI):
         await conn.execute(
             text("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS description TEXT")
         )
+        # Phase 3: distributed-worker bookkeeping columns on ingestion_jobs.
+        for col_ddl in (
+            "ADD COLUMN IF NOT EXISTS assigned_worker_id TEXT",
+            "ADD COLUMN IF NOT EXISTS batch_id TEXT",
+            "ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ",
+        ):
+            await conn.execute(text(f"ALTER TABLE ingestion_jobs {col_ddl}"))
         # Safe migration: upgrade TIMESTAMP WITHOUT TIME ZONE → TIMESTAMPTZ
         # Only runs when the column is still the old naive type; no-ops otherwise.
         await conn.execute(text("""
@@ -65,6 +72,23 @@ async def lifespan(app: FastAPI):
         if not result.scalar_one_or_none():
             db.add(Workspace(id="arxiv_seed", name="ArXiv AI/ML Research", domain="AI/ML research"))
             await db.commit()
+
+        # Crashed-worker recovery: a source can only be 'running' while a worker
+        # is actively processing it. If one is still 'running' at startup, the
+        # worker that owned it died (kill, restart, stale-loop crash) and no job
+        # is in flight — so the source would otherwise be stranded forever.
+        # Reset it to 'error' so it shows a real state and can be retried.
+        reset = await db.execute(
+            update(Source)
+            .where(Source.status == "running")
+            .values(
+                status="error",
+                last_error="Ingestion worker stopped before this source finished. Retry to re-ingest.",
+            )
+        )
+        if reset.rowcount:
+            log.warning("reset_stranded_sources", count=reset.rowcount)
+        await db.commit()
 
     log.info("startup_complete", env=os.environ.get("ENV", "development"))
 

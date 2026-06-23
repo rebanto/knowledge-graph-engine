@@ -31,6 +31,24 @@ def get_async_client() -> aioredis.Redis:
     return _async_client
 
 
+async def close_async_client() -> None:
+    """Close the module-global async Redis client and reset it to None.
+
+    Required by the RQ SimpleWorker, which runs every job via a fresh
+    asyncio.run() (one event loop per job). A redis.asyncio client binds its
+    connection pool to the loop that created it; if it isn't closed before that
+    loop is torn down, the NEXT job's loop reuses the stale pool and fails with
+    "RuntimeError: Event loop is closed". Resetting to None forces a fresh
+    client (bound to the new loop) on the next get_async_client() call.
+    """
+    global _async_client
+    if _async_client is not None:
+        try:
+            await _async_client.aclose()
+        finally:
+            _async_client = None
+
+
 def _key(namespace: str, *parts: str) -> str:
     normalized = ":".join(parts).strip().lower()
     return f"{namespace}:{hashlib.sha256(normalized.encode()).hexdigest()}"

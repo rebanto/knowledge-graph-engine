@@ -53,3 +53,7 @@ class IngestionJob(Base):
     error = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     completed_at = Column(DateTime(timezone=True), nullable=True)
+    # Phase 3: distributed worker pool bookkeeping (nullable; unused on RQ path)
+    assigned_worker_id = Column(String, nullable=True)
+    batch_id = Column(String, nullable=True)
+    heartbeat_at = Column(DateTime(timezone=True), nullable=True)

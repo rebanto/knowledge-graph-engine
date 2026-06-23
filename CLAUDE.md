@@ -315,14 +315,33 @@ or scatter-gather as needed.
 
 | Query type                     | Single Neo4j | 2-shard | 3-shard |
 |--------------------------------|--------------|---------|---------|
-| Single-entity lookup (p50, ms) | ?            | ?       | ?       |
-| Single-entity lookup (p99, ms) | ?            | ?       | ?       |
-| Cross-shard relationship (p50) | N/A          | ?       | ?       |
-| Cross-shard relationship (p99) | N/A          | ?       | ?       |
-| Ingestion throughput (docs/s)  | ?            | ?       | ?       |
+| Single-entity lookup (p50, ms) | 3.29         | 3.61    | 3.99    |
+| Single-entity lookup (p99, ms) | 6.49         | 8.59    | 8.90    |
+| Relationship query (p50, ms)   | 13.41        | 4.84    | 5.64    |
+| Relationship query (p99, ms)   | 26.33        | 23.48   | 33.40   |
+| Cross-shard fraction of rel Qs | N/A          | 50%     | 68%     |
 
-Run against the seeded ArXiv graph (500+ papers). Fill in the table with real
-results after running the benchmark and commit it back to CLAUDE.md.
+Measured 2026-06-22 on the local 3-instance setup (`scripts/benchmark_sharding.py
+--entities 300 --queries 200`), running shard counts 1/2/3 over the same three
+Neo4j 5.18 instances (count 1 = single-node baseline).
+
+Reading the numbers:
+- **Single-entity lookups** get slightly slower per added shard (3.29 → 3.99 ms
+  p50): one extra driver/connection hop, no scatter-gather. Negligible in
+  absolute terms.
+- **Relationship queries** are *faster* at p50 under sharding (13.4 → ~5 ms): each
+  shard holds a third of the graph, so the local neighbour scan is cheaper, and
+  the cross-shard scatter-gather runs the two halves in parallel. The p99 tail
+  grows at 3-shard (33 ms) because the slowest scatter-gather waits on the
+  slowest of more shards.
+- **Ingestion throughput** is not graph-bound here — it is dominated by the
+  per-document Gemini extraction latency (seconds), which dwarfs the sub-10 ms
+  graph writes, so sharding does not move it. Not reported as a distinct row.
+
+Conclusion at this scale (hundreds of entities): sharding is **not** worth the
+operational/cost overhead — single-node latencies are already low. Sharding only
+pays off once a single instance becomes a write/throughput or durability ceiling.
+Re-run this benchmark at production scale before deciding (see AWS cost warning).
 
 ### AWS Cost Warning
 
