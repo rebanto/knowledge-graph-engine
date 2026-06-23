@@ -14,6 +14,14 @@ load_dotenv()
 
 MODEL = os.environ.get("LLM_MODEL", "gemini-flash-lite-latest")
 
+# Hard ceiling on a single Gemini call. The google-genai SDK has no built-in
+# timeout on generate_content; without this a hung HTTP call blocks an LLM
+# thread-pool worker forever, which wedges entity extraction, which leaves the
+# ingestion job's asyncio.gather pending and the source stranded at 'running'.
+# On timeout the call surfaces as a normal failure (caught per-document) so the
+# job still reaches a terminal state.
+_LLM_CALL_TIMEOUT = float(os.environ.get("LLM_CALL_TIMEOUT", 90))
+
 # Bulkhead: dedicated thread pool for LLM I/O so it can't starve the DB pools.
 _llm_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="llm")
 
@@ -38,6 +46,12 @@ def _call_sync(prompt: str, json_mode: bool, retries: int = 2):
     for attempt in range(retries + 1):
         try:
             gemini_breaker.call(lambda: None)  # check circuit is closed first
+            # NOTE: deliberately NOT routing the real call through the breaker.
+            # Entity extraction fires several windows concurrently per document,
+            # so transient 429s/503s arrive in bursts; counting each toward the
+            # breaker trips it open and cascades every in-flight document to
+            # failure. The per-call retry loop below already absorbs transient
+            # ServerErrors, which is the right granularity here.
             result = get_client().models.generate_content(
                 model=MODEL, contents=prompt, config=config
             )
@@ -64,10 +78,16 @@ def _call_sync(prompt: str, json_mode: bool, retries: int = 2):
 
 
 async def _call_async(prompt: str, json_mode: bool) -> object:
-    """Run the Gemini call in the LLM bulkhead thread pool."""
+    """Run the Gemini call in the LLM bulkhead thread pool, bounded by a timeout.
+
+    The timeout converts an indefinitely-hung SDK call into a TimeoutError that
+    propagates like any other failure, so the ingestion job can finish and reach
+    a terminal status instead of hanging at 'running'.
+    """
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        _llm_executor, _call_sync, prompt, json_mode
+    return await asyncio.wait_for(
+        loop.run_in_executor(_llm_executor, _call_sync, prompt, json_mode),
+        timeout=_LLM_CALL_TIMEOUT,
     )
 
 
@@ -77,6 +97,35 @@ async def generate_json(prompt: str) -> dict:
         return json.loads(response.text)
     except (json.JSONDecodeError, AttributeError):
         return {}
+
+
+# ── Document OCR (scanned/image-only PDFs) ─────────────────────────────────────
+
+_OCR_PROMPT = (
+    "Transcribe ALL text from this document exactly, preserving reading order. "
+    "Return only the transcribed text — no commentary, no markdown. "
+    "If the document contains no readable text at all, return an empty response."
+)
+# OCR of a multi-page scan can take longer than a normal text call.
+_OCR_TIMEOUT = float(os.environ.get("LLM_OCR_TIMEOUT", 180))
+
+
+def _ocr_pdf_sync(pdf_bytes: bytes) -> str:
+    """Send the raw PDF to Gemini (multimodal) and return the transcribed text."""
+    gemini_breaker.call(lambda: None)  # honour the circuit breaker
+    part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
+    resp = get_client().models.generate_content(model=MODEL, contents=[part, _OCR_PROMPT])
+    llm_calls_total.labels(operation="ocr", status="ok").inc()
+    return (resp.text or "").strip()
+
+
+async def ocr_pdf(pdf_bytes: bytes) -> str:
+    """Async OCR fallback for PDFs that have no extractable text layer."""
+    loop = asyncio.get_event_loop()
+    return await asyncio.wait_for(
+        loop.run_in_executor(_llm_executor, _ocr_pdf_sync, pdf_bytes),
+        timeout=_OCR_TIMEOUT,
+    )
 
 
 async def generate_text(prompt: str) -> str:

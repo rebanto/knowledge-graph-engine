@@ -195,3 +195,13 @@ export async function getQueueStatus() {
   const { data } = await client.get<import("./types").QueueStatus>("/api/system/queue");
   return data;
 }
+
+export async function cleanupWorkspace(workspaceId: string) {
+  const { data } = await client.post<{
+    status: string;
+    stale_vector_sources_removed: number;
+    stale_graph_papers_removed: number;
+    orphaned_jobs_removed: number;
+  }>(`/api/workspaces/${workspaceId}/cleanup`);
+  return data;
+}

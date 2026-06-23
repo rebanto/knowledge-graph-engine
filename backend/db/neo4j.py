@@ -190,6 +190,106 @@ async def mark_paper_processed(paper_id: str) -> None:
         )
 
 
+async def remove_source_from_graph(workspace_id: str, source_id: str) -> dict:
+    """Detach a Postgres source's contribution from the knowledge graph.
+
+    A node/edge may have been asserted by several sources, so we don't blindly
+    delete: we drop this source_id from each node/edge's source_ids list, then
+    delete only the ones left with no remaining source (orphans). Shared
+    concepts that other live sources still reference are preserved.
+
+    Edges are pruned first so relationships this source created between two
+    surviving nodes are removed; then orphaned nodes are DETACH DELETEd.
+    """
+    driver = await get_async_driver()
+    async with driver.session() as session:
+        edge_res = await session.run(
+            """
+            MATCH ({workspace_id: $ws})-[r]->({workspace_id: $ws})
+            WHERE $sid IN coalesce(r.source_ids, [])
+            SET r.source_ids = [x IN r.source_ids WHERE x <> $sid]
+            WITH r WHERE size(r.source_ids) = 0
+            DELETE r
+            RETURN count(*) AS removed
+            """,
+            ws=workspace_id, sid=source_id,
+        )
+        edges_removed = (await edge_res.single())["removed"]
+
+        node_res = await session.run(
+            """
+            MATCH (n {workspace_id: $ws})
+            WHERE $sid IN coalesce(n.source_ids, [])
+            SET n.source_ids = [x IN n.source_ids WHERE x <> $sid],
+                n.source_count = size([x IN n.source_ids WHERE x <> $sid])
+            WITH n WHERE size(n.source_ids) = 0
+            DETACH DELETE n
+            RETURN count(*) AS removed
+            """,
+            ws=workspace_id, sid=source_id,
+        )
+        nodes_removed = (await node_res.single())["removed"]
+
+    return {"nodes_removed": nodes_removed, "edges_removed": edges_removed}
+
+
+async def delete_source_documents(workspace_id: str, document_urls: list[str]) -> int:
+    """Remove all graph data contributed by a set of document URLs.
+
+    Used by the workspace cleanup sweep, where only the document URLs of
+    orphaned ingestion jobs are known (the source row — and its source_id — is
+    already gone, so remove_source_from_graph can't be used). Steps:
+      1. Collect the arxiv_id of each matching Paper for edge cleanup.
+      2. DETACH DELETE the Paper nodes (removes Paper + all its relationships).
+      3. Delete any remaining entity->entity edges tagged with those doc IDs.
+      4. Delete non-Paper entity nodes that now have no edges at all.
+
+    Scoped by workspace_id so deleting documents in one workspace never removes
+    a Paper another workspace owns. Returns the number of Paper nodes deleted.
+    """
+    if not document_urls:
+        return 0
+
+    driver = await get_async_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            """
+            UNWIND $urls AS url
+            MATCH (p:Paper) WHERE p.workspace_id = $ws AND p.url = url
+            RETURN p.arxiv_id AS doc_id
+            """,
+            urls=document_urls, ws=workspace_id,
+        )
+        records = await result.data()
+        doc_ids = [r["doc_id"] for r in records if r.get("doc_id")]
+
+        await session.run(
+            """
+            UNWIND $urls AS url
+            MATCH (p:Paper) WHERE p.workspace_id = $ws AND p.url = url
+            DETACH DELETE p
+            """,
+            urls=document_urls, ws=workspace_id,
+        )
+        deleted = len(doc_ids)
+
+        if doc_ids:
+            await session.run(
+                """
+                UNWIND $doc_ids AS did
+                MATCH ()-[r]->() WHERE r.source_document_id = did DELETE r
+                """,
+                doc_ids=doc_ids,
+            )
+
+        await session.run(
+            "MATCH (n {workspace_id: $ws}) WHERE NOT n:Paper AND NOT (n)--() DELETE n",
+            ws=workspace_id,
+        )
+
+        return deleted
+
+
 async def get_node_count() -> int:
     driver = await get_async_driver()
     async with driver.session() as session:

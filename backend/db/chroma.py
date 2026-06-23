@@ -69,14 +69,61 @@ def _delete_chunks_for_source_sync(workspace_id: str, source_url: str):
     _get_collection_sync(workspace_id).delete(where={"source_url": source_url})
 
 
+def _delete_chunks_for_source_id_sync(workspace_id: str, source_id: str):
+    if not source_id:
+        return
+    # Purge every chunk a given Postgres source contributed (used when a source
+    # is deleted). Chunks are tagged with source_id at ingest time.
+    _get_collection_sync(workspace_id).delete(where={"source_id": source_id})
+
+
+def _delete_chunks_for_sources_sync(workspace_id: str, source_urls: list[str]) -> None:
+    """Batch-delete chunks for multiple source URLs in one ChromaDB call."""
+    if not source_urls:
+        return
+    col = _get_collection_sync(workspace_id)
+    where = (
+        {"source_url": source_urls[0]}
+        if len(source_urls) == 1
+        else {"source_url": {"$in": source_urls}}
+    )
+    try:
+        col.delete(where=where)
+    except Exception:
+        # Fallback to individual deletes if the $in operator isn't supported
+        for url in source_urls:
+            try:
+                col.delete(where={"source_url": url})
+            except Exception:
+                pass
+
+
+def _get_all_source_urls_sync(workspace_id: str) -> set[str]:
+    try:
+        result = _get_collection_sync(workspace_id).get(include=["metadatas"])
+        return {
+            m["source_url"]
+            for m in (result.get("metadatas") or [])
+            if m and m.get("source_url")
+        }
+    except Exception:
+        return set()
+
+
 def _embed_text_sync(text: str) -> list[float]:
     return _get_model().encode([text], show_progress_bar=False)[0].tolist()
 
 
 def _query_sync(workspace_id: str, embedding: list[float], top_k: int) -> dict:
-    return _get_collection_sync(workspace_id).query(
+    # Guard against an empty collection: ChromaDB raises if n_results exceeds the
+    # number of stored vectors, so clamp to the count (and short-circuit when 0).
+    col = _get_collection_sync(workspace_id)
+    count = col.count()
+    if count == 0:
+        return {"documents": [[]], "metadatas": [[]], "distances": [[]]}
+    return col.query(
         query_embeddings=[embedding],
-        n_results=top_k,
+        n_results=min(top_k, count),
     )
 
 
@@ -105,6 +152,22 @@ async def has_chunks_for_source(workspace_id: str, source_url: str) -> bool:
 
 async def delete_chunks_for_source(workspace_id: str, source_url: str):
     await _run(_delete_chunks_for_source_sync, workspace_id, source_url)
+
+
+async def delete_chunks_for_source_id(workspace_id: str, source_id: str):
+    """Delete every chunk a deleted Postgres source contributed (by source_id)."""
+    await _run(_delete_chunks_for_source_id_sync, workspace_id, source_id)
+
+
+async def delete_chunks_for_sources(workspace_id: str, source_urls: list[str]) -> None:
+    """Batch-delete chunks for multiple source URLs (workspace cleanup sweep)."""
+    if source_urls:
+        await _run(_delete_chunks_for_sources_sync, workspace_id, source_urls)
+
+
+async def get_all_source_urls(workspace_id: str) -> set[str]:
+    """Return all distinct source_url values stored in a workspace's collection."""
+    return await _run(_get_all_source_urls_sync, workspace_id)
 
 
 async def embed_text(text: str) -> list[float]:

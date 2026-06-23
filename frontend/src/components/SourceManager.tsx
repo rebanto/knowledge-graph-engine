@@ -8,7 +8,7 @@ import {
 import type { Source, SourceType, SourceJobsResponse, QueueStatus } from "../types";
 import {
   listSources, createSource, deleteSource, uploadPdf,
-  getSourceJobs, retrySource, getQueueStatus,
+  getSourceJobs, retrySource, getQueueStatus, cleanupWorkspace,
 } from "../api";
 
 // ── Type / status metadata ─────────────────────────────────────────────────────
@@ -386,6 +386,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
   const [retrying, setRetrying] = useState<Record<string, boolean>>({});
   const [deleting, setDeleting] = useState<Record<string, boolean>>({});
 
+
   // Add-source form
   const [addOpen, setAddOpen] = useState(false);
   const [addType, setAddType] = useState<SourceType>("arxiv_feed");
@@ -412,6 +413,12 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
     setLoading(false);
   }, [workspaceId]);
 
+  // Silently purge stale graph/vector data left behind by deleted sources.
+  // Runs on workspace load, after delete, and when the user hits Refresh.
+  const syncQuietly = useCallback(async () => {
+    try { await cleanupWorkspace(workspaceId); } catch { /* ignore */ }
+  }, [workspaceId]);
+
   useEffect(() => {
     setLoading(true);
     setSources([]);
@@ -422,7 +429,8 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
     unchangedCountRef.current = 0;
     prevStatusKeyRef.current = "";
     refresh();
-  }, [workspaceId, refresh]);
+    syncQuietly();
+  }, [workspaceId, refresh, syncQuietly]);
 
   // Exponential-backoff poll while any source is active
   useEffect(() => {
@@ -493,6 +501,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
       await deleteSource(workspaceId, sourceId);
       setSources((prev) => prev.filter((s) => s.id !== sourceId));
       if (expandedId === sourceId) setExpandedId(null);
+      syncQuietly(); // purge any residual graph/vector data in the background
     } finally {
       setDeleting((p) => ({ ...p, [sourceId]: false }));
     }
@@ -581,7 +590,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
             </p>
           </div>
           <button
-            onClick={refresh}
+            onClick={() => { refresh(); syncQuietly(); }}
             title="Refresh"
             className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
           >
