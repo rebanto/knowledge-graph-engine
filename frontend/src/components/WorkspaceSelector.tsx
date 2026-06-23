@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, Plus, Loader2, Pencil, Trash2, Check, X } from "lucide-react";
+import { ChevronDown, Plus, Loader2, Pencil, Trash2, Check } from "lucide-react";
 import type { Workspace } from "../types";
 
 interface WorkspaceSelectorProps {
