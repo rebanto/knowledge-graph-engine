@@ -52,6 +52,14 @@ def _add_chunks_sync(workspace_id: str, chunks: list[dict]):
     )
 
 
+def _has_chunks_for_source_sync(workspace_id: str, source_url: str) -> bool:
+    if not source_url:
+        return False
+    got = _get_collection_sync(workspace_id).get(
+        where={"source_url": source_url}, limit=1, include=[])
+    return bool(got and got.get("ids"))
+
+
 def _delete_chunks_for_source_sync(workspace_id: str, source_url: str):
     if not source_url:
         return
@@ -89,6 +97,10 @@ async def get_collection(workspace_id: str):
 
 async def add_chunks(workspace_id: str, chunks: list[dict]):
     await _run(_add_chunks_sync, workspace_id, chunks)
+
+
+async def has_chunks_for_source(workspace_id: str, source_url: str) -> bool:
+    return await _run(_has_chunks_for_source_sync, workspace_id, source_url)
 
 
 async def delete_chunks_for_source(workspace_id: str, source_url: str):

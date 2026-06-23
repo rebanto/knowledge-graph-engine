@@ -4,8 +4,17 @@ from backend.core.llm_client import generate_json
 
 VALID_ENTITY_TYPES = {"Person", "Organization", "Paper", "Concept", "Event", "Topic"}
 VALID_EDGE_TYPES = {
-    "AUTHORED", "CITED", "FUNDED_BY", "COLLABORATED_WITH",
-    "PUBLISHED_IN", "SUPPORTS", "CONTRADICTS", "CONFLICTS_WITH",
+    # Citation / authorship / collaboration
+    "AUTHORED", "CITED", "COLLABORATED_WITH",
+    # Affiliation & funding
+    "AFFILIATED_WITH", "FUNDED_BY",
+    # Conceptual relationships (the bulk of a paper's substance)
+    "USES", "PROPOSES", "EXTENDS", "EVALUATED_ON", "APPLIED_TO",
+    "PART_OF", "RELATED_TO", "IMPROVES", "COMPARED_TO",
+    # Topic membership
+    "PUBLISHED_IN",
+    # Claim agreement / disagreement
+    "SUPPORTS", "CONTRADICTS", "CONFLICTS_WITH",
 }
 
 # Each extraction window is sent to the LLM in one call. Windows overlap so an
@@ -18,7 +27,8 @@ _MAX_WINDOWS = 15
 # Bound concurrent LLM calls per document (the shared LLM pool has 8 workers).
 _WINDOW_CONCURRENCY = 4
 
-EXTRACTION_PROMPT = """Extract named entities and relationships from this research paper text.
+EXTRACTION_PROMPT = """You are building a knowledge graph from a research document. Extract the
+named entities AND — most importantly — the relationships that connect them.
 Return ONLY a JSON object — no markdown, no explanation, no code fences.
 
 Schema:
@@ -27,16 +37,43 @@ Schema:
     {{"name": "string", "type": "Person|Organization|Paper|Concept|Event|Topic", "aliases": []}}
   ],
   "relationships": [
-    {{"source": "entity name", "target": "entity name", "type": "AUTHORED|CITED|FUNDED_BY|COLLABORATED_WITH|PUBLISHED_IN|SUPPORTS|CONTRADICTS", "context": "one sentence", "confidence": 0.0}}
+    {{"source": "entity name", "target": "entity name", "type": "RELATION", "context": "one sentence", "confidence": 0.0}}
   ]
 }}
 
+Entity types:
+- Concept: the technical substance — algorithms, methods, model architectures,
+  datasets, benchmarks, evaluation metrics, techniques, tasks, frameworks, theorems.
+  Extract these aggressively; they are what connect documents to each other.
+- Topic: broad research areas / subfields (e.g. "reinforcement learning",
+  "natural language processing", "computer vision").
+- Organization: institutions, labs, companies, funding agencies.
+- Person: only people explicitly named in the body as researchers/contributors
+  (NOT the document's own authors — those are handled separately).
+- Event: named conferences, workshops, or challenges.
+
+Relationship types (source → target):
+- PROPOSES    (Concept→Concept): a method introduces/defines another concept
+- USES        (Concept→Concept): a method uses a technique, dataset, or component
+- EXTENDS     (Concept→Concept): builds on / generalizes a prior method
+- IMPROVES    (Concept→Concept): outperforms or refines another method
+- COMPARED_TO (Concept→Concept): evaluated against a baseline/alternative
+- EVALUATED_ON(Concept→Concept): a method is measured on a dataset/benchmark
+- APPLIED_TO  (Concept→Topic|Concept): a method is applied to a task/domain
+- PART_OF     (Concept→Concept): a component belongs to a larger system
+- RELATED_TO  (Concept→Concept): related but no stronger relation fits
+- AFFILIATED_WITH (Person→Organization): a person belongs to an institution
+- FUNDED_BY   (Organization→Organization): funding relationship
+- SUPPORTS / CONTRADICTS (Concept→Concept): a claim agrees with / disputes another
+- PUBLISHED_IN (Concept→Topic): a concept sits within a research area
+
 Rules:
-- Concepts: algorithms, methods, datasets, model architectures, evaluation metrics, frameworks
-- Topics: broad research areas and subfields
-- Only include relationships where both source and target are in the entities list
-- Do not include authors — they are handled separately
-- Confidence: 0.9+ for explicit statements, 0.7-0.9 for strongly implied, below 0.7 skip it
+- Prioritize RELATIONSHIPS. A document with 8 entities should usually yield 6+
+  relationships. Connect the concepts to each other and to their topics.
+- Only emit a relationship where BOTH source and target appear in "entities".
+- Use the most specific relation type that fits; fall back to RELATED_TO only when
+  nothing more specific applies.
+- Confidence: 0.9+ explicit, 0.7-0.9 strongly implied, below 0.7 omit it.
 
 Text:
 {text}"""

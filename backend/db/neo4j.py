@@ -68,33 +68,61 @@ def setup_constraints():
 
 # ── Async write helpers — used by ingestion worker and graph retriever ─────────
 
-async def merge_paper(paper_id: str, title: str, workspace_id: str, properties: dict = None):
+# Idempotent list-append used to record which Postgres source(s) contributed a
+# node or edge. Replayable: re-ingesting the same source is a no-op. The list is
+# what makes source deletion possible — see remove_source_from_graph().
+_ADD_SOURCE = """
+    n.source_ids = CASE
+        WHEN $source_id IS NULL THEN coalesce(n.source_ids, [])
+        WHEN $source_id IN coalesce(n.source_ids, []) THEN n.source_ids
+        ELSE coalesce(n.source_ids, []) + $source_id
+    END,
+    n.source_count = size(
+        CASE
+            WHEN $source_id IS NULL THEN coalesce(n.source_ids, [])
+            WHEN $source_id IN coalesce(n.source_ids, []) THEN n.source_ids
+            ELSE coalesce(n.source_ids, []) + $source_id
+        END)
+"""
+
+
+async def merge_paper(
+    paper_id: str, title: str, workspace_id: str,
+    properties: dict = None, source_id: str = None,
+):
     driver = await get_async_driver()
     props = {**(properties or {}), "name": title, "workspace_id": workspace_id}
     async with driver.session() as session:
         await session.run(
-            """
-            MERGE (n:Paper {arxiv_id: $paper_id})
-            ON CREATE SET n += $props, n.created_at = timestamp(), n.source_count = 1
-            ON MATCH SET n.source_count = n.source_count + 1, n.last_updated = timestamp()
+            f"""
+            MERGE (n:Paper {{arxiv_id: $paper_id}})
+            ON CREATE SET n += $props, n.created_at = timestamp()
+            ON MATCH SET n += $props, n.last_updated = timestamp()
+            SET {_ADD_SOURCE}
             """,
             paper_id=paper_id,
             props=props,
+            source_id=source_id,
         )
 
 
-async def merge_node(label: str, name: str, workspace_id: str, properties: dict = None):
+async def merge_node(
+    label: str, name: str, workspace_id: str,
+    properties: dict = None, source_id: str = None,
+):
     driver = await get_async_driver()
     props = {**(properties or {}), "workspace_id": workspace_id}
     async with driver.session() as session:
         await session.run(
             f"""
             MERGE (n:{label} {{name: $name}})
-            ON CREATE SET n += $props, n.created_at = timestamp(), n.source_count = 1
-            ON MATCH SET n.source_count = n.source_count + 1, n.last_updated = timestamp()
+            ON CREATE SET n += $props, n.created_at = timestamp()
+            ON MATCH SET n.last_updated = timestamp()
+            SET {_ADD_SOURCE}
             """,
             name=name,
             props=props,
+            source_id=source_id,
         )
 
 
@@ -106,6 +134,7 @@ async def merge_edge(
     edge_type: str,
     workspace_id: str,
     properties: dict = None,
+    source_id: str = None,
 ):
     driver = await get_async_driver()
     props = {**(properties or {}), "workspace_id": workspace_id}
@@ -121,6 +150,9 @@ async def merge_edge(
         else f"(b:{target_label} {{name: $tgt}})"
     )
 
+    # Same idempotent source-tracking as nodes, but applied to the relationship.
+    add_source = _ADD_SOURCE.replace("n.", "r.")
+
     async with driver.session() as session:
         await session.run(
             f"""
@@ -129,10 +161,12 @@ async def merge_edge(
             MERGE (a)-[r:{edge_type}]->(b)
             ON CREATE SET r += $props, r.created_at = timestamp()
             ON MATCH SET r.last_updated = timestamp()
+            SET {add_source}
             """,
             src=source_name,
             tgt=target_name,
             props=props,
+            source_id=source_id,
         )
 
 

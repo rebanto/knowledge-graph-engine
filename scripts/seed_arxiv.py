@@ -55,7 +55,7 @@ async def _seed(max_papers: int, days_back: int) -> None:
         print(f"[{i}/{len(papers)}] {paper['title'][:72]}...")
         processed = False
         try:
-            processed = await process_document(paper, WORKSPACE_ID, resolver)
+            processed = await process_document(paper, WORKSPACE_ID, resolver, source_id="seed")
             if processed:
                 success += 1
             else:

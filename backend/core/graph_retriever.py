@@ -8,18 +8,32 @@ from backend.core.observability import cache_hits_total, cache_misses_total
 SCHEMA = """Node labels: Person, Organization, Paper, Concept, Event, Topic
 
 Relationship types (always source → target):
-  (Person)-[:AUTHORED]->(Paper)
-  (Paper)-[:CITED]->(Paper)
-  (Organization)-[:FUNDED_BY]->(Organization)
-  (Person)-[:COLLABORATED_WITH]->(Person)
-  (Paper)-[:PUBLISHED_IN]->(Topic)
-  (Concept)-[:SUPPORTS]->(Concept)
-  (Concept)-[:CONTRADICTS]->(Concept)
-  (Concept)-[:CONFLICTS_WITH]->(Concept)   ← auto-created when two sources disagree
+  Authorship / citation / people:
+    (Person)-[:AUTHORED]->(Paper)
+    (Person)-[:COLLABORATED_WITH]->(Person)
+    (Person)-[:AFFILIATED_WITH]->(Organization)
+    (Paper)-[:CITED]->(Paper)
+  Paper ↔ its content (these connect papers that share a concept/topic):
+    (Paper)-[:ABOUT]->(Topic)            ← topic / research area / arxiv category
+    (Paper)-[:MENTIONS]->(Concept)       ← method, dataset, metric, architecture…
+    (Paper)-[:AFFILIATED_WITH]->(Organization)
+    (Paper)-[:PRESENTED_AT]->(Event)
+    (Paper)-[:PUBLISHED_IN]->(Topic)
+  Conceptual structure (Concept → Concept unless noted):
+    (Concept)-[:PROPOSES|USES|EXTENDS|IMPROVES|COMPARED_TO|EVALUATED_ON|PART_OF|RELATED_TO]->(Concept)
+    (Concept)-[:APPLIED_TO]->(Topic|Concept)
+  Funding & claims:
+    (Organization)-[:FUNDED_BY]->(Organization)
+    (Concept)-[:SUPPORTS]->(Concept)
+    (Concept)-[:CONTRADICTS]->(Concept)
+    (Concept)-[:CONFLICTS_WITH]->(Concept)   ← auto-created when two sources disagree
+
+To find papers related to a concept/topic: (p:Paper)-[:MENTIONS|ABOUT]->(c {name: ...}).
+To find papers related to each other: (p1:Paper)-[:MENTIONS|ABOUT]->(c)<-[:MENTIONS|ABOUT]-(p2:Paper).
 
 Node properties:
-  ALL: name (string), workspace_id (string)
-  Paper: arxiv_id, url, published (ISO datetime), categories (list)
+  ALL: name (string), workspace_id (string), source_count (int)
+  Paper: arxiv_id, url, published (ISO datetime), categories (string)
 
 Edge properties:
   ALL: source_document_id, confidence (0.0–1.0), workspace_id
