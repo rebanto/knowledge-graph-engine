@@ -37,6 +37,19 @@ class WorkerClient:
         self._stop.set()
 
     async def run(self, idle_sleep: float = 1.0) -> None:
+        retry_delay = 2.0
+        while not self._stop.is_set():
+            try:
+                await self._run_session(idle_sleep)
+            except grpc.aio.AioRpcError:
+                if self._stop.is_set():
+                    return
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 30.0)
+            else:
+                retry_delay = 2.0
+
+    async def _run_session(self, idle_sleep: float = 1.0) -> None:
         async with grpc.aio.insecure_channel(self.address) as channel:
             stub = pb_grpc.CoordinatorStub(channel)
             resp = await stub.Register(
