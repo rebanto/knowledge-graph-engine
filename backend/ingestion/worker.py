@@ -192,5 +192,5 @@ async def process_document(
         if rel["type"] in ("SUPPORTS", "CONTRADICTS") and not shard_router.is_enabled():
             await check_and_flag_conflict(src, tgt, rel["type"], doc_id, workspace_id)
 
-    await g.mark_paper_processed(doc_id)
+    await g.mark_paper_processed(doc_id, workspace_id)
     return True
