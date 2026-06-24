@@ -22,10 +22,29 @@ def _get_model() -> SentenceTransformer:
 
 
 def _get_client() -> chromadb.ClientAPI:
+    """Return the ChromaDB client, created once per process.
+
+    Two modes:
+      • Server mode (CHROMA_HOST set) — connect to a standalone Chroma server via
+        HttpClient. THIS IS REQUIRED for the real dev/prod stack, where the API
+        process and the RQ ingestion worker are SEPARATE processes. A
+        PersistentClient is single-process only: each process caches the
+        collection/HNSW index in memory and never sees another process's writes,
+        so the worker would ingest data the API could never retrieve (the source
+        shows green "ready" yet every question returns "no information"). A single
+        shared server is the one source of truth both processes read and write.
+      • Embedded mode (CHROMA_HOST unset) — in-process PersistentClient. Used by
+        the offline seed script and the unit tests, which run in a single process.
+    """
     global _client
     if _client is None:
-        persist_dir = os.environ.get("CHROMA_PERSIST_DIR", "./chroma_data")
-        _client = chromadb.PersistentClient(path=persist_dir)
+        host = os.environ.get("CHROMA_HOST", "").strip()
+        if host:
+            port = int(os.environ.get("CHROMA_PORT", "8001"))
+            _client = chromadb.HttpClient(host=host, port=port)
+        else:
+            persist_dir = os.environ.get("CHROMA_PERSIST_DIR", "./chroma_data")
+            _client = chromadb.PersistentClient(path=persist_dir)
     return _client
 
 
@@ -98,6 +117,14 @@ def _delete_chunks_for_sources_sync(workspace_id: str, source_urls: list[str]) -
                 pass
 
 
+def _delete_collection_sync(workspace_id: str) -> None:
+    # Drop the entire per-workspace collection (used when a workspace is deleted).
+    try:
+        _get_client().delete_collection(f"workspace_{workspace_id}_chunks")
+    except Exception:
+        pass  # collection may not exist yet — nothing to remove
+
+
 def _get_all_source_urls_sync(workspace_id: str) -> set[str]:
     try:
         result = _get_collection_sync(workspace_id).get(include=["metadatas"])
@@ -131,10 +158,16 @@ def _count_sync(workspace_id: str) -> int:
     return _get_collection_sync(workspace_id).count()
 
 
+def _heartbeat_sync() -> int:
+    # Works in both modes: HttpClient pings the server, PersistentClient is local.
+    return _get_client().heartbeat()
+
+
 # ── Async wrappers ─────────────────────────────────────────────────────────────
 
 def _run(fn, *args):
-    loop = asyncio.get_event_loop()
+    # Always invoked from within an awaited coroutine, so a running loop exists.
+    loop = asyncio.get_running_loop()
     return loop.run_in_executor(_executor, fn, *args)
 
 
@@ -170,6 +203,11 @@ async def get_all_source_urls(workspace_id: str) -> set[str]:
     return await _run(_get_all_source_urls_sync, workspace_id)
 
 
+async def delete_collection(workspace_id: str) -> None:
+    """Drop a workspace's entire chunk collection (used on workspace deletion)."""
+    await _run(_delete_collection_sync, workspace_id)
+
+
 async def embed_text(text: str) -> list[float]:
     return await _run(_embed_text_sync, text)
 
@@ -180,6 +218,11 @@ async def query_collection(workspace_id: str, embedding: list[float], top_k: int
 
 async def get_chunk_count(workspace_id: str) -> int:
     return await _run(_count_sync, workspace_id)
+
+
+async def heartbeat() -> int:
+    """Liveness check for the vector store — used by /health/ready."""
+    return await _run(_heartbeat_sync)
 
 
 # Sync versions kept for the seed script
