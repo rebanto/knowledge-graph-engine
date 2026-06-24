@@ -52,18 +52,41 @@ async def close_async_driver():
 
 # ── Schema setup (sync — called once at startup) ───────────────────────────────
 
+# Entity labels whose nodes are keyed by (name, workspace_id). Paper is keyed by
+# (arxiv_id, workspace_id) and handled separately.
+ENTITY_LABELS = ["Person", "Organization", "Concept", "Topic", "Event"]
+
+# The original schema put a GLOBAL uniqueness constraint on each entity's `name`
+# (and on Paper.arxiv_id). That made a single physical node represent an entity
+# across EVERY workspace: a Concept named "transformer" created by workspace A was
+# silently reused by workspace B, keeping A's workspace_id. Every workspace-scoped
+# query (`MATCH (n {workspace_id: $ws})`) and the deletion logic then missed B's
+# data entirely. These obsolete constraints are dropped and replaced with
+# composite (name|arxiv_id, workspace_id) constraints so each workspace owns its
+# own nodes — per CLAUDE.md's "MERGE on (entity_name, entity_type, workspace_id)".
+_OBSOLETE_CONSTRAINTS = [
+    "paper_arxiv_id", "person_name", "org_name",
+    "concept_name", "topic_name", "event_name",
+]
+
+
 def setup_constraints():
     driver = get_driver()
     with driver.session() as session:
-        for stmt in [
-            "CREATE CONSTRAINT paper_arxiv_id IF NOT EXISTS FOR (n:Paper) REQUIRE n.arxiv_id IS UNIQUE",
-            "CREATE CONSTRAINT person_name IF NOT EXISTS FOR (n:Person) REQUIRE n.name IS UNIQUE",
-            "CREATE CONSTRAINT org_name IF NOT EXISTS FOR (n:Organization) REQUIRE n.name IS UNIQUE",
-            "CREATE CONSTRAINT concept_name IF NOT EXISTS FOR (n:Concept) REQUIRE n.name IS UNIQUE",
-            "CREATE CONSTRAINT topic_name IF NOT EXISTS FOR (n:Topic) REQUIRE n.name IS UNIQUE",
-            "CREATE CONSTRAINT event_name IF NOT EXISTS FOR (n:Event) REQUIRE n.name IS UNIQUE",
-        ]:
-            session.run(stmt)
+        # 1. Drop the obsolete global-uniqueness constraints (multi-tenancy bug).
+        #    Idempotent: IF EXISTS no-ops on a fresh DB.
+        for name in _OBSOLETE_CONSTRAINTS:
+            session.run(f"DROP CONSTRAINT {name} IF EXISTS")
+        # 2. Composite uniqueness: an entity is unique *within* its workspace.
+        for label in ENTITY_LABELS:
+            session.run(
+                f"CREATE CONSTRAINT {label.lower()}_name_ws IF NOT EXISTS "
+                f"FOR (n:{label}) REQUIRE (n.name, n.workspace_id) IS UNIQUE"
+            )
+        session.run(
+            "CREATE CONSTRAINT paper_arxiv_id_ws IF NOT EXISTS "
+            "FOR (n:Paper) REQUIRE (n.arxiv_id, n.workspace_id) IS UNIQUE"
+        )
 
 
 # ── Async write helpers — used by ingestion worker and graph retriever ─────────
@@ -95,12 +118,13 @@ async def merge_paper(
     async with driver.session() as session:
         await session.run(
             f"""
-            MERGE (n:Paper {{arxiv_id: $paper_id}})
+            MERGE (n:Paper {{arxiv_id: $paper_id, workspace_id: $ws}})
             ON CREATE SET n += $props, n.created_at = timestamp()
             ON MATCH SET n += $props, n.last_updated = timestamp()
             SET {_ADD_SOURCE}
             """,
             paper_id=paper_id,
+            ws=workspace_id,
             props=props,
             source_id=source_id,
         )
@@ -115,12 +139,13 @@ async def merge_node(
     async with driver.session() as session:
         await session.run(
             f"""
-            MERGE (n:{label} {{name: $name}})
+            MERGE (n:{label} {{name: $name, workspace_id: $ws}})
             ON CREATE SET n += $props, n.created_at = timestamp()
             ON MATCH SET n.last_updated = timestamp()
             SET {_ADD_SOURCE}
             """,
             name=name,
+            ws=workspace_id,
             props=props,
             source_id=source_id,
         )
@@ -139,15 +164,17 @@ async def merge_edge(
     driver = await get_async_driver()
     props = {**(properties or {}), "workspace_id": workspace_id}
 
+    # Endpoints are scoped to the workspace so an edge never accidentally bridges
+    # two workspaces' same-named nodes (the multi-tenancy fix on the node key).
     src_match = (
-        f"(a:{source_label} {{arxiv_id: $src}})"
+        f"(a:{source_label} {{arxiv_id: $src, workspace_id: $ws}})"
         if source_label == "Paper"
-        else f"(a:{source_label} {{name: $src}})"
+        else f"(a:{source_label} {{name: $src, workspace_id: $ws}})"
     )
     tgt_match = (
-        f"(b:{target_label} {{arxiv_id: $tgt}})"
+        f"(b:{target_label} {{arxiv_id: $tgt, workspace_id: $ws}})"
         if target_label == "Paper"
-        else f"(b:{target_label} {{name: $tgt}})"
+        else f"(b:{target_label} {{name: $tgt, workspace_id: $ws}})"
     )
 
     # Same idempotent source-tracking as nodes, but applied to the relationship.
@@ -165,28 +192,31 @@ async def merge_edge(
             """,
             src=source_name,
             tgt=target_name,
+            ws=workspace_id,
             props=props,
             source_id=source_id,
         )
 
 
-async def is_paper_processed(paper_id: str) -> bool:
+async def is_paper_processed(paper_id: str, workspace_id: str) -> bool:
     driver = await get_async_driver()
     async with driver.session() as session:
         result = await session.run(
-            "MATCH (n:Paper {arxiv_id: $paper_id}) RETURN n.entities_extracted AS done",
-            paper_id=paper_id,
+            "MATCH (n:Paper {arxiv_id: $paper_id, workspace_id: $ws}) "
+            "RETURN n.entities_extracted AS done",
+            paper_id=paper_id, ws=workspace_id,
         )
         record = await result.single()
         return bool(record and record["done"])
 
 
-async def mark_paper_processed(paper_id: str) -> None:
+async def mark_paper_processed(paper_id: str, workspace_id: str) -> None:
     driver = await get_async_driver()
     async with driver.session() as session:
         await session.run(
-            "MATCH (n:Paper {arxiv_id: $paper_id}) SET n.entities_extracted = true",
-            paper_id=paper_id,
+            "MATCH (n:Paper {arxiv_id: $paper_id, workspace_id: $ws}) "
+            "SET n.entities_extracted = true",
+            paper_id=paper_id, ws=workspace_id,
         )
 
 
@@ -231,6 +261,47 @@ async def remove_source_from_graph(workspace_id: str, source_id: str) -> dict:
         nodes_removed = (await node_res.single())["removed"]
 
     return {"nodes_removed": nodes_removed, "edges_removed": edges_removed}
+
+
+async def remove_untagged_documents(workspace_id: str, document_urls: list[str]) -> int:
+    """Legacy-only graph cleanup used as a fallback when a source is deleted.
+
+    Deletes Paper nodes matching these URLs *only if they carry no source_ids* —
+    i.e. they were ingested before source_id tagging existed, so the precise
+    remove_source_from_graph() can't see them. Crucially it NEVER touches a
+    source-tagged node, so a paper legitimately shared by several sources (e.g.
+    an arXiv paper cross-listed in two category feeds, source_ids=[A,B]) is
+    preserved when only one of those sources is deleted. Returns Papers removed.
+    """
+    if not document_urls:
+        return 0
+
+    driver = await get_async_driver()
+    async with driver.session() as session:
+        res = await session.run(
+            """
+            UNWIND $urls AS url
+            MATCH (p:Paper {workspace_id: $ws, url: url})
+            WHERE coalesce(p.source_ids, []) = []
+            DETACH DELETE p
+            RETURN count(p) AS removed
+            """,
+            urls=document_urls, ws=workspace_id,
+        )
+        removed = (await res.single())["removed"]
+
+        # Sweep entity nodes left untagged AND edgeless by that deletion. Scoped to
+        # source_ids=[] so a tagged node another source still asserts is untouched.
+        await session.run(
+            """
+            MATCH (n {workspace_id: $ws})
+            WHERE NOT n:Paper AND coalesce(n.source_ids, []) = [] AND NOT (n)--()
+            DELETE n
+            """,
+            ws=workspace_id,
+        )
+
+    return removed
 
 
 async def delete_source_documents(workspace_id: str, document_urls: list[str]) -> int:
@@ -290,6 +361,22 @@ async def delete_source_documents(workspace_id: str, document_urls: list[str]) -
         return deleted
 
 
+async def delete_workspace_graph(workspace_id: str) -> int:
+    """Delete EVERY node (and its relationships) belonging to a workspace.
+
+    Used when a whole workspace is deleted — otherwise its graph data is orphaned
+    in Neo4j forever. Scoped strictly by workspace_id so other workspaces are
+    untouched. Returns the number of nodes removed.
+    """
+    driver = await get_async_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            "MATCH (n {workspace_id: $ws}) DETACH DELETE n RETURN count(n) AS removed",
+            ws=workspace_id,
+        )
+        return (await result.single())["removed"]
+
+
 async def get_node_count() -> int:
     driver = await get_async_driver()
     async with driver.session() as session:
@@ -313,11 +400,11 @@ def merge_paper_sync(paper_id: str, title: str, workspace_id: str, properties: d
     with get_driver().session() as session:
         session.run(
             """
-            MERGE (n:Paper {arxiv_id: $paper_id})
+            MERGE (n:Paper {arxiv_id: $paper_id, workspace_id: $ws})
             ON CREATE SET n += $props, n.created_at = timestamp(), n.source_count = 1
             ON MATCH SET n.source_count = n.source_count + 1, n.last_updated = timestamp()
             """,
-            paper_id=paper_id, props=props,
+            paper_id=paper_id, ws=workspace_id, props=props,
         )
 
 
@@ -326,11 +413,11 @@ def merge_node_sync(label: str, name: str, workspace_id: str, properties: dict =
     with get_driver().session() as session:
         session.run(
             f"""
-            MERGE (n:{label} {{name: $name}})
+            MERGE (n:{label} {{name: $name, workspace_id: $ws}})
             ON CREATE SET n += $props, n.created_at = timestamp(), n.source_count = 1
             ON MATCH SET n.source_count = n.source_count + 1, n.last_updated = timestamp()
             """,
-            name=name, props=props,
+            name=name, ws=workspace_id, props=props,
         )
 
 
@@ -340,12 +427,12 @@ def merge_edge_sync(
 ):
     props = {**(properties or {}), "workspace_id": workspace_id}
     src_match = (
-        f"(a:{source_label} {{arxiv_id: $src}})"
-        if source_label == "Paper" else f"(a:{source_label} {{name: $src}})"
+        f"(a:{source_label} {{arxiv_id: $src, workspace_id: $ws}})"
+        if source_label == "Paper" else f"(a:{source_label} {{name: $src, workspace_id: $ws}})"
     )
     tgt_match = (
-        f"(b:{target_label} {{arxiv_id: $tgt}})"
-        if target_label == "Paper" else f"(b:{target_label} {{name: $tgt}})"
+        f"(b:{target_label} {{arxiv_id: $tgt, workspace_id: $ws}})"
+        if target_label == "Paper" else f"(b:{target_label} {{name: $tgt, workspace_id: $ws}})"
     )
     with get_driver().session() as session:
         session.run(
@@ -355,23 +442,25 @@ def merge_edge_sync(
             ON CREATE SET r += $props, r.created_at = timestamp()
             ON MATCH SET r.last_updated = timestamp()
             """,
-            src=source_name, tgt=target_name, props=props,
+            src=source_name, tgt=target_name, ws=workspace_id, props=props,
         )
 
 
-def is_paper_processed_sync(paper_id: str) -> bool:
+def is_paper_processed_sync(paper_id: str, workspace_id: str) -> bool:
     with get_driver().session() as session:
         result = session.run(
-            "MATCH (n:Paper {arxiv_id: $paper_id}) RETURN n.entities_extracted AS done",
-            paper_id=paper_id,
+            "MATCH (n:Paper {arxiv_id: $paper_id, workspace_id: $ws}) "
+            "RETURN n.entities_extracted AS done",
+            paper_id=paper_id, ws=workspace_id,
         )
         record = result.single()
         return bool(record and record["done"])
 
 
-def mark_paper_processed_sync(paper_id: str) -> None:
+def mark_paper_processed_sync(paper_id: str, workspace_id: str) -> None:
     with get_driver().session() as session:
         session.run(
-            "MATCH (n:Paper {arxiv_id: $paper_id}) SET n.entities_extracted = true",
-            paper_id=paper_id,
+            "MATCH (n:Paper {arxiv_id: $paper_id, workspace_id: $ws}) "
+            "SET n.entities_extracted = true",
+            paper_id=paper_id, ws=workspace_id,
         )
