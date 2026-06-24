@@ -104,12 +104,12 @@ class ShardRouter:
         async with self._drivers[idx].session() as s:
             await s.run(
                 f"""
-                MERGE (n:{label} {{name: $name}})
+                MERGE (n:{label} {{name: $name, workspace_id: $ws}})
                 ON CREATE SET n += $props, n.created_at = timestamp(), n.is_stub = false
                 ON MATCH SET n.last_updated = timestamp(), n.is_stub = false
                 SET {_ADD_SOURCE}
                 """,
-                name=name, props=props, source_id=source_id,
+                name=name, ws=workspace_id, props=props, source_id=source_id,
             )
 
     async def merge_paper(
@@ -122,12 +122,12 @@ class ShardRouter:
         async with self._drivers[idx].session() as s:
             await s.run(
                 f"""
-                MERGE (n:Paper {{arxiv_id: $paper_id}})
+                MERGE (n:Paper {{arxiv_id: $paper_id, workspace_id: $ws}})
                 ON CREATE SET n += $props, n.created_at = timestamp(), n.is_stub = false
                 ON MATCH SET n += $props, n.last_updated = timestamp(), n.is_stub = false
                 SET {_ADD_SOURCE}
                 """,
-                paper_id=paper_id, props=props, source_id=source_id,
+                paper_id=paper_id, ws=workspace_id, props=props, source_id=source_id,
             )
 
     async def merge_edge(
@@ -147,19 +147,22 @@ class ShardRouter:
         tgt_idx = self.shard_for(target_name)
         props = {**(properties or {}), "workspace_id": workspace_id}
 
+        # Endpoints are workspace-scoped so an edge never bridges two workspaces'
+        # same-named nodes (mirrors the single-node multi-tenancy fix).
         src_match = (
-            "(a:%s {arxiv_id: $src})" % source_label if source_label == "Paper"
-            else "(a:%s {name: $src})" % source_label
+            "(a:%s {arxiv_id: $src, workspace_id: $ws})" % source_label if source_label == "Paper"
+            else "(a:%s {name: $src, workspace_id: $ws})" % source_label
         )
         tgt_id_field = "arxiv_id" if target_label == "Paper" else "name"
-        tgt_match = "(b:%s {%s: $tgt})" % (target_label, tgt_id_field)
+        tgt_match = "(b:%s {%s: $tgt, workspace_id: $ws})" % (target_label, tgt_id_field)
 
         async with self._drivers[idx].session() as s:
-            # Ensure a (possibly stub) target node exists on the source shard.
+            # Ensure a (possibly stub) target node exists on the source shard,
+            # keyed by (identity, workspace_id) just like a real node.
             await s.run(
                 f"""
-                MERGE (b:{target_label} {{{tgt_id_field}: $tgt}})
-                ON CREATE SET b.workspace_id = $ws, b.created_at = timestamp(),
+                MERGE (b:{target_label} {{{tgt_id_field}: $tgt, workspace_id: $ws}})
+                ON CREATE SET b.created_at = timestamp(),
                               b.is_stub = $is_stub, b.shard_id = $tgt_idx
                 """,
                 tgt=target_name, ws=workspace_id,
@@ -174,27 +177,30 @@ class ShardRouter:
                 ON MATCH SET r.last_updated = timestamp()
                 SET {_ADD_SOURCE.replace('n.', 'r.')}
                 """,
-                src=source_name, tgt=target_name, props=props, source_id=source_id,
+                src=source_name, tgt=target_name, ws=workspace_id,
+                props=props, source_id=source_id,
             )
 
     # ── Reads ──────────────────────────────────────────────────────────────────
 
-    async def is_paper_processed(self, paper_id: str) -> bool:
+    async def is_paper_processed(self, paper_id: str, workspace_id: str) -> bool:
         idx = self.shard_for(paper_id)
         async with self._drivers[idx].session() as s:
             r = await s.run(
-                "MATCH (n:Paper {arxiv_id: $pid}) RETURN n.entities_extracted AS done",
-                pid=paper_id,
+                "MATCH (n:Paper {arxiv_id: $pid, workspace_id: $ws}) "
+                "RETURN n.entities_extracted AS done",
+                pid=paper_id, ws=workspace_id,
             )
             rec = await r.single()
             return bool(rec and rec["done"])
 
-    async def mark_paper_processed(self, paper_id: str) -> None:
+    async def mark_paper_processed(self, paper_id: str, workspace_id: str) -> None:
         idx = self.shard_for(paper_id)
         async with self._drivers[idx].session() as s:
             await s.run(
-                "MATCH (n:Paper {arxiv_id: $pid}) SET n.entities_extracted = true",
-                pid=paper_id,
+                "MATCH (n:Paper {arxiv_id: $pid, workspace_id: $ws}) "
+                "SET n.entities_extracted = true",
+                pid=paper_id, ws=workspace_id,
             )
 
     async def get_entity(self, name: str) -> Optional[dict]:
@@ -267,17 +273,22 @@ class ShardRouter:
         return list(await asyncio.gather(*(_count(d) for d in self._drivers)))
 
     async def setup_constraints(self) -> None:
-        stmts = [
-            "CREATE CONSTRAINT paper_arxiv_id IF NOT EXISTS FOR (n:Paper) REQUIRE n.arxiv_id IS UNIQUE",
-            "CREATE CONSTRAINT person_name IF NOT EXISTS FOR (n:Person) REQUIRE n.name IS UNIQUE",
-            "CREATE CONSTRAINT org_name IF NOT EXISTS FOR (n:Organization) REQUIRE n.name IS UNIQUE",
-            "CREATE CONSTRAINT concept_name IF NOT EXISTS FOR (n:Concept) REQUIRE n.name IS UNIQUE",
-            "CREATE CONSTRAINT topic_name IF NOT EXISTS FOR (n:Topic) REQUIRE n.name IS UNIQUE",
-            "CREATE CONSTRAINT event_name IF NOT EXISTS FOR (n:Event) REQUIRE n.name IS UNIQUE",
+        # Mirror the single-node schema: drop the obsolete global-name
+        # constraints and key entities by (name|arxiv_id, workspace_id) so each
+        # workspace owns its own nodes on every shard.
+        from backend.db.neo4j import _OBSOLETE_CONSTRAINTS, ENTITY_LABELS
+        drops = [f"DROP CONSTRAINT {name} IF EXISTS" for name in _OBSOLETE_CONSTRAINTS]
+        creates = [
+            f"CREATE CONSTRAINT {label.lower()}_name_ws IF NOT EXISTS "
+            f"FOR (n:{label}) REQUIRE (n.name, n.workspace_id) IS UNIQUE"
+            for label in ENTITY_LABELS
+        ] + [
+            "CREATE CONSTRAINT paper_arxiv_id_ws IF NOT EXISTS "
+            "FOR (n:Paper) REQUIRE (n.arxiv_id, n.workspace_id) IS UNIQUE"
         ]
         for d in self._drivers:
             async with d.session() as s:
-                for stmt in stmts:
+                for stmt in drops + creates:
                     await s.run(stmt)
 
 
