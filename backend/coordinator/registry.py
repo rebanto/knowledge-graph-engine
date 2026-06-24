@@ -135,7 +135,9 @@ class WorkerRegistry:
         reaped: list[str] = []
         async with self._lock:
             for w in list(self._workers.values()):
-                if w.state == "dead":
+                if w.state != "processing":
+                    # Only reap workers that took a batch and stopped heartbeating.
+                    # Idle workers don't send heartbeats; timing them out is a false positive.
                     continue
                 if now - w.last_seen <= self.heartbeat_timeout:
                     continue
