@@ -83,7 +83,7 @@ if ($Stop) {
     Stop-Port 5173
     Stop-Worker
     Write-Step "Stopping Docker infra..."
-    docker compose -f "$Root\docker-compose.yml" stop neo4j postgres redis
+    docker compose -f "$Root\docker-compose.yml" stop neo4j postgres redis chroma
     Write-OK "Done."
     exit 0
 }
@@ -130,8 +130,8 @@ if (-not (Test-Path "$Root\.env")) {
 # --- Start Docker infra FIRST so Neo4j boots while we install deps ---
 # Neo4j is the slowest component to become healthy; kicking it off now lets its
 # ~30-45s boot overlap with dependency installation instead of running serially.
-Write-Step "Starting Docker infrastructure (Neo4j, Postgres, Redis)..."
-docker compose -f "$Root\docker-compose.yml" up -d neo4j postgres redis
+Write-Step "Starting Docker infrastructure (Neo4j, Postgres, Redis, Chroma)..."
+docker compose -f "$Root\docker-compose.yml" up -d neo4j postgres redis chroma
 if ($LASTEXITCODE -ne 0) { Write-Fatal "docker compose up failed." }
 Write-OK "Containers started (warming up in background)."
 
@@ -194,7 +194,7 @@ if ($SkipDeps) {
 }
 
 # --- Wait for Docker infra to be healthy (fast probe, no leading sleep) ---
-Write-Host "    Waiting for Neo4j / Postgres / Redis..." -NoNewline
+Write-Host "    Waiting for Neo4j / Postgres / Redis / Chroma..." -NoNewline
 $timeout    = 120
 $elapsed    = 0
 $interval   = 2
@@ -202,12 +202,13 @@ $allHealthy = $false
 
 while (-not $allHealthy -and $elapsed -lt $timeout) {
     # Fast TCP probes - Neo4j HTTP (7474) is the last port to open, so once all
-    # three answer the infra is effectively up. The backend's /health/ready does
+    # answer the infra is effectively up. The backend's /health/ready does
     # the authoritative dependency check later.
     $neo4jOk    = Test-Port 7474
     $postgresOk = Test-Port 5432
     $redisOk    = Test-Port 6379
-    $allHealthy = $neo4jOk -and $postgresOk -and $redisOk
+    $chromaOk   = Test-Port 8001
+    $allHealthy = $neo4jOk -and $postgresOk -and $redisOk -and $chromaOk
 
     if (-not $allHealthy) {
         Start-Sleep -Seconds $interval

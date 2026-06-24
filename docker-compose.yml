@@ -66,6 +66,27 @@ services:
           memory: 1g
     restart: unless-stopped
 
+  # ── Vector store (ChromaDB server) ───────────────────────────────────────────
+  # MUST run as a server, not in-process. The API and the RQ ingestion worker are
+  # separate processes; a per-process PersistentClient never sees the other
+  # process's writes (worker ingests → API can't retrieve → source shows green
+  # "ready" but answers "no information"). One shared server is the single source
+  # of truth both connect to via chromadb.HttpClient (see backend/db/chroma.py).
+  # Image tag is pinned to match the chromadb client version so the on-disk
+  # format is compatible; the existing ./chroma_data is bind-mounted unchanged.
+  chroma:
+    image: chromadb/chroma:1.5.9
+    container_name: kgre-chroma
+    ports:
+      - "8001:8000"   # host 8001 → container 8000 (8000 is taken by the API)
+    volumes:
+      - ./chroma_data:/data   # reuse existing on-disk data (persist_path=/data)
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     container_name: kgre-postgres
@@ -121,10 +142,16 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
+      chroma:
+        condition: service_started
     environment:
       REDIS_URL: redis://redis:6379
       POSTGRES_URL: postgresql://${POSTGRES_USER:-kgre}:${POSTGRES_PASSWORD:-kgre_dev_password}@postgres:5432/${POSTGRES_DB:-kgre}
       NEO4J_URI: bolt://neo4j:7687
+      # Override .env's localhost:8001 — inside the network it's the chroma service.
+      # Without this the worker would use an in-process client the API can't read.
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
     deploy:
       resources:
         limits:
@@ -150,11 +177,15 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
+      chroma:
+        condition: service_started
     environment:
       COORDINATOR_PORT: "50051"
       REDIS_URL: redis://redis:6379
       POSTGRES_URL: postgresql://${POSTGRES_USER:-kgre}:${POSTGRES_PASSWORD:-kgre_dev_password}@postgres:5432/${POSTGRES_DB:-kgre}
       NEO4J_URI: bolt://neo4j:7687
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
     restart: unless-stopped
 
   dworker:
@@ -164,12 +195,15 @@ services:
     env_file: .env
     depends_on:
       - coordinator
+      - chroma
     environment:
       COORDINATOR_HOST: coordinator
       COORDINATOR_PORT: "50051"
       REDIS_URL: redis://redis:6379
       POSTGRES_URL: postgresql://${POSTGRES_USER:-kgre}:${POSTGRES_PASSWORD:-kgre_dev_password}@postgres:5432/${POSTGRES_DB:-kgre}
       NEO4J_URI: bolt://neo4j:7687
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
     deploy:
       resources:
         limits:

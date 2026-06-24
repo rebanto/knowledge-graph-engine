@@ -1,4 +1,7 @@
 import os
+import re
+import time
+import random
 import asyncio
 import json
 from concurrent.futures import ThreadPoolExecutor
@@ -39,6 +42,40 @@ def get_client() -> genai.Client:
     return _client
 
 
+# Max seconds to honor a server-suggested rate-limit backoff for a single retry.
+# Bounds the worst-case added latency on the query path while still absorbing the
+# free-tier per-minute 429s that otherwise turn a question into an HTTP 500.
+_RATE_LIMIT_MAX_BACKOFF = float(os.environ.get("LLM_RATE_LIMIT_MAX_BACKOFF", 12))
+
+# Gemini 429s carry the suggested wait two ways: a human "retry in 9.44s" string
+# and a structured "retryDelay: '9s'". Parse whichever is present.
+_RETRY_DELAY_RES = (
+    re.compile(r"retry in ([\d.]+)s", re.IGNORECASE),
+    re.compile(r"retryDelay['\"]?\s*[:=]\s*['\"]?(\d+(?:\.\d+)?)s", re.IGNORECASE),
+)
+
+
+def _is_rate_limit_error(exc: "ClientError") -> bool:
+    """True for a transient per-minute 429 (NOT the per-day quota, handled above)."""
+    if getattr(exc, "code", None) == 429:
+        return True
+    msg = str(exc)
+    return "RESOURCE_EXHAUSTED" in msg or "429" in msg
+
+
+def _rate_limit_backoff(exc: "ClientError", attempt: int) -> float:
+    """Seconds to sleep before retrying a 429: prefer the server's hint, capped."""
+    msg = str(exc)
+    for rx in _RETRY_DELAY_RES:
+        m = rx.search(msg)
+        if m:
+            try:
+                return min(float(m.group(1)) + random.random(), _RATE_LIMIT_MAX_BACKOFF)
+            except ValueError:
+                pass
+    return min(2 ** attempt + random.random(), _RATE_LIMIT_MAX_BACKOFF)
+
+
 def _call_sync(prompt: str, json_mode: bool, retries: int = 2):
     """Synchronous Gemini call with retry logic — runs in the LLM thread pool."""
     config = types.GenerateContentConfig(response_mime_type="application/json") if json_mode else None
@@ -64,14 +101,24 @@ def _call_sync(prompt: str, json_mode: bool, retries: int = 2):
             if "PerDay" in str(e):
                 llm_calls_total.labels(operation="generate", status="quota").inc()
                 raise DailyQuotaExhausted(str(e)) from e
+            # Per-minute rate limit (429 RESOURCE_EXHAUSTED) is transient: the
+            # free tier allows only ~15 req/min, and bursts of ingestion +
+            # query calls hit it routinely. Retry with the server-suggested
+            # backoff instead of surfacing an HTTP 500 for the question (or
+            # failing every document of an ingestion batch).
+            if _is_rate_limit_error(e):
+                last_err = e
+                llm_calls_total.labels(operation="generate", status="rate_limited").inc()
+                if attempt < retries:
+                    time.sleep(_rate_limit_backoff(e, attempt))
+                    continue
+                raise
             llm_calls_total.labels(operation="generate", status="client_error").inc()
             raise
         except ServerError as e:
             last_err = e
             llm_calls_total.labels(operation="generate", status="server_error").inc()
             if attempt < retries:
-                import time
-                import random
                 time.sleep(min(2 ** attempt + random.random(), 10))
             continue
     raise last_err

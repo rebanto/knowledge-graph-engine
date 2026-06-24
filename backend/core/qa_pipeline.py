@@ -50,8 +50,18 @@ async def _compute_answer(question: str, workspace_id: str) -> dict:
         await asyncio.gather(_graph(), _vector())
     elif qtype == "graph":
         await _graph()
+        # Safety net: the router is an LLM and sometimes sends a content question
+        # to the graph (or the graph genuinely has nothing on it). Rather than
+        # answer "no information" while the answer sits in the vector store, fall
+        # back to vector search when the graph came back empty.
+        if not graph_records and not entity_stats:
+            await _vector()
     else:
         await _vector()
+        # Symmetric fallback: a relationship question misrouted to vector still
+        # gets a chance at the graph instead of returning nothing.
+        if not vector_chunks:
+            await _graph()
 
     if graph_records:
         results["graph_records"] = graph_records

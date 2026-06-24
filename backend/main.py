@@ -90,6 +90,19 @@ async def lifespan(app: FastAPI):
             log.warning("reset_stranded_sources", count=reset.rowcount)
         await db.commit()
 
+    # Neo4j schema: drop the obsolete global-name uniqueness constraints and
+    # create the composite (name|arxiv_id, workspace_id) constraints. This is the
+    # multi-tenancy migration — without it, entities created by one workspace are
+    # reused (and mis-attributed) by another, so each workspace's graph queries
+    # and source deletions miss their own data. Idempotent + safe to re-run.
+    # Run in a thread: the Neo4j helper uses the blocking sync driver.
+    import asyncio
+    from backend.db import neo4j as neo4j_db
+    try:
+        await asyncio.to_thread(neo4j_db.setup_constraints)
+    except Exception as exc:  # never block API startup on a Neo4j hiccup
+        log.warning("neo4j_constraint_setup_failed", error=str(exc))
+
     log.info("startup_complete", env=os.environ.get("ENV", "development"))
 
     yield
@@ -179,6 +192,16 @@ async def health_ready():
         status["neo4j"] = "ok"
     except Exception as exc:
         status["neo4j"] = f"unreachable: {exc}"
+        http_status = 503
+
+    # ChromaDB (vector store) — a hard dependency: if it's down, ingestion can't
+    # write and questions can't retrieve document passages.
+    try:
+        from backend.db.chroma import heartbeat as chroma_heartbeat
+        await chroma_heartbeat()
+        status["chroma"] = "ok"
+    except Exception as exc:
+        status["chroma"] = f"unreachable: {exc}"
         http_status = 503
 
     return JSONResponse(status_code=http_status, content=status)

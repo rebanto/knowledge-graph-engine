@@ -117,3 +117,23 @@ async def delete_workspace(workspace_id: str, db: AsyncSession = Depends(get_asy
         await db.delete(report)
     await db.delete(workspace)
     await db.commit()
+
+    # Purge the workspace's vector + graph data too — deleting only the Postgres
+    # rows would orphan the ChromaDB collection and every Neo4j node, leaving
+    # stale data that a re-created workspace could surface. Best-effort: Postgres
+    # is the source of truth and is already committed.
+    from backend.db import chroma as chroma_db
+    from backend.db import neo4j as neo4j_db
+    from backend.db import redis as redis_db
+    try:
+        await chroma_db.delete_collection(workspace_id)
+    except Exception:
+        pass
+    try:
+        await neo4j_db.delete_workspace_graph(workspace_id)
+    except Exception:
+        pass
+    try:
+        await redis_db.invalidate_workspace_caches(workspace_id)
+    except Exception:
+        pass

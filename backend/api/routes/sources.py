@@ -239,6 +239,18 @@ async def delete_source(
     # each source_ids list and deletes whatever is left orphaned).
     graph_result = await neo4j_db.remove_source_from_graph(workspace_id, source_id)
 
+    # Fallback for legacy data: nodes ingested before source_id tagging carry no
+    # source_ids list, so the precise pass above can't see them. Remove only those
+    # UNTAGGED Papers (and their now-orphaned untagged entities) by document URL.
+    # This deliberately never touches a source-tagged node, so a paper shared by
+    # multiple sources (e.g. an arXiv paper cross-listed across feeds) survives
+    # deleting just one of them. No-op for new sources (already removed precisely).
+    try:
+        legacy_papers = await neo4j_db.remove_untagged_documents(workspace_id, document_urls)
+        graph_result["legacy_papers_removed"] = legacy_papers
+    except Exception:
+        pass
+
     # Vector: delete by source_id (precise) and by URL (covers legacy chunks that
     # predate source_id tagging). Best-effort — graph + Postgres are source of truth.
     try:

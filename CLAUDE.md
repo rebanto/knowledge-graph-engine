@@ -119,6 +119,17 @@ Stores embedded chunks of ingested documents for semantic similarity search.
   synthesizes an answer from those chunks with source citations
 - Sources are always cited — the LLM never generates unsourced facts
 
+> **ChromaDB runs as a SERVER, not in-process.** The API and the RQ ingestion
+> worker are separate OS processes. A per-process `PersistentClient` caches the
+> collection/HNSW index in memory and never sees another process's writes — so
+> the worker would ingest data the API can never retrieve (source shows green
+> "ready", every question answers "no information"). Both processes connect to
+> ONE shared Chroma server (`kgre-chroma` container, host port 8001) via
+> `chromadb.HttpClient`, configured by `CHROMA_HOST`/`CHROMA_PORT`. The embedded
+> `PersistentClient` is used ONLY by single-process code (the seed script and
+> unit tests, where `CHROMA_HOST` is unset). Do NOT revert to an in-process
+> client for the API/worker — it silently breaks all retrieval.
+
 Good for questions like (examples span multiple domains):
 - "What are the latest findings on Topic X?"
 - "Summarize the current state of research on Concept Y"
@@ -362,7 +373,7 @@ This cost flag must be revisited explicitly in Phase 7.
 |----------------------|-----------------------------------------|-------------|----------------------------------------------------|
 | Graph database       | Neo4j (Docker) × 1                      | Phase 1     | Single instance; sharded in Phase 4               |
 | Graph database       | Neo4j (Docker) × 2-3                    | Phase 4     | Replaces single instance; shard router in front   |
-| Vector store         | ChromaDB                                | Phase 1     | Lightweight, runs in-process, no server            |
+| Vector store         | ChromaDB (Docker server)                | Phase 1     | Shared server (HttpClient) — API + worker are separate processes; in-process client is single-process only |
 | Relational database  | PostgreSQL (Docker)                     | Phase 1     | User accounts, reports, workspaces                 |
 | Cache                | Redis (Docker)                          | Phase 1     | Cache expensive graph traversals                   |
 | Message queue        | Redis Queue (RQ)                        | Phase 1     | Simple queue; replaced by coordinator in Phase 3  |
@@ -823,7 +834,10 @@ CHROMA_PERSIST_DIR=./chroma_data
 
 - **Local first, AWS later.** Do not introduce cloud services until Phase 7.
 - **Neo4j over Neptune locally.** Same Cypher query language, free, Docker.
-- **ChromaDB over OpenSearch locally.** Simpler, runs in-process, no server.
+- **ChromaDB over OpenSearch locally.** Simpler, same Docker workflow. Runs as a
+  shared server (not in-process): the API and ingestion worker are separate
+  processes and must read/write one Chroma server, or the worker's writes are
+  invisible to the API. Connect via `chromadb.HttpClient` (`CHROMA_HOST`/`PORT`).
 - **ArXiv as the starting domain.** Free API, well-structured data.
 - **LLM is constrained.** It only extracts entities (JSON output) and
   synthesizes answers (from retrieved results). It never generates facts freely.
