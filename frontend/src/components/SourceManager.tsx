@@ -169,23 +169,23 @@ function JobRow({ job }: { job: SourceJobsResponse["jobs"][number] }) {
   const failed = job.status === "failed";
 
   return (
-    <div className={`flex items-start gap-2.5 rounded-lg px-3 py-1.5 ${failed ? "bg-rose-500/5" : ""}`}>
+    <div className={`flex items-start gap-2.5 rounded-lg px-3 py-1.5 ${failed ? "bg-flag-dim" : ""}`}>
       {running ? (
-        <Loader2 size={11} className="mt-0.5 flex-shrink-0 animate-spin text-amber-400" />
+        <Loader2 size={11} className="mt-0.5 flex-shrink-0 animate-spin text-brass" />
       ) : failed ? (
-        <AlertCircle size={11} className="mt-0.5 flex-shrink-0 text-rose-400" />
+        <AlertCircle size={11} className="mt-0.5 flex-shrink-0 text-flag" />
       ) : (
-        <CheckCircle size={11} className="mt-0.5 flex-shrink-0 text-emerald-400/70" />
+        <CheckCircle size={11} className="mt-0.5 flex-shrink-0 text-ok/80" />
       )}
       <div className="min-w-0 flex-1">
-        <p className="truncate font-mono text-[11px] text-zinc-400">
+        <p className="truncate font-mono text-[11px] text-muted">
           {job.document_url ? shortenUrl(job.document_url) : "—"}
         </p>
         {failed && job.error && (
-          <p className="mt-0.5 line-clamp-1 text-[10.5px] text-rose-400/80">{job.error}</p>
+          <p className="mt-0.5 line-clamp-1 text-[10.5px] text-flag/80">{job.error}</p>
         )}
       </div>
-      <span className="flex-shrink-0 text-[10.5px] text-zinc-600">
+      <span className="flex-shrink-0 text-[10.5px] text-faint">
         {fmtDuration(job.created_at, job.completed_at)}
       </span>
     </div>
@@ -226,14 +226,14 @@ function SourceCard({
     <div className={`rounded-xl border bg-zinc-900/20 transition-all ${statusBorder}`}>
       {/* Card header */}
       <div className="flex items-start gap-3 p-3.5">
-        <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-zinc-800/60">
-          <TypeIcon size={14} className="text-zinc-400" />
+        <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-ink-750">
+          <TypeIcon size={14} className="text-muted" />
         </div>
 
         <div className="min-w-0 flex-1">
           {/* Type label + status badge */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11.5px] font-medium text-zinc-500">
+            <span className="text-[11.5px] font-medium text-muted">
               {tm?.label ?? src.type}
             </span>
             <span
@@ -246,7 +246,7 @@ function SourceCard({
 
           {/* URL */}
           <p
-            className="mt-0.5 truncate font-mono text-[12px] text-zinc-300"
+            className="mt-0.5 truncate font-mono text-[12px] text-paper-dim"
             title={displayUrl}
           >
             {displayUrl}
@@ -255,33 +255,33 @@ function SourceCard({
           {/* Stats + timestamps */}
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
             {jobData && (
-              <span className="text-[10.5px] text-zinc-500">
-                <span className="text-emerald-400/80">{jobData.success} docs</span>
+              <span className="text-[10.5px] text-muted">
+                <span className="text-ok/90">{jobData.success} docs</span>
                 {jobData.failed > 0 && (
                   <>
                     {" · "}
-                    <span className="text-rose-400/80">{jobData.failed} failed</span>
+                    <span className="text-flag/90">{jobData.failed} failed</span>
                   </>
                 )}
                 {jobData.running > 0 && (
                   <>
                     {" · "}
-                    <span className="text-amber-400/80">{jobData.running} running</span>
+                    <span className="text-brass/90">{jobData.running} reading</span>
                   </>
                 )}
               </span>
             )}
             {src.last_fetched ? (
-              <span className="text-[10.5px] text-zinc-600">
-                Fetched {fmtRelative(src.last_fetched)}
+              <span className="text-[10.5px] text-faint">
+                Read {fmtRelative(src.last_fetched)}
               </span>
             ) : (
-              <span className="text-[10.5px] text-zinc-600">
+              <span className="text-[10.5px] text-faint">
                 Added {fmtRelative(src.created_at)}
               </span>
             )}
             {src.error_count > 0 && (
-              <span className="text-[10.5px] text-rose-500/60">
+              <span className="text-[10.5px] text-flag/70">
                 {src.error_count} error{src.error_count !== 1 ? "s" : ""}
               </span>
             )}
@@ -289,7 +289,7 @@ function SourceCard({
 
           {/* Last error */}
           {src.last_error && (
-            <p className="mt-1 line-clamp-2 text-[11px] text-rose-400/80">{src.last_error}</p>
+            <p className="mt-1 line-clamp-2 text-[11px] text-flag/80">{src.last_error}</p>
           )}
         </div>
 
@@ -299,20 +299,20 @@ function SourceCard({
             <button
               onClick={onRetry}
               disabled={retrying}
-              title="Re-ingest this source"
-              className="flex items-center gap-1 rounded-md px-2 py-1.5 text-[11px] text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-40"
+              title="Read this source again"
+              className="flex items-center gap-1 rounded-md px-2 py-1.5 text-[11px] text-muted transition-colors hover:bg-ink-750 hover:text-paper-dim disabled:opacity-40"
             >
               {retrying
                 ? <Loader2 size={11} className="animate-spin" />
                 : <RotateCcw size={11} />}
-              <span>Re-ingest</span>
+              <span>Re-read</span>
             </button>
           )}
           <button
             onClick={onDelete}
             disabled={deleting}
             title="Remove source"
-            className="rounded-md p-1.5 text-zinc-600 transition-colors hover:bg-zinc-800 hover:text-rose-400 disabled:opacity-40"
+            className="rounded-md p-1.5 text-faint transition-colors hover:bg-ink-750 hover:text-flag disabled:opacity-40"
           >
             {deleting
               ? <Loader2 size={13} className="animate-spin" />
@@ -324,7 +324,7 @@ function SourceCard({
       {/* Expand toggle */}
       <button
         onClick={onToggleExpand}
-        className="flex w-full items-center gap-1.5 border-t border-zinc-800/40 px-3.5 py-2 text-left text-[11px] text-zinc-600 transition-colors hover:bg-zinc-800/20 hover:text-zinc-400"
+        className="flex w-full items-center gap-1.5 border-t border-ink-700 px-3.5 py-2 text-left text-[11px] text-faint transition-colors hover:bg-ink-800/40 hover:text-muted"
       >
         {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         {loadingJobs ? (
@@ -334,30 +334,30 @@ function SourceCard({
           </span>
         ) : jobData ? (
           expanded
-            ? `Hide job history`
-            : `Show job history — ${jobData.total} jobs · ${jobData.success} ok · ${jobData.failed} failed`
+            ? `Hide the run log`
+            : `Run log — ${jobData.total} jobs · ${jobData.success} ok · ${jobData.failed} failed`
         ) : (
-          "Show job history"
+          "Run log"
         )}
       </button>
 
       {/* Job list (expanded) */}
       {expanded && (
-        <div className="border-t border-zinc-800/40 px-1 py-2">
+        <div className="border-t border-ink-700 px-1 py-2">
           {!jobData || loadingJobs ? (
             <div className="flex items-center justify-center py-4">
-              <Loader2 size={14} className="animate-spin text-zinc-600" />
+              <Loader2 size={14} className="animate-spin text-faint" />
             </div>
           ) : jobData.jobs.length === 0 ? (
-            <p className="px-3 py-2 text-[11px] text-zinc-600">No jobs recorded yet.</p>
+            <p className="px-3 py-2 text-[11px] text-faint">No runs recorded yet.</p>
           ) : (
             <div className="flex flex-col gap-0.5">
               {jobData.jobs.map((job) => (
                 <JobRow key={job.id} job={job} />
               ))}
               {jobData.total > jobData.jobs.length && (
-                <p className="px-3 pt-1 text-[10.5px] text-zinc-600">
-                  Showing latest {jobData.jobs.length} of {jobData.total} jobs
+                <p className="px-3 pt-1 text-[10.5px] text-faint">
+                  Latest {jobData.jobs.length} of {jobData.total} jobs
                 </p>
               )}
             </div>
