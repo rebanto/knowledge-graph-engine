@@ -91,7 +91,7 @@ export default function App() {
 
     setLoading(true);
     setError(null);
-    setStreamStatus("Analyzing question…");
+    setStreamStatus("Working out where to look…");
 
     const cancel = streamQuestion(question, workspaceId, {
       onProgress: (status) => setStreamStatus(status),
