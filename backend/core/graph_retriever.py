@@ -1,6 +1,7 @@
 import re
 from backend.core.llm_client import generate_json
 from backend.db.neo4j import get_async_driver
+from backend.db import shard_router
 from backend.db.redis import get_cached_cypher, set_cached_cypher
 from backend.core.resilience import neo4j_breaker, CircuitBreakerError
 from backend.core.observability import cache_hits_total, cache_misses_total
@@ -94,6 +95,12 @@ async def _exec(cypher: str, params: dict | None = None, timeout: int = 15) -> l
     except CircuitBreakerError:
         raise
 
+    # Phase 4: under USE_SHARDING the graph is split across N Neo4j instances.
+    # Reads scatter-gather across every shard and merge (see shard_router); the
+    # single-node driver below remains the default and the fallback.
+    if shard_router.is_enabled():
+        return await shard_router.get_router().run_read(cypher, params, timeout)
+
     driver = await get_async_driver()
     async with driver.session() as session:
         result = await session.run(cypher, **(params or {}))
@@ -104,6 +111,13 @@ async def _exec(cypher: str, params: dict | None = None, timeout: int = 15) -> l
 async def _entity_degree_context(workspace_id: str, names: list[str]) -> list[dict]:
     if not names:
         return []
+    # Under sharding, degree must be summed across shards (an entity's edges are
+    # split between its own shard and the shards that hold stubs pointing at it).
+    if shard_router.is_enabled():
+        try:
+            return await shard_router.get_router().entity_degree_context(workspace_id, names)
+        except Exception:
+            return []
     try:
         return await _exec(
             """
