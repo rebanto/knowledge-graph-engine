@@ -17,19 +17,19 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
 
       {/* Header */}
       <div>
-        <h1 className="text-[20px] font-semibold leading-snug tracking-tight text-zinc-100">
+        <h1 className="font-display text-[26px] font-medium leading-[1.25] tracking-tight text-paper">
           {report.question}
         </h1>
-        <div className="mt-2.5 flex items-center gap-2">
+        <div className="mt-3 flex items-center gap-2">
           <RoutingBadge type={report.retrieval_type} />
           {report.cached && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-zinc-800 px-2 py-1 text-[11px] text-zinc-500">
+            <span className="inline-flex items-center gap-1 rounded-full border border-ink-700 px-2 py-1 text-[11px] text-faint" title="Answered from cache">
               <Database size={11} />
-              cached
+              from cache
             </span>
           )}
           {report.version > 1 && (
-            <span className="font-mono text-[11px] text-zinc-600">v{report.version}</span>
+            <span className="font-mono text-[11px] text-faint" title="Re-run this many times">v{report.version}</span>
           )}
         </div>
       </div>
@@ -43,8 +43,8 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
         />
       )}
 
-      {/* Prose answer */}
-      <div className="prose-answer text-[14.5px] leading-[1.75] text-zinc-300">
+      {/* Prose answer — opens with an illuminated brass drop cap (see index.css) */}
+      <div className="prose-answer text-[14.5px] leading-[1.78] text-paper-dim">
         <ReactMarkdown>{report.answer}</ReactMarkdown>
       </div>
 
