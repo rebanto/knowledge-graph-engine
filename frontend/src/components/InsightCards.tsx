@@ -92,7 +92,7 @@ const CustomTooltip = ({ active, payload, label }: {
 
 function BarChartCard({ insight }: { insight: BarChartInsight }) {
   const isHorizontal = insight.data.length > 6 || insight.data.some((d) => d.name.length > 12);
-  const color = insight.color ?? "#c9974a";
+  const color = insight.color ?? BRASS;
   const barSize = isHorizontal ? Math.max(10, 240 / insight.data.length) : undefined;
   const chartHeight = isHorizontal ? Math.max(180, insight.data.length * 28) : 220;
 
@@ -101,19 +101,19 @@ function BarChartCard({ insight }: { insight: BarChartInsight }) {
       <ResponsiveContainer width="100%" height={chartHeight}>
         {isHorizontal ? (
           <ReBarChart layout="vertical" data={insight.data} margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" horizontal={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#221c16" horizontal={false} />
             <XAxis
               type="number"
-              tick={{ fill: "#71717a", fontSize: 11 }}
+              tick={{ fill: "#6d6557", fontSize: 11 }}
               tickLine={false}
               axisLine={false}
-              label={insight.x_label ? { value: insight.x_label, fill: "#52525b", fontSize: 10, position: "insideBottom", offset: -2 } : undefined}
+              label={insight.x_label ? { value: insight.x_label, fill: "#4a4438", fontSize: 10, position: "insideBottom", offset: -2 } : undefined}
             />
             <YAxis
               type="category"
               dataKey="name"
               width={140}
-              tick={{ fill: "#a1a1aa", fontSize: 11 }}
+              tick={{ fill: "#9b9082", fontSize: 11 }}
               tickLine={false}
               axisLine={false}
             />
@@ -126,10 +126,10 @@ function BarChartCard({ insight }: { insight: BarChartInsight }) {
           </ReBarChart>
         ) : (
           <ReBarChart data={insight.data} margin={{ left: 8, right: 8, top: 4, bottom: 24 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#221c16" vertical={false} />
             <XAxis
               dataKey="name"
-              tick={{ fill: "#a1a1aa", fontSize: 11 }}
+              tick={{ fill: "#9b9082", fontSize: 11 }}
               tickLine={false}
               axisLine={false}
               interval={0}
@@ -137,10 +137,10 @@ function BarChartCard({ insight }: { insight: BarChartInsight }) {
               textAnchor={insight.data.length > 5 ? "end" : "middle"}
             />
             <YAxis
-              tick={{ fill: "#71717a", fontSize: 11 }}
+              tick={{ fill: "#6d6557", fontSize: 11 }}
               tickLine={false}
               axisLine={false}
-              label={insight.y_label ? { value: insight.y_label, fill: "#52525b", fontSize: 10, angle: -90, position: "insideLeft" } : undefined}
+              label={insight.y_label ? { value: insight.y_label, fill: "#4a4438", fontSize: 10, angle: -90, position: "insideLeft" } : undefined}
             />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "#ffffff08" }} />
             <Bar dataKey="value" radius={[4, 4, 0, 0]}>
