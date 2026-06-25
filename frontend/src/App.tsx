@@ -243,27 +243,30 @@ export default function App() {
 
         {tab === "ask" ? (
           <>
-            <div className="border-b border-zinc-800/60 px-8 py-4">
+            <div className="border-b border-ink-700 px-8 py-4">
               <div className="mx-auto max-w-2xl">
                 <QuestionInput onSubmit={handleSubmit} loading={loading} />
                 {streamStatus && (
-                  <p className="mt-2 text-[12px] text-zinc-500">{streamStatus}</p>
+                  <p className="mt-2 flex items-center gap-1.5 text-[12px] text-brass/80">
+                    <Loader2 size={11} className="animate-spin flex-shrink-0" />
+                    {streamStatus}
+                  </p>
                 )}
-                {error && <p className="mt-2 text-[12.5px] text-rose-400/80">{error}</p>}
+                {error && <p className="mt-2 text-[12.5px] text-flag">{error}</p>}
                 {processingCount > 0 && !loading && (
-                  <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-amber-500/6 px-3 py-2">
-                    <div className="flex items-center gap-2 text-[12px] text-amber-300/80">
+                  <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-brass/20 bg-brass-dim px-3 py-2">
+                    <div className="flex items-center gap-2 text-[12px] text-brass/90">
                       <Loader2 size={11} className="animate-spin flex-shrink-0" />
                       <span>
                         {processingCount === 1
-                          ? "1 source is still ingesting"
-                          : `${processingCount} sources are still ingesting`}
-                        {" — queries won't include their content yet"}
+                          ? "1 source is still being read in"
+                          : `${processingCount} sources are still being read in`}
+                        {" — their content isn't searchable yet"}
                       </span>
                     </div>
                     <button
                       onClick={() => setTab("sources")}
-                      className="flex flex-shrink-0 items-center gap-1 text-[11.5px] text-amber-400/70 hover:text-amber-300"
+                      className="flex flex-shrink-0 items-center gap-1 text-[11.5px] text-brass/70 hover:text-brass-bright"
                     >
                       View <ArrowRight size={10} />
                     </button>
