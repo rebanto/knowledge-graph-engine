@@ -196,6 +196,13 @@ export async function getQueueStatus() {
   return data;
 }
 
+export async function getCoordinatorStatus() {
+  const { data } = await client.get<import("./types").CoordinatorStatus>(
+    "/api/system/coordinator",
+  );
+  return data;
+}
+
 export async function cleanupWorkspace(workspaceId: string) {
   const { data } = await client.post<{
     status: string;

@@ -202,3 +202,26 @@ export interface QueueStatus {
   workers: WorkerInfo[];
   queues: Record<string, QueueInfo>;
 }
+
+// ── Distributed worker pool (coordinator) status ─────────────────────────────
+
+export interface CoordinatorWorker {
+  worker_id: string;
+  host: string;
+  state: "idle" | "processing" | "dead";
+  batch_id: string | null;
+  completed: number;
+  total: number;
+  seconds_since_heartbeat: number;
+}
+
+export interface CoordinatorStatus {
+  available: boolean;
+  pending?: number;
+  reassignments?: number;
+  dead_workers?: number;
+  heartbeat_timeout_secs?: number;
+  worker_count?: number;
+  live_worker_count?: number;
+  workers?: CoordinatorWorker[];
+}
