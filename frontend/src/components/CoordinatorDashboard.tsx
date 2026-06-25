@@ -7,16 +7,16 @@ import type { CoordinatorStatus, CoordinatorWorker } from "../types";
 import { getCoordinatorStatus } from "../api";
 
 const STATE_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  processing: { label: "Processing", color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" },
-  idle: { label: "Idle", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-  dead: { label: "Dead", color: "text-rose-400", bg: "bg-rose-500/10", border: "border-rose-500/20" },
+  processing: { label: "Working", color: "text-brass", bg: "bg-brass-dim", border: "border-brass/20" },
+  idle: { label: "Idle", color: "text-ok", bg: "bg-ok-dim", border: "border-ok/20" },
+  dead: { label: "Gone", color: "text-flag", bg: "bg-flag-dim", border: "border-flag/20" },
 };
 
 function StatTile({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
   return (
-    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/30 px-4 py-3">
-      <p className={`text-[22px] font-semibold leading-none ${accent ?? "text-zinc-100"}`}>{value}</p>
-      <p className="mt-1.5 text-[11.5px] text-zinc-500">{label}</p>
+    <div className="rounded-xl border border-ink-700 bg-ink-800/40 px-4 py-3">
+      <p className={`font-display text-[26px] font-medium tabular-nums leading-none ${accent ?? "text-paper"}`}>{value}</p>
+      <p className="mt-1.5 text-[11.5px] text-muted">{label}</p>
     </div>
   );
 }
@@ -31,37 +31,37 @@ function WorkerCard({ w, timeout }: { w: CoordinatorWorker; timeout: number }) {
   const contactLabel = w.state === "processing" ? "since heartbeat" : "since last seen";
 
   return (
-    <div className={`rounded-xl border bg-zinc-900/20 p-3.5 ${sm.border}`}>
+    <div className={`rounded-xl border bg-ink-800/40 p-3.5 ${sm.border}`}>
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-zinc-800/60">
+        <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-ink-750">
           <Cpu size={14} className={sm.color} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate font-mono text-[12.5px] text-zinc-200">{w.worker_id}</span>
+            <span className="truncate font-mono text-[12.5px] text-paper">{w.worker_id}</span>
             <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-medium ${sm.bg} ${sm.color}`}>
               {w.state === "processing" && <Loader2 size={9} className="animate-spin" />}
               {w.state === "dead" && <Skull size={9} />}
               {sm.label}
             </span>
           </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-zinc-500">
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted">
             <span className="inline-flex items-center gap-1">
               <Server size={10} /> {w.host || "—"}
             </span>
-            <span className={`inline-flex items-center gap-1 ${stale ? "text-amber-400/80" : ""}`}>
+            <span className={`inline-flex items-center gap-1 ${stale ? "text-brass/90" : ""}`}>
               <Clock size={10} /> {w.seconds_since_heartbeat.toFixed(1)}s {contactLabel}
             </span>
           </div>
 
           {w.state === "processing" && w.total > 0 && (
             <div className="mt-2">
-              <div className="mb-1 flex items-center justify-between text-[10.5px] text-zinc-500">
-                <span className="font-mono text-zinc-400">batch {w.batch_id?.slice(0, 8) ?? "—"}</span>
+              <div className="mb-1 flex items-center justify-between text-[10.5px] text-muted">
+                <span className="font-mono text-muted">batch {w.batch_id?.slice(0, 8) ?? "—"}</span>
                 <span>{w.completed}/{w.total} docs · {pct}%</span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
-                <div className="h-full rounded-full bg-amber-500/70 transition-all" style={{ width: `${pct}%` }} />
+              <div className="h-1.5 overflow-hidden rounded-full bg-ink-700">
+                <div className="h-full rounded-full bg-brass transition-all" style={{ width: `${pct}%` }} />
               </div>
             </div>
           )}
