@@ -161,20 +161,20 @@ function FlowPathCard({ insight }: { insight: FlowPathInsight }) {
     <Card title={insight.title ?? "Connection path"}>
       <div className="flex flex-wrap items-center gap-1.5">
         {insight.steps.map((step, i) => {
-          const nodeColor = NODE_COLOR[step.entity_type] ?? "#71717a";
-          const relColor  = step.relation ? (EDGE_COLOR[step.relation] ?? "#6b6b76") : "#6b6b76";
+          const nodeColor = NODE_COLOR[step.entity_type] ?? "#9b9082";
+          const relColor  = step.relation ? (EDGE_COLOR[step.relation] ?? "#6d6557") : "#6d6557";
           return (
             <div key={i} className="flex items-center gap-1.5">
               {step.relation && (
                 <div className="flex items-center gap-1">
-                  <span className="text-zinc-600">—</span>
+                  <span className="text-faint">—</span>
                   <span
                     className="rounded px-1.5 py-0.5 font-mono text-[9.5px] font-medium"
                     style={{ backgroundColor: `${relColor}22`, color: relColor }}
                   >
                     {step.relation}
                   </span>
-                  <span className="text-zinc-600">→</span>
+                  <span className="text-faint">→</span>
                 </div>
               )}
               <span
@@ -207,9 +207,9 @@ function ComparisonTableCard({ insight }: { insight: ComparisonTableInsight }) {
       <div className="overflow-x-auto">
         <table className="w-full text-left text-[12.5px]">
           <thead>
-            <tr className="border-b border-zinc-800">
+            <tr className="border-b border-ink-700">
               {insight.columns.map((col, i) => (
-                <th key={i} className="pb-2 pr-4 font-medium text-zinc-500">
+                <th key={i} className="pb-2 pr-4 font-mono text-[11px] font-medium uppercase tracking-wide text-faint">
                   {col}
                 </th>
               ))}
@@ -217,11 +217,11 @@ function ComparisonTableCard({ insight }: { insight: ComparisonTableInsight }) {
           </thead>
           <tbody>
             {insight.rows.map((row, ri) => (
-              <tr key={ri} className="border-b border-zinc-900 last:border-0">
+              <tr key={ri} className="border-b border-ink-800 last:border-0">
                 {row.map((cell, ci) => (
                   <td
                     key={ci}
-                    className={`py-2 pr-4 ${ci === 0 ? "font-medium text-zinc-200" : "text-zinc-400"}`}
+                    className={`py-2 pr-4 ${ci === 0 ? "font-medium text-paper" : "text-muted"}`}
                   >
                     {cell}
                   </td>
@@ -241,20 +241,20 @@ function TimelineCard({ insight }: { insight: TimelineInsight }) {
     <Card title={insight.title ?? "Timeline"}>
       <div className="relative flex flex-col gap-0">
         {/* Vertical line */}
-        <div className="absolute left-[19px] top-2 bottom-2 w-px bg-zinc-800" />
+        <div className="absolute left-[19px] top-2 bottom-2 w-px bg-ink-700" />
         {insight.events.map((ev, i) => (
           <div key={i} className="relative flex gap-3 pb-4 last:pb-0">
             {/* Dot */}
-            <div className="relative z-10 mt-0.5 flex h-10 w-10 flex-shrink-0 flex-col items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-center">
-              <span className="font-mono text-[9.5px] font-bold leading-none text-zinc-300">
+            <div className="relative z-10 mt-0.5 flex h-10 w-10 flex-shrink-0 flex-col items-center justify-center rounded-full border border-ink-600 bg-ink-800 text-center">
+              <span className="font-mono text-[9.5px] font-semibold leading-none text-brass">
                 {ev.year}
               </span>
             </div>
             {/* Content */}
             <div className="min-w-0 flex-1 pt-1">
-              <p className="text-[13px] font-medium leading-snug text-zinc-200">{ev.label}</p>
+              <p className="text-[13px] font-medium leading-snug text-paper">{ev.label}</p>
               {ev.detail && (
-                <p className="mt-0.5 text-[12px] leading-relaxed text-zinc-500">{ev.detail}</p>
+                <p className="mt-0.5 text-[12px] leading-relaxed text-muted">{ev.detail}</p>
               )}
             </div>
           </div>
