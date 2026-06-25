@@ -107,18 +107,18 @@ export function CoordinatorDashboard() {
       <div className="mx-auto w-full max-w-2xl">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <h2 className="flex items-center gap-2 text-[18px] font-semibold text-zinc-100">
-              <Server size={16} className="text-zinc-400" />
+            <h2 className="flex items-center gap-2 font-display text-[22px] font-medium text-paper">
+              <Server size={17} className="text-brass" />
               Worker pool
             </h2>
-            <p className="mt-0.5 text-[13px] text-zinc-500">
-              Distributed ingestion coordinator — live worker health and batch progress.
+            <p className="mt-0.5 text-[13px] text-muted">
+              The distributed coordinator — who's reading what, and how far along.
             </p>
           </div>
           <button
             onClick={refresh}
             title="Refresh"
-            className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+            className="rounded-md p-1.5 text-muted transition-colors hover:bg-ink-750 hover:text-paper-dim"
           >
             <RefreshCw size={14} />
           </button>
@@ -126,16 +126,16 @@ export function CoordinatorDashboard() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 size={16} className="animate-spin text-zinc-600" />
+            <Loader2 size={16} className="animate-spin text-faint" />
           </div>
         ) : !status?.available ? (
-          <div className="rounded-xl border border-zinc-800/40 bg-zinc-900/20 p-10 text-center">
-            <Activity size={20} className="mx-auto mb-3 text-zinc-700" />
-            <p className="text-[13px] text-zinc-400">Distributed worker pool not enabled</p>
-            <p className="mx-auto mt-1.5 max-w-md text-[12px] leading-relaxed text-zinc-600">
-              The default local setup ingests with a single RQ worker. To run the
-              coordinator + gRPC worker pool, start it with{" "}
-              <code className="rounded bg-zinc-900 px-1 py-0.5 font-mono text-[11px] text-zinc-400">
+          <div className="dot-grid rounded-xl border border-ink-700 bg-ink-800/20 p-10 text-center">
+            <Activity size={20} className="mx-auto mb-3 text-ghost" />
+            <p className="font-display text-[15px] text-paper-dim">The pool is asleep</p>
+            <p className="mx-auto mt-1.5 max-w-md text-[12px] leading-relaxed text-muted">
+              By default, ingestion runs on a single RQ worker. To bring up the
+              coordinator and its gRPC worker pool, start it with{" "}
+              <code className="rounded bg-ink-850 px-1 py-0.5 font-mono text-[11px] text-paper-dim">
                 docker compose --profile distributed up -d --scale dworker=3
               </code>
               .
@@ -147,28 +147,28 @@ export function CoordinatorDashboard() {
               <StatTile
                 label={`Live workers${status.worker_count ? ` of ${status.worker_count}` : ""}`}
                 value={status.live_worker_count ?? 0}
-                accent="text-emerald-400"
+                accent="text-ok"
               />
-              <StatTile label="Pending docs" value={status.pending ?? 0}
-                accent={(status.pending ?? 0) > 0 ? "text-amber-400" : undefined} />
+              <StatTile label="Docs waiting" value={status.pending ?? 0}
+                accent={(status.pending ?? 0) > 0 ? "text-brass" : undefined} />
               <StatTile label="Reassignments" value={status.reassignments ?? 0} />
-              <StatTile label="Dead workers" value={status.dead_workers ?? 0}
-                accent={(status.dead_workers ?? 0) > 0 ? "text-rose-400" : undefined} />
+              <StatTile label="Lost workers" value={status.dead_workers ?? 0}
+                accent={(status.dead_workers ?? 0) > 0 ? "text-flag" : undefined} />
             </div>
 
-            <div className="mb-3 flex items-center gap-2 text-[11.5px] text-zinc-500">
-              <Wifi size={12} className="text-emerald-400" />
+            <div className="mb-3 flex items-center gap-2 text-[11.5px] text-muted">
+              <Wifi size={12} className="text-ok" />
               Connected · heartbeat timeout {timeout}s
             </div>
 
             {workers.length === 0 ? (
-              <div className="rounded-xl border border-zinc-800/40 bg-zinc-900/20 p-8 text-center">
-                <p className="text-[13px] text-zinc-500">
-                  Coordinator is up, but no workers have registered yet.
+              <div className="rounded-xl border border-ink-700 bg-ink-800/20 p-8 text-center">
+                <p className="text-[13px] text-muted">
+                  The coordinator is up, but no workers have checked in yet.
                 </p>
-                <p className="mt-1 text-[12px] text-zinc-600">
-                  Scale workers with{" "}
-                  <code className="rounded bg-zinc-900 px-1 py-0.5 font-mono text-[11px] text-zinc-400">
+                <p className="mt-1 text-[12px] text-faint">
+                  Add some with{" "}
+                  <code className="rounded bg-ink-850 px-1 py-0.5 font-mono text-[11px] text-paper-dim">
                     --scale dworker=3
                   </code>
                   .
@@ -183,10 +183,10 @@ export function CoordinatorDashboard() {
             )}
 
             {(status.reassignments ?? 0) > 0 && (
-              <p className="mt-4 flex items-center gap-1.5 text-[11.5px] text-zinc-600">
+              <p className="mt-4 flex items-center gap-1.5 text-[11.5px] text-faint">
                 <RotateCcw size={11} />
-                {status.reassignments} document(s) were requeued after a worker stopped
-                heartbeating — idempotent writes make the reprocessing harmless.
+                {status.reassignments} document(s) were handed to another worker after one
+                went quiet — idempotent writes make the re-read harmless.
               </p>
             )}
           </>
