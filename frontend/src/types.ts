@@ -84,6 +84,13 @@ export interface KeyEntity {
   role: string;
 }
 
+export interface Conflict {
+  source: string;
+  target: string;
+  claim_types: string[];
+  documents: string[];
+}
+
 // ── Question / report types ──────────────────────────────────────────────────
 
 export interface QuestionResponse {
@@ -97,6 +104,7 @@ export interface QuestionResponse {
   vector_chunks: VectorChunk[];
   key_entities: KeyEntity[];
   insights: Insight[];
+  conflicts: Conflict[];
   version: number;
   cached: boolean;
   created_at: string;

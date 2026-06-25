@@ -5,10 +5,12 @@ import { RoutingBadge } from "./RoutingBadge";
 import { SourcesPanel } from "./SourcesPanel";
 import { EntitySummary } from "./EntitySummary";
 import { InsightCards } from "./InsightCards";
+import { ConflictBanner } from "./ConflictBanner";
 
 export function AnswerView({ report }: { report: QuestionResponse }) {
   const hasInsights = report.insights && report.insights.length > 0;
   const hasEntities = report.key_entities && report.key_entities.length > 0;
+  const conflicts = report.conflicts ?? [];
 
   return (
     <div className="animate-fade-in flex flex-col gap-6">
@@ -45,6 +47,9 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
       <div className="prose-answer text-[14.5px] leading-[1.75] text-zinc-300">
         <ReactMarkdown>{report.answer}</ReactMarkdown>
       </div>
+
+      {/* Disputed claims flagged by the graph retriever */}
+      <ConflictBanner conflicts={conflicts} />
 
       {/* Visual insights — charts, flows, timelines */}
       {hasInsights && <InsightCards insights={report.insights} />}
