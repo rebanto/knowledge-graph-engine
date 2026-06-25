@@ -543,20 +543,20 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
       <div ref={containerRef} className="relative flex-1 overflow-hidden">
         {loading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center">
-            <div className="flex items-center gap-2 text-zinc-500">
-              <Loader2 size={16} className="animate-spin" />
-              <span className="text-[12px]">Building graph…</span>
+            <div className="flex items-center gap-2 text-muted">
+              <Loader2 size={16} className="animate-spin text-brass" />
+              <span className="text-[12px]">Laying out the graph…</span>
             </div>
           </div>
         )}
 
         {isEmpty && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 text-center">
-            <Crosshair size={22} className="text-zinc-700" />
-            <p className="text-[13px] font-medium text-zinc-400">No graph yet</p>
-            <p className="max-w-xs text-[12px] text-zinc-600">
-              Add sources and let them finish ingesting — entities and their
-              relationships will appear here.
+          <div className="dot-grid absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 text-center">
+            <Crosshair size={22} className="text-ghost" />
+            <p className="font-display text-[16px] font-medium text-paper-dim">Nothing connected yet</p>
+            <p className="max-w-xs text-[12px] text-muted">
+              Add sources and let them finish reading — the entities they mention,
+              and the lines between them, show up here.
             </p>
           </div>
         )}
@@ -566,7 +566,7 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
         {/* Hover tooltip */}
         {hovered && (
           <div
-            className="pointer-events-none absolute z-30 max-w-[240px] rounded-lg border border-zinc-700/70 bg-zinc-900/95 px-3 py-2 shadow-xl backdrop-blur-sm"
+            className="pointer-events-none absolute z-30 max-w-[240px] rounded-lg border border-ink-600 bg-ink-850/95 px-3 py-2 shadow-xl shadow-black/40 backdrop-blur-sm"
             style={{
               left: Math.min(hovered.x + 14, (containerRef.current?.clientWidth ?? 9999) - 250),
               top: hovered.y + 14,
@@ -575,29 +575,29 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
                 style={{ backgroundColor: NODE_COLOR[hovered.node.type] }} />
-              <span className="text-[12.5px] font-semibold leading-tight text-zinc-100">
+              <span className="text-[12.5px] font-semibold leading-tight text-paper">
                 {hovered.node.name}
               </span>
             </div>
-            <p className="mt-1 pl-[18px] text-[11px] text-zinc-500">
+            <p className="mt-1 pl-[18px] text-[11px] text-muted">
               {hovered.node.type} · {hovered.node.degree} connection
               {hovered.node.degree !== 1 ? "s" : ""}
             </p>
-            <p className="mt-0.5 pl-[18px] text-[10.5px] text-zinc-600">click to inspect · double-click to focus</p>
+            <p className="mt-0.5 pl-[18px] text-[10.5px] text-faint">click to inspect · double-click to focus</p>
           </div>
         )}
 
         {/* Top-left: search */}
-        <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-lg border border-zinc-800/60 bg-zinc-950/85 px-2.5 py-1.5 backdrop-blur-sm">
-          <Search size={13} className="text-zinc-500" />
+        <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-900/85 px-2.5 py-1.5 backdrop-blur-sm">
+          <Search size={13} className="text-muted" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Find node…"
-            className="w-40 bg-transparent text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600"
+            placeholder="Find a node…"
+            className="w-40 bg-transparent text-[12px] text-paper outline-none placeholder:text-faint"
           />
           {search && (
-            <button onClick={() => setSearch("")} className="text-zinc-500 hover:text-zinc-300">
+            <button onClick={() => setSearch("")} className="text-muted hover:text-paper-dim">
               <X size={12} />
             </button>
           )}
@@ -605,15 +605,15 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
 
         {/* Top-right: camera controls */}
         <div className="absolute right-4 top-4 z-10 flex flex-col gap-1.5">
-          <div className="flex flex-col overflow-hidden rounded-lg border border-zinc-800/60 bg-zinc-950/85 backdrop-blur-sm">
+          <div className="flex flex-col overflow-hidden rounded-lg border border-ink-700 bg-ink-900/85 backdrop-blur-sm">
             <button onClick={() => nudgeZoom(1.4)} title="Zoom in"
-              className="p-1.5 text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200"><Plus size={14} /></button>
+              className="p-1.5 text-muted hover:bg-ink-750 hover:text-brass"><Plus size={14} /></button>
             <button onClick={() => nudgeZoom(0.7)} title="Zoom out"
-              className="border-t border-zinc-800/60 p-1.5 text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200"><Minus size={14} /></button>
+              className="border-t border-ink-700 p-1.5 text-muted hover:bg-ink-750 hover:text-brass"><Minus size={14} /></button>
             <button onClick={() => zoomToFit()} title="Fit to view"
-              className="border-t border-zinc-800/60 p-1.5 text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200"><Maximize2 size={13} /></button>
+              className="border-t border-ink-700 p-1.5 text-muted hover:bg-ink-750 hover:text-brass"><Maximize2 size={13} /></button>
           </div>
-          <div className="rounded-md border border-zinc-800/60 bg-zinc-950/85 px-1.5 py-0.5 text-center text-[10px] tabular-nums text-zinc-600 backdrop-blur-sm">
+          <div className="rounded-md border border-ink-700 bg-ink-900/85 px-1.5 py-0.5 text-center font-mono text-[10px] tabular-nums text-faint backdrop-blur-sm">
             {Math.round(zoomLevel * 100)}%
           </div>
         </div>
