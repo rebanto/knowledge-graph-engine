@@ -223,7 +223,7 @@ function SourceCard({
   const canRetry = src.status !== "running";
 
   return (
-    <div className={`rounded-xl border bg-zinc-900/20 transition-all ${statusBorder}`}>
+    <div className={`rounded-xl border bg-ink-800/40 transition-all ${statusBorder}`}>
       {/* Card header */}
       <div className="flex items-start gap-3 p-3.5">
         <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-ink-750">
