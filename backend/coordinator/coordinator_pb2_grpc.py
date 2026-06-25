@@ -61,6 +61,11 @@ class CoordinatorStub:
                 request_serializer=coordinator__pb2.BatchResult.SerializeToString,
                 response_deserializer=coordinator__pb2.CompletionAck.FromString,
                 _registered_method=True)
+        self.GetStatus = channel.unary_unary(
+                '/coordinator.Coordinator/GetStatus',
+                request_serializer=coordinator__pb2.StatusRequest.SerializeToString,
+                response_deserializer=coordinator__pb2.ClusterStatus.FromString,
+                _registered_method=True)
 
 
 class CoordinatorServicer:
@@ -97,6 +102,13 @@ class CoordinatorServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetStatus(self, request, context):
+        """Phase 6: read-only cluster status for the coordinator dashboard.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_CoordinatorServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -119,6 +131,11 @@ def add_CoordinatorServicer_to_server(servicer, server):
                     servicer.ReportCompletion,
                     request_deserializer=coordinator__pb2.BatchResult.FromString,
                     response_serializer=coordinator__pb2.CompletionAck.SerializeToString,
+            ),
+            'GetStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetStatus,
+                    request_deserializer=coordinator__pb2.StatusRequest.FromString,
+                    response_serializer=coordinator__pb2.ClusterStatus.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -236,6 +253,33 @@ class Coordinator:
             '/coordinator.Coordinator/ReportCompletion',
             coordinator__pb2.BatchResult.SerializeToString,
             coordinator__pb2.CompletionAck.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetStatus(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/coordinator.Coordinator/GetStatus',
+            coordinator__pb2.StatusRequest.SerializeToString,
+            coordinator__pb2.ClusterStatus.FromString,
             options,
             channel_credentials,
             insecure,

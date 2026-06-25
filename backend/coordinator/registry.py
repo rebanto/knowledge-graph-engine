@@ -155,6 +155,41 @@ class WorkerRegistry:
                     self.reassignments += len(batch.docs)
         return reaped
 
+    async def status_snapshot(self, now: Optional[float] = None) -> dict:
+        """Dashboard-oriented view: per-worker state joined with its batch
+        progress and heartbeat staleness, plus pool-level counters. Distinct
+        from snapshot() (the terse debug dump) so the wire shape can evolve with
+        the dashboard without disturbing existing callers/tests."""
+        now = now if now is not None else time.monotonic()
+        async with self._lock:
+            workers = []
+            for w in self._workers.values():
+                batch = self._batches.get(w.batch_id) if w.batch_id else None
+                workers.append({
+                    "worker_id": w.worker_id,
+                    "host": w.host,
+                    "state": w.state,
+                    "batch_id": w.batch_id or "",
+                    "completed": batch.completed if batch else 0,
+                    "total": batch.total if batch else 0,
+                    "seconds_since_heartbeat": max(0.0, now - w.last_seen),
+                })
+            workers.sort(key=lambda x: x["worker_id"])
+            return {
+                "pending": len(self._pending),
+                "reassignments": self.reassignments,
+                "dead_workers": self.dead_workers,
+                "heartbeat_timeout_secs": int(self.heartbeat_timeout),
+                "workers": workers,
+            }
+
+    async def get_batch_docs(self, batch_id: str) -> list[DocRef]:
+        """The documents of a batch, for the Postgres job-tracking layer to map
+        completed document_urls back to their source_id. Empty if unknown."""
+        async with self._lock:
+            batch = self._batches.get(batch_id)
+            return list(batch.docs) if batch else []
+
     async def snapshot(self) -> dict:
         async with self._lock:
             return {

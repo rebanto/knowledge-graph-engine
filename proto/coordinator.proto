@@ -14,6 +14,8 @@ service Coordinator {
   rpc RequestWork(WorkRequest)      returns (WorkBatch);
   rpc Heartbeat(HeartbeatRequest)   returns (HeartbeatAck);
   rpc ReportCompletion(BatchResult) returns (CompletionAck);
+  // Phase 6: read-only cluster status for the coordinator dashboard.
+  rpc GetStatus(StatusRequest)      returns (ClusterStatus);
 }
 
 message RegisterRequest {
@@ -63,4 +65,25 @@ message BatchResult {
 
 message CompletionAck {
   bool received = 1;
+}
+
+// ── Phase 6: dashboard status ───────────────────────────────────────────────
+message StatusRequest {}
+
+message WorkerStatus {
+  string worker_id               = 1;
+  string host                    = 2;
+  string state                   = 3;  // "idle" | "processing" | "dead"
+  string batch_id                = 4;  // current batch, empty if none
+  int32  completed               = 5;  // documents done in the current batch
+  int32  total                   = 6;  // documents in the current batch
+  double seconds_since_heartbeat = 7;  // staleness of the last heartbeat
+}
+
+message ClusterStatus {
+  int32  pending                 = 1;  // documents waiting to be assigned
+  int32  reassignments           = 2;  // docs requeued after a worker died
+  int32  dead_workers            = 3;  // workers reaped over this run
+  int32  heartbeat_timeout_secs  = 4;  // when a silent worker is declared dead
+  repeated WorkerStatus workers  = 5;
 }

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
-import { Network, MessageSquare, Database, Loader2, ArrowRight } from "lucide-react";
+import { Network, MessageSquare, Database, Loader2, ArrowRight, Server } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { QuestionInput } from "./components/QuestionInput";
 import { AnswerView } from "./components/AnswerView";
 import { EmptyState } from "./components/EmptyState";
 import { GraphViewer } from "./components/GraphViewer";
 import { SourceManager } from "./components/SourceManager";
+import { CoordinatorDashboard } from "./components/CoordinatorDashboard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import {
   streamQuestion, listReports, getReport, listWorkspaces, createWorkspace,
@@ -15,7 +16,7 @@ import {
 } from "./api";
 import type { QuestionResponse, ReportSummary, Workspace } from "./types";
 
-type Tab = "ask" | "explore" | "sources";
+type Tab = "ask" | "explore" | "sources" | "cluster";
 
 function describeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
@@ -223,6 +224,7 @@ export default function App() {
             { id: "ask"     as const, label: "Ask",     icon: MessageSquare },
             { id: "explore" as const, label: "Graph",   icon: Network },
             { id: "sources" as const, label: "Sources", icon: Database },
+            { id: "cluster" as const, label: "Cluster", icon: Server },
           ]).map((t) => (
             <button
               key={t.id}
@@ -295,10 +297,16 @@ export default function App() {
               <GraphViewer workspaceId={workspaceId} />
             </ErrorBoundary>
           </div>
-        ) : (
+        ) : tab === "sources" ? (
           <div className="min-w-0 flex-1">
             <ErrorBoundary>
               <SourceManager workspaceId={workspaceId} />
+            </ErrorBoundary>
+          </div>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <ErrorBoundary>
+              <CoordinatorDashboard />
             </ErrorBoundary>
           </div>
         )}

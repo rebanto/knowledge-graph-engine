@@ -84,6 +84,13 @@ export interface KeyEntity {
   role: string;
 }
 
+export interface Conflict {
+  source: string;
+  target: string;
+  claim_types: string[];
+  documents: string[];
+}
+
 // ── Question / report types ──────────────────────────────────────────────────
 
 export interface QuestionResponse {
@@ -97,6 +104,7 @@ export interface QuestionResponse {
   vector_chunks: VectorChunk[];
   key_entities: KeyEntity[];
   insights: Insight[];
+  conflicts: Conflict[];
   version: number;
   cached: boolean;
   created_at: string;
@@ -193,4 +201,27 @@ export interface QueueStatus {
   worker_count: number;
   workers: WorkerInfo[];
   queues: Record<string, QueueInfo>;
+}
+
+// ── Distributed worker pool (coordinator) status ─────────────────────────────
+
+export interface CoordinatorWorker {
+  worker_id: string;
+  host: string;
+  state: "idle" | "processing" | "dead";
+  batch_id: string | null;
+  completed: number;
+  total: number;
+  seconds_since_heartbeat: number;
+}
+
+export interface CoordinatorStatus {
+  available: boolean;
+  pending?: number;
+  reassignments?: number;
+  dead_workers?: number;
+  heartbeat_timeout_secs?: number;
+  worker_count?: number;
+  live_worker_count?: number;
+  workers?: CoordinatorWorker[];
 }

@@ -1,6 +1,8 @@
 import re
+import asyncio
 from backend.core.llm_client import generate_json
 from backend.db.neo4j import get_async_driver
+from backend.db import shard_router
 from backend.db.redis import get_cached_cypher, set_cached_cypher
 from backend.core.resilience import neo4j_breaker, CircuitBreakerError
 from backend.core.observability import cache_hits_total, cache_misses_total
@@ -94,6 +96,12 @@ async def _exec(cypher: str, params: dict | None = None, timeout: int = 15) -> l
     except CircuitBreakerError:
         raise
 
+    # Phase 4: under USE_SHARDING the graph is split across N Neo4j instances.
+    # Reads scatter-gather across every shard and merge (see shard_router); the
+    # single-node driver below remains the default and the fallback.
+    if shard_router.is_enabled():
+        return await shard_router.get_router().run_read(cypher, params, timeout)
+
     driver = await get_async_driver()
     async with driver.session() as session:
         result = await session.run(cypher, **(params or {}))
@@ -104,6 +112,13 @@ async def _exec(cypher: str, params: dict | None = None, timeout: int = 15) -> l
 async def _entity_degree_context(workspace_id: str, names: list[str]) -> list[dict]:
     if not names:
         return []
+    # Under sharding, degree must be summed across shards (an entity's edges are
+    # split between its own shard and the shards that hold stubs pointing at it).
+    if shard_router.is_enabled():
+        try:
+            return await shard_router.get_router().entity_degree_context(workspace_id, names)
+        except Exception:
+            return []
     try:
         return await _exec(
             """
@@ -122,6 +137,53 @@ async def _entity_degree_context(workspace_id: str, names: list[str]) -> list[di
         return []
 
 
+async def _detect_conflicts(workspace_id: str, names: list[str]) -> list[dict]:
+    """Surface disputed claims touching the entities in the answer.
+
+    The ingestion pipeline auto-creates a CONFLICTS_WITH edge and sets
+    conflict_flag=true on the underlying SUPPORTS/CONTRADICTS edges whenever two
+    sources make opposite claims about the same pair (see conflict_detector.py).
+    Those flags were written but never read back at query time, so contradictions
+    sat invisible in the graph. This pass pulls the flagged pairs that involve the
+    answer's entities, with both claim types and the documents behind them, so the
+    synthesizer can call them out and the UI can warn the reader.
+    """
+    if not names:
+        return []
+    try:
+        rows = await _exec(
+            """
+            UNWIND $names AS nm
+            MATCH (a {name: nm, workspace_id: $ws})-[r]->(b {workspace_id: $ws})
+            WHERE type(r) IN ['SUPPORTS', 'CONTRADICTS'] AND r.conflict_flag = true
+            RETURN a.name AS source, b.name AS target,
+                   collect(DISTINCT type(r)) AS claim_types,
+                   collect(DISTINCT r.source_document_id) AS documents
+            LIMIT 25
+            """,
+            {"names": names[:20], "ws": workspace_id},
+            timeout=8,
+        )
+    except Exception:
+        return []
+
+    # De-dupe the undirected pair (A,B)/(B,A) so each contradiction appears once.
+    seen: set[frozenset] = set()
+    conflicts: list[dict] = []
+    for row in rows:
+        pair = frozenset((row.get("source"), row.get("target")))
+        if pair in seen:
+            continue
+        seen.add(pair)
+        conflicts.append({
+            "source": row.get("source"),
+            "target": row.get("target"),
+            "claim_types": [t for t in (row.get("claim_types") or []) if t],
+            "documents": [d for d in (row.get("documents") or []) if d],
+        })
+    return conflicts
+
+
 async def run_graph_query(question: str, workspace_id: str) -> dict:
     cypher = await question_to_cypher(question, workspace_id)
 
@@ -129,21 +191,34 @@ async def run_graph_query(question: str, workspace_id: str) -> dict:
     cached_records = await get_cached_cypher(cypher)
     if cached_records is not None:
         cache_hits_total.labels(cache="cypher").inc()
-        return {"cypher": cypher, "records": cached_records, "entity_stats": []}
+        names = _candidate_names(cached_records)
+        conflicts = await _detect_conflicts(workspace_id, names)
+        return {"cypher": cypher, "records": cached_records,
+                "entity_stats": [], "conflicts": conflicts}
 
     cache_misses_total.labels(cache="cypher").inc()
     records = await _exec(cypher)
 
-    # Pull entity-looking strings for the secondary stats pass
+    unique_names = _candidate_names(records)
+    # Degree context and conflict detection both key off the answer's entities;
+    # run them in parallel since neither depends on the other.
+    entity_stats, conflicts = await asyncio.gather(
+        _entity_degree_context(workspace_id, unique_names),
+        _detect_conflicts(workspace_id, unique_names),
+    )
+
+    await set_cached_cypher(cypher, records)
+
+    return {"cypher": cypher, "records": records,
+            "entity_stats": entity_stats, "conflicts": conflicts}
+
+
+def _candidate_names(records: list[dict]) -> list[str]:
+    """Entity-looking strings from result rows, used to scope the degree and
+    conflict passes to the entities the answer actually involves."""
     candidate_names: list[str] = []
     for row in records[:40]:
         for v in row.values():
             if isinstance(v, str) and 2 < len(v) < 100 and not v.startswith("http") and not v.isupper():
                 candidate_names.append(v)
-
-    unique_names = list(dict.fromkeys(candidate_names))[:20]
-    entity_stats = await _entity_degree_context(workspace_id, unique_names)
-
-    await set_cached_cypher(cypher, records)
-
-    return {"cypher": cypher, "records": records, "entity_stats": entity_stats}
+    return list(dict.fromkeys(candidate_names))[:20]
