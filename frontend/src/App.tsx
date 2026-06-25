@@ -288,7 +288,6 @@ export default function App() {
             <div className="dot-grid min-w-0 flex-1 overflow-y-auto scrollbar-thin">
               <div className="flex min-h-full flex-col items-center justify-center px-6 py-16">
                 <div className="animate-rise-in w-full max-w-xl">
-                  <p className="eyebrow mb-3 text-center text-brass/70">Lattice · ask the graph</p>
                   <h1 className="text-glow mb-7 text-center font-display text-[34px] font-medium leading-[1.1] tracking-tight text-paper">
                     What do you want to know?
                   </h1>
