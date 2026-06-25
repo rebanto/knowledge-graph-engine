@@ -19,6 +19,7 @@ class QuestionResponse(BaseModel):
     vector_chunks: list[dict] = []
     key_entities: list[dict] = []
     insights: list[dict[str, Any]] = []
+    conflicts: list[dict[str, Any]] = []
     version: int
     cached: bool
     created_at: datetime

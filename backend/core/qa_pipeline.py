@@ -23,18 +23,20 @@ async def _compute_answer(question: str, workspace_id: str) -> dict:
 
     graph_records: list[dict] = []
     entity_stats: list[dict] = []
+    conflicts: list[dict] = []
     vector_chunks: list[dict] = []
     cypher = None
     results: dict = {}
 
     # ── Run graph and vector retrieval in parallel for hybrid queries ──────────
     async def _graph():
-        nonlocal cypher, graph_records, entity_stats
+        nonlocal cypher, graph_records, entity_stats, conflicts
         try:
             graph_result = await run_graph_query(question, workspace_id)
             cypher = graph_result["cypher"]
             graph_records = graph_result["records"]
             entity_stats = graph_result.get("entity_stats", [])
+            conflicts = graph_result.get("conflicts", [])
         except (UnsafeQueryError, CircuitBreakerError):
             pass  # Degrade gracefully — vector search still proceeds
 
@@ -67,6 +69,9 @@ async def _compute_answer(question: str, workspace_id: str) -> dict:
         results["graph_records"] = graph_records
     if entity_stats:
         results["entity_degree_context"] = entity_stats
+    if conflicts:
+        # Hand the disputed claims to the synthesizer so the prose calls them out.
+        results["conflicts"] = conflicts
     if vector_chunks:
         results["vector_passages"] = vector_chunks
 
@@ -78,6 +83,7 @@ async def _compute_answer(question: str, workspace_id: str) -> dict:
         "cypher": cypher,
         "graph_records": graph_records,
         "vector_chunks": vector_chunks,
+        "conflicts": conflicts,
         "answer": synthesis["answer"],
         "key_entities": synthesis.get("key_entities", []),
         "insights": synthesis.get("insights", []),

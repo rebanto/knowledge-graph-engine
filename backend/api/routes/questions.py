@@ -46,6 +46,7 @@ async def ask_question(req: QuestionRequest, db: AsyncSession = Depends(get_asyn
             "vector_chunks": result["vector_chunks"],
             "key_entities": result.get("key_entities", []),
             "insights": result.get("insights", []),
+            "conflicts": result.get("conflicts", []),
         },
         version=version,
         created_at=datetime.now(timezone.utc),
@@ -65,6 +66,7 @@ async def ask_question(req: QuestionRequest, db: AsyncSession = Depends(get_asyn
         vector_chunks=result["vector_chunks"],
         key_entities=result.get("key_entities", []),
         insights=result.get("insights", []),
+        conflicts=result.get("conflicts", []),
         version=report.version,
         cached=result["cached"],
         created_at=report.created_at,
@@ -95,6 +97,7 @@ async def stream_question(
 
             # Retrieve
             graph_records, entity_stats, vector_chunks, cypher = [], [], [], None
+            conflicts: list = []
             results: dict = {}
 
             if qtype in ("graph", "hybrid"):
@@ -104,12 +107,13 @@ async def stream_question(
                 yield {"event": "progress", "data": json.dumps({"status": "Searching documents…"})}
 
             async def _graph():
-                nonlocal cypher, graph_records, entity_stats
+                nonlocal cypher
                 try:
                     gr = await run_graph_query(question, workspace_id)
                     cypher = gr["cypher"]
                     graph_records[:] = gr["records"]
                     entity_stats[:] = gr.get("entity_stats", [])
+                    conflicts[:] = gr.get("conflicts", [])
                 except (UnsafeQueryError, CircuitBreakerError):
                     pass
 
@@ -132,6 +136,8 @@ async def stream_question(
                 results["graph_records"] = graph_records
             if entity_stats:
                 results["entity_degree_context"] = entity_stats
+            if conflicts:
+                results["conflicts"] = conflicts
             if vector_chunks:
                 results["vector_passages"] = vector_chunks
 
@@ -144,6 +150,7 @@ async def stream_question(
                 "cypher": cypher,
                 "graph_records": graph_records,
                 "vector_chunks": vector_chunks,
+                "conflicts": conflicts,
                 "answer": synthesis["answer"],
                 "key_entities": synthesis.get("key_entities", []),
                 "insights": synthesis.get("insights", []),
@@ -171,6 +178,7 @@ async def stream_question(
                     "vector_chunks": vector_chunks,
                     "key_entities": result.get("key_entities", []),
                     "insights": result.get("insights", []),
+                    "conflicts": conflicts,
                 },
                 version=version,
                 created_at=datetime.now(timezone.utc),
@@ -225,6 +233,7 @@ async def get_report(report_id: str, db: AsyncSession = Depends(get_async_db)):
         vector_chunks=sources.get("vector_chunks", []),
         key_entities=sources.get("key_entities", []),
         insights=sources.get("insights", []),
+        conflicts=sources.get("conflicts", []),
         version=report.version,
         cached=False,
         created_at=report.created_at,
