@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Network, Plus, Trash2, Loader2 } from "lucide-react";
+import { Plus, Trash2, Loader2 } from "lucide-react";
 import type { ReportSummary, Workspace } from "../types";
 import { relativeTime } from "../lib/time";
 import { WorkspaceSelector } from "./WorkspaceSelector";
@@ -9,6 +9,24 @@ const DOT: Record<string, string> = {
   vector: "bg-vector",
   hybrid: "bg-hybrid",
 };
+
+// The wordmark: a tiny three-node lattice that echoes the favicon.
+function LatticeMark() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+      <g stroke="#d6a44e" strokeOpacity="0.5" strokeWidth="1.3" strokeLinecap="round">
+        <line x1="7" y1="8" x2="18" y2="6.5" />
+        <line x1="7" y1="8" x2="7" y2="18" />
+        <line x1="7" y1="8" x2="18.5" y2="18.5" />
+        <line x1="7" y1="18" x2="18.5" y2="18.5" />
+      </g>
+      <circle cx="7" cy="8" r="2.6" fill="#100e0b" stroke="#d6a44e" strokeWidth="1.4" />
+      <circle cx="18" cy="6.5" r="2" fill="#100e0b" stroke="#d6a44e" strokeWidth="1.4" />
+      <circle cx="7" cy="18" r="2" fill="#100e0b" stroke="#d6a44e" strokeWidth="1.4" />
+      <circle cx="18.5" cy="18.5" r="3" fill="#d6a44e" />
+    </svg>
+  );
+}
 
 interface SidebarProps {
   reports: ReportSummary[];
@@ -50,14 +68,12 @@ export function Sidebar({
   }
 
   return (
-    <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-zinc-800/60 bg-[#0c0c0e]">
-      <div className="flex items-center gap-2 px-5 pt-6 pb-5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-zinc-100/5 ring-1 ring-zinc-700/50">
-          <Network size={15} className="text-zinc-300" strokeWidth={2} />
-        </div>
-        <div>
-          <p className="text-sm font-semibold tracking-tight text-zinc-100">Lattice</p>
-          <p className="text-[11px] leading-none text-zinc-500">Research intelligence</p>
+    <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-ink-700 bg-ink-850">
+      <div className="flex items-center gap-2.5 px-5 pt-6 pb-5">
+        <LatticeMark />
+        <div className="leading-none">
+          <p className="font-display text-[19px] font-medium tracking-tight text-paper">Lattice</p>
+          <p className="mt-1 font-display text-[11.5px] italic text-faint">a research instrument</p>
         </div>
       </div>
 
@@ -73,10 +89,10 @@ export function Sidebar({
       <div className="px-3">
         <button
           onClick={onNew}
-          className="flex w-full items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-sm text-zinc-300 transition-colors hover:border-zinc-700 hover:bg-zinc-900 hover:text-zinc-100"
+          className="flex w-full items-center gap-2 rounded-lg border border-brass/25 bg-brass-dim px-3 py-2 text-sm font-medium text-brass transition-colors hover:border-brass/45 hover:bg-brass/15"
         >
           <Plus size={15} />
-          New question
+          Ask something new
         </button>
       </div>
 
