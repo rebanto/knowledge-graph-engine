@@ -619,48 +619,46 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
         </div>
 
         {/* Bottom-left: stats + legend */}
-        <div className="absolute bottom-4 left-4 z-10 flex max-h-[68vh] w-[188px] flex-col gap-1 overflow-y-auto rounded-lg border border-zinc-800/60 bg-zinc-950/85 px-3 py-2.5 backdrop-blur-sm scrollbar-thin">
+        <div className="absolute bottom-4 left-4 z-10 flex max-h-[68vh] w-[188px] flex-col gap-1 overflow-y-auto rounded-lg border border-ink-700 bg-ink-900/85 px-3 py-2.5 backdrop-blur-sm scrollbar-thin">
           {data && (
-            <p className="mb-1 text-[10.5px] text-zinc-500">
-              <span className="font-medium text-zinc-300">{data.nodes.length}</span> nodes ·{" "}
-              <span className="font-medium text-zinc-300">{data.edges.length}</span> edges
+            <p className="mb-1 text-[10.5px] text-muted">
+              <span className="font-medium text-paper-dim">{data.nodes.length}</span> nodes ·{" "}
+              <span className="font-medium text-paper-dim">{data.edges.length}</span> edges
             </p>
           )}
 
-          <p className="mb-0.5 mt-1 flex items-center justify-between text-[10px] uppercase tracking-wider text-zinc-600">
-            Node types
-          </p>
+          <p className="eyebrow mb-0.5 mt-1 text-faint">Node types</p>
           {(Object.keys(NODE_COLOR) as NodeType[])
             .filter((t) => (typeCounts.get(t) ?? 0) > 0)
             .map((t) => {
               const off = hiddenTypes.has(t);
               return (
                 <button key={t} onClick={() => toggleType(t)}
-                  className={`group flex items-center gap-2 rounded px-1 py-0.5 text-[11px] hover:bg-zinc-800/40 ${off ? "opacity-35" : ""}`}>
+                  className={`group flex items-center gap-2 rounded px-1 py-0.5 text-[11px] hover:bg-ink-750 ${off ? "opacity-35" : ""}`}>
                   <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: NODE_COLOR[t] }} />
-                  <span className="flex-1 text-left text-zinc-300">{t}</span>
-                  <span className="tabular-nums text-[10px] text-zinc-600">{typeCounts.get(t)}</span>
+                  <span className="flex-1 text-left text-paper-dim">{t}</span>
+                  <span className="tabular-nums font-mono text-[10px] text-faint">{typeCounts.get(t)}</span>
                   {off
-                    ? <EyeOff size={11} className="text-zinc-600" />
-                    : <Eye size={11} className="text-zinc-700 opacity-0 group-hover:opacity-100" />}
+                    ? <EyeOff size={11} className="text-faint" />
+                    : <Eye size={11} className="text-ghost opacity-0 group-hover:opacity-100" />}
                 </button>
               );
             })}
 
           {presentGroups.size > 0 && (
             <>
-              <p className="mb-0.5 mt-2 text-[10px] uppercase tracking-wider text-zinc-600">Edge types</p>
+              <p className="eyebrow mb-0.5 mt-2 text-faint">Edge types</p>
               {(Object.keys(GROUP_COLOR) as EdgeGroup[])
                 .filter((g) => (presentGroups.get(g) ?? 0) > 0)
                 .map((g) => {
                   const off = hiddenGroups.has(g);
                   return (
                     <button key={g} onClick={() => toggleGroup(g)}
-                      className={`group flex items-center gap-2 rounded px-1 py-0.5 text-[11px] hover:bg-zinc-800/40 ${off ? "opacity-35" : ""}`}>
+                      className={`group flex items-center gap-2 rounded px-1 py-0.5 text-[11px] hover:bg-ink-750 ${off ? "opacity-35" : ""}`}>
                       <span className="h-[2px] w-4 flex-shrink-0 rounded"
                         style={{ backgroundColor: GROUP_COLOR[g] }} />
-                      <span className="flex-1 text-left text-zinc-400">{GROUP_LABEL[g]}</span>
-                      <span className="tabular-nums text-[10px] text-zinc-600">{presentGroups.get(g)}</span>
+                      <span className="flex-1 text-left text-muted">{GROUP_LABEL[g]}</span>
+                      <span className="tabular-nums font-mono text-[10px] text-faint">{presentGroups.get(g)}</span>
                     </button>
                   );
                 })}
@@ -671,50 +669,50 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
 
       {/* Detail panel */}
       {selected && (
-        <div className="flex w-72 flex-shrink-0 flex-col border-l border-zinc-800/60 bg-zinc-950/60 p-4">
+        <div className="flex w-72 flex-shrink-0 flex-col border-l border-ink-700 bg-ink-850/70 p-4">
           <button onClick={() => setSelected(null)}
-            className="mb-3 self-start text-[11px] text-zinc-500 hover:text-zinc-300">✕ close</button>
+            className="mb-3 self-start text-[11px] text-muted hover:text-paper-dim">✕ close</button>
 
           <div className="flex items-start gap-2">
             <span className="mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full"
               style={{ backgroundColor: NODE_COLOR[(selectedType as NodeType) ?? "Concept"] }} />
-            <p className="text-[13px] font-semibold leading-snug text-zinc-100">{selected.name}</p>
+            <p className="font-display text-[16px] font-medium leading-snug text-paper">{selected.name}</p>
           </div>
-          <div className="mt-1 flex items-center gap-2 pl-[18px]">
+          <div className="mt-1.5 flex items-center gap-2 pl-[18px]">
             <span className="rounded px-1.5 py-0.5 text-[10px] font-medium"
               style={{
                 backgroundColor: `${NODE_COLOR[(selectedType as NodeType) ?? "Concept"]}22`,
                 color: NODE_COLOR[(selectedType as NodeType) ?? "Concept"],
               }}>{selectedType}</span>
-            <span className="text-[11px] text-zinc-600">
+            <span className="text-[11px] text-faint">
               {connections.length} connection{connections.length !== 1 ? "s" : ""}
             </span>
           </div>
 
           <button onClick={() => { const live = simRef.current?.nodes().find((n) => n.id === selected.id); if (live) centerOn(live); }}
-            className="mt-3 flex items-center justify-center gap-1.5 rounded-md border border-zinc-800/70 py-1.5 text-[11px] text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200">
-            <Crosshair size={12} /> Focus on graph
+            className="mt-3 flex items-center justify-center gap-1.5 rounded-md border border-ink-600 py-1.5 text-[11px] text-muted hover:bg-ink-750 hover:text-brass">
+            <Crosshair size={12} /> Center on this
           </button>
 
-          <p className="mt-4 text-[11px] font-medium uppercase tracking-wider text-zinc-600">Connections</p>
+          <p className="eyebrow mt-4 text-faint">Connections</p>
           <div className="mt-2 flex flex-col gap-1 overflow-y-auto scrollbar-thin">
             {connections.map((c, i) => {
               const col = edgeColor(c.type, c.conflict);
               return (
                 <button key={i} onClick={() => jumpTo(c.otherName)}
-                  className="flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-zinc-800/50">
-                  <span className="truncate text-[11.5px] text-zinc-300">{c.otherName}</span>
-                  <span className="flex items-center gap-1 font-mono text-[10px] text-zinc-600">
+                  className="flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-ink-750">
+                  <span className="truncate text-[11.5px] text-paper-dim">{c.otherName}</span>
+                  <span className="flex items-center gap-1 font-mono text-[10px] text-faint">
                     {c.direction === "out" ? "→" : "←"}
                     <span className="rounded px-1 py-0.5 text-[9.5px]"
                       style={{ backgroundColor: `${col}20`, color: col }}>{c.type}</span>
-                    {c.conflict && <span className="text-rose-400">conflict</span>}
+                    {c.conflict && <span className="text-flag">conflict</span>}
                   </span>
                 </button>
               );
             })}
             {connections.length === 0 && (
-              <p className="px-2 text-[11px] text-zinc-600">No connections in view.</p>
+              <p className="px-2 text-[11px] text-faint">Nothing connected in view.</p>
             )}
           </div>
         </div>
