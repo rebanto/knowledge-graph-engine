@@ -19,34 +19,32 @@ import type {
 
 // ── Entity type colors shared with GraphViewer ────────────────────────────────
 const NODE_COLOR: Record<string, string> = {
-  Person:       "#4fb3a3",
-  Paper:        "#c9974a",
-  Concept:      "#9b8cf0",
-  Organization: "#6b9bd1",
-  Topic:        "#d97a9c",
-  Event:        "#7cb88f",
+  Person:       "#5fb39a",
+  Paper:        "#d6a44e",
+  Concept:      "#b394e0",
+  Organization: "#6f9fd6",
+  Topic:        "#de7fa0",
+  Event:        "#84c08f",
 };
 
 const EDGE_COLOR: Record<string, string> = {
-  AUTHORED:          "#4fb3a3",
-  CITED:             "#c9974a",
-  FUNDED_BY:         "#6b9bd1",
+  AUTHORED:          "#5fb39a",
+  CITED:             "#d6a44e",
+  FUNDED_BY:         "#6f9fd6",
   COLLABORATED_WITH: "#7ca8d0",
-  PUBLISHED_IN:      "#d97a9c",
-  SUPPORTS:          "#7cb88f",
-  CONTRADICTS:       "#e2574c",
-  CONFLICTS_WITH:    "#e2574c",
+  PUBLISHED_IN:      "#de7fa0",
+  SUPPORTS:          "#84c08f",
+  CONTRADICTS:       "#e06a4f",
+  CONFLICTS_WITH:    "#e06a4f",
 };
+
+const BRASS = "#d6a44e";
 
 // ── Card wrapper ──────────────────────────────────────────────────────────────
 function Card({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/25 p-4">
-      {title && (
-        <p className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-zinc-500">
-          {title}
-        </p>
-      )}
+    <div className="rounded-xl border border-ink-700 bg-ink-800/40 p-4">
+      {title && <p className="eyebrow mb-3 text-faint">{title}</p>}
       {children}
     </div>
   );
@@ -62,15 +60,13 @@ function StatGridCard({ insight }: { insight: StatGridInsight }) {
         style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
       >
         {insight.stats.map((s, i) => (
-          <div key={i} className="flex flex-col gap-0.5">
-            <span className="text-[10.5px] font-medium uppercase tracking-wider text-zinc-600">
-              {s.label}
-            </span>
-            <span className="text-[22px] font-bold tabular-nums leading-none text-zinc-100">
+          <div key={i} className="flex flex-col gap-1">
+            <span className="eyebrow text-faint">{s.label}</span>
+            <span className="font-display text-[26px] font-medium tabular-nums leading-none text-paper">
               {s.value}
             </span>
             {s.subtitle && (
-              <span className="text-[10.5px] leading-snug text-zinc-600">{s.subtitle}</span>
+              <span className="text-[10.5px] leading-snug text-faint">{s.subtitle}</span>
             )}
           </div>
         ))}
@@ -87,9 +83,9 @@ const CustomTooltip = ({ active, payload, label }: {
 }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[12px] shadow-xl">
-      <p className="font-medium text-zinc-200">{label}</p>
-      <p className="mt-0.5 text-zinc-400">{payload[0].value}</p>
+    <div className="rounded-lg border border-ink-600 bg-ink-800 px-3 py-2 text-[12px] shadow-xl shadow-black/40">
+      <p className="font-medium text-paper">{label}</p>
+      <p className="mt-0.5 font-mono text-brass">{payload[0].value}</p>
     </div>
   );
 };
