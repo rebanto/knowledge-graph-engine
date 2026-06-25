@@ -1,23 +1,61 @@
 @import "tailwindcss";
 
+/*
+  Lattice — design tokens.
+  One source of truth for the whole interface. The visual language is
+  "warm ink + brass": brown-shifted near-blacks (not cold zinc), a warm
+  paper-white for text, and a single illuminated-brass accent that stands
+  in for the knowledge graph itself. Serif display type (Fraunces) carries
+  the personality; Inter handles UI; JetBrains Mono handles data.
+*/
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
 
-  --color-graph: #c9974a;
-  --color-graph-dim: #c9974a26;
-  --color-vector: #4fb3a3;
-  --color-vector-dim: #4fb3a326;
-  --color-hybrid: #9b8cf0;
-  --color-hybrid-dim: #9b8cf026;
+  /* Warm ink — surfaces, from deepest to raised */
+  --color-ink-950: #090807;
+  --color-ink-900: #0c0b09;
+  --color-ink-850: #100e0b;
+  --color-ink-800: #14110d;
+  --color-ink-750: #1a1611;
+  --color-ink-700: #221c16;
+  --color-ink-650: #2b241c;
+  --color-ink-600: #392f25;
+  --color-ink-500: #4d4233;
 
-  --color-node-paper: #c9974a;
-  --color-node-person: #4fb3a3;
-  --color-node-concept: #9b8cf0;
-  --color-node-organization: #6b9bd1;
-  --color-node-topic: #d97a9c;
-  --color-node-event: #7cb88f;
-  --color-node-conflict: #e2574c;
+  /* Paper — text, from brightest to faintest */
+  --color-paper: #ece4d6;
+  --color-paper-dim: #cdc3b2;
+  --color-muted: #9b9082;
+  --color-faint: #6d6557;
+  --color-ghost: #4a4438;
+
+  /* Brass — the signature accent (also the graph signal colour) */
+  --color-brass: #d6a44e;
+  --color-brass-bright: #e8bb66;
+  --color-brass-dim: #d6a44e1f;
+
+  /* Retrieval signals — graph reuses brass; vector/hybrid stay distinct */
+  --color-graph: #d6a44e;
+  --color-graph-dim: #d6a44e22;
+  --color-vector: #5fb39a;
+  --color-vector-dim: #5fb39a22;
+  --color-hybrid: #b394e0;
+  --color-hybrid-dim: #b394e022;
+
+  /* Conflict / danger — a warm vermilion, not a cold red */
+  --color-flag: #e06a4f;
+  --color-flag-dim: #e06a4f1c;
+
+  /* Node palette — shared by the graph canvas, entity chips and charts */
+  --color-node-paper: #d6a44e;
+  --color-node-person: #5fb39a;
+  --color-node-concept: #b394e0;
+  --color-node-organization: #6f9fd6;
+  --color-node-topic: #de7fa0;
+  --color-node-event: #84c08f;
+  --color-node-conflict: #e06a4f;
 }
 
 html {
@@ -26,7 +64,9 @@ html {
 
 body {
   margin: 0;
-  background: #0a0a0c;
+  background: #0c0b09;
+  color: #ece4d6;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -37,27 +77,53 @@ body {
 }
 
 ::selection {
-  background: #c9974a40;
+  background: #d6a44e33;
+  color: #f4ecdd;
+}
+
+/* Serif display — opsz tuned soft for a touch of warmth, not stuffy. */
+.font-display {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-variation-settings: "SOFT" 40, "WONK" 0;
+  letter-spacing: -0.01em;
+}
+
+/* Small-caps mono eyebrow — the recurring "field label" motif. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+/* Graph-paper texture for empty space — a quiet nod to the subject matter. */
+.dot-grid {
+  background-image: radial-gradient(circle, #ffffff09 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
-  width: 6px;
+  width: 7px;
+  height: 7px;
 }
 .scrollbar-thin::-webkit-scrollbar-track {
   background: transparent;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #2a2a30;
-  border-radius: 3px;
+  background: #2b241c;
+  border-radius: 4px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: #3a3a42;
+  background: #3a3024;
 }
 
 @keyframes fade-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(5px);
   }
   to {
     opacity: 1;
@@ -66,22 +132,34 @@ body {
 }
 
 .animate-fade-in {
-  animation: fade-in 0.25s ease-out;
+  animation: fade-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Answer prose ──────────────────────────────────────────────────────────
+   An illuminated drop-cap opens every answer — the editorial signature. */
+.prose-answer > p:first-of-type::first-letter {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 3.1em;
+  line-height: 0.74;
+  float: left;
+  margin: 0.04em 0.1em 0 0;
+  color: var(--color-brass);
 }
 
 .prose-answer p {
-  margin: 0 0 0.9em;
+  margin: 0 0 0.95em;
 }
 .prose-answer p:last-child {
   margin-bottom: 0;
 }
 .prose-answer strong {
-  color: #e4e4e7;
+  color: #f0e9db;
   font-weight: 600;
 }
 .prose-answer ul,
 .prose-answer ol {
-  margin: 0 0 0.9em;
+  margin: 0 0 0.95em;
   padding-left: 1.25em;
   display: flex;
   flex-direction: column;
@@ -90,16 +168,24 @@ body {
 .prose-answer li {
   padding-left: 0.25em;
 }
+.prose-answer li::marker {
+  color: var(--color-brass);
+}
 .prose-answer code {
   font-family: var(--font-mono);
-  font-size: 0.92em;
-  background: #1c1c20;
+  font-size: 0.9em;
+  background: #1a1611;
+  border: 1px solid #2b241c;
   border-radius: 4px;
-  padding: 0.15em 0.4em;
-  color: #d4d4d8;
+  padding: 0.12em 0.4em;
+  color: #d9cfbd;
 }
 .prose-answer a {
-  color: #c9974a;
+  color: var(--color-brass);
   text-decoration: underline;
-  text-decoration-color: #c9974a4d;
+  text-decoration-color: #d6a44e55;
+  text-underline-offset: 2px;
+}
+.prose-answer a:hover {
+  text-decoration-color: var(--color-brass);
 }
