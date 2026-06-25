@@ -11,6 +11,9 @@ interface WorkspaceSelectorProps {
   onDelete: (id: string) => Promise<void>;
 }
 
+const FIELD =
+  "rounded-md border border-ink-600 bg-ink-900 px-2 py-1.5 text-[12px] text-paper outline-none placeholder:text-faint focus:border-brass/50";
+
 export function WorkspaceSelector({
   workspaces,
   activeId,
@@ -115,19 +118,19 @@ export function WorkspaceSelector({
     <div className="relative px-3 pb-3">
       <button
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-left transition-colors hover:border-zinc-700"
+        className="flex w-full items-center justify-between rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-2 text-left transition-colors hover:border-ink-600"
       >
         <div className="min-w-0">
-          <p className="truncate text-[12.5px] font-medium text-zinc-200">
-            {active?.name ?? "Select workspace"}
+          <p className="truncate text-[12.5px] font-medium text-paper-dim">
+            {active?.name ?? "Pick a workspace"}
           </p>
-          <p className="truncate text-[10.5px] text-zinc-500">{active?.domain}</p>
+          <p className="truncate text-[10.5px] text-faint">{active?.domain}</p>
         </div>
-        <ChevronDown size={14} className="flex-shrink-0 text-zinc-500" />
+        <ChevronDown size={14} className="flex-shrink-0 text-muted" />
       </button>
 
       {open && (
-        <div className="absolute left-3 right-3 top-full z-10 mt-1 rounded-lg border border-zinc-800 bg-zinc-900 p-1 shadow-xl">
+        <div className="absolute left-3 right-3 top-full z-10 mt-1 rounded-lg border border-ink-700 bg-ink-800 p-1 shadow-2xl shadow-black/40">
           {workspaces.map((w) => {
             if (editingId === w.id) {
               return (
@@ -135,33 +138,33 @@ export function WorkspaceSelector({
                   key={w.id}
                   onSubmit={(e) => commitEdit(w.id, e)}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex flex-col gap-1.5 rounded-md bg-zinc-800/50 p-2 mb-0.5"
+                  className="flex flex-col gap-1.5 rounded-md bg-ink-750 p-2 mb-0.5"
                 >
                   <input
                     autoFocus
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     placeholder="Workspace name"
-                    className="rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                    className={FIELD}
                   />
                   <input
                     value={editDomain}
                     onChange={(e) => setEditDomain(e.target.value)}
                     placeholder="Domain label"
-                    className="rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                    className={FIELD}
                   />
                   <textarea
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
                     placeholder="Description (optional)"
                     rows={2}
-                    className="resize-none rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-500 leading-relaxed"
+                    className={`${FIELD} resize-none leading-relaxed`}
                   />
                   <div className="flex gap-1.5">
                     <button
                       type="submit"
                       disabled={editSaving || !editName.trim() || !editDomain.trim()}
-                      className="flex flex-1 items-center justify-center gap-1 rounded bg-zinc-100 py-1 text-[12px] font-medium text-zinc-900 hover:bg-white disabled:opacity-40"
+                      className="flex flex-1 items-center justify-center gap-1 rounded bg-brass py-1 text-[12px] font-medium text-ink-900 hover:bg-brass-bright disabled:opacity-40"
                     >
                       {editSaving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
                       {editSaving ? "Saving…" : "Save"}
@@ -169,7 +172,7 @@ export function WorkspaceSelector({
                     <button
                       type="button"
                       onClick={cancelEdit}
-                      className="rounded border border-zinc-700 px-2.5 py-1 text-[12px] text-zinc-500 hover:text-zinc-300"
+                      className="rounded border border-ink-600 px-2.5 py-1 text-[12px] text-muted hover:text-paper-dim"
                     >
                       Cancel
                     </button>
@@ -183,25 +186,25 @@ export function WorkspaceSelector({
                 <div
                   key={w.id}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex flex-col gap-1.5 rounded-md bg-rose-950/30 border border-rose-900/40 p-2 mb-0.5"
+                  className="flex flex-col gap-1.5 rounded-md bg-flag-dim border border-flag/30 p-2 mb-0.5"
                 >
-                  <p className="text-[11.5px] text-zinc-300">
-                    Delete <span className="font-medium text-zinc-100">"{w.name}"</span>? This removes all its sources and reports.
+                  <p className="text-[11.5px] text-paper-dim">
+                    Delete <span className="font-medium text-paper">"{w.name}"</span>? Its sources and reports go with it.
                   </p>
                   <div className="flex gap-1.5">
                     <button
                       onClick={(e) => confirmDelete(w.id, e)}
                       disabled={deleteWorking}
-                      className="flex flex-1 items-center justify-center gap-1 rounded bg-rose-700 py-1 text-[12px] font-medium text-white hover:bg-rose-600 disabled:opacity-40"
+                      className="flex flex-1 items-center justify-center gap-1 rounded bg-flag py-1 text-[12px] font-medium text-ink-950 hover:brightness-110 disabled:opacity-40"
                     >
                       {deleteWorking ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
                       {deleteWorking ? "Deleting…" : "Delete"}
                     </button>
                     <button
                       onClick={cancelDelete}
-                      className="rounded border border-zinc-700 px-2.5 py-1 text-[12px] text-zinc-500 hover:text-zinc-300"
+                      className="rounded border border-ink-600 px-2.5 py-1 text-[12px] text-muted hover:text-paper-dim"
                     >
-                      Cancel
+                      Keep
                     </button>
                   </div>
                 </div>
@@ -213,7 +216,7 @@ export function WorkspaceSelector({
                 <button
                   onClick={() => { onSelect(w.id); setOpen(false); setEditingId(null); setDeletingId(null); }}
                   className={`flex-1 min-w-0 rounded-md px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${
-                    w.id === activeId ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:bg-zinc-800/60"
+                    w.id === activeId ? "bg-ink-700 text-paper" : "text-muted hover:bg-ink-750"
                   }`}
                 >
                   <span className="block truncate pr-12">{w.name}</span>
@@ -222,14 +225,14 @@ export function WorkspaceSelector({
                   <button
                     onClick={(e) => startEdit(w, e)}
                     title="Rename workspace"
-                    className="rounded p-1 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
+                    className="rounded p-1 text-muted hover:bg-ink-650 hover:text-paper-dim transition-colors"
                   >
                     <Pencil size={11} />
                   </button>
                   <button
                     onClick={(e) => startDelete(w.id, e)}
                     title="Delete workspace"
-                    className="rounded p-1 text-zinc-500 hover:bg-rose-900/50 hover:text-rose-400 transition-colors"
+                    className="rounded p-1 text-muted hover:bg-flag/15 hover:text-flag transition-colors"
                   >
                     <Trash2 size={11} />
                   </button>
@@ -238,7 +241,7 @@ export function WorkspaceSelector({
             );
           })}
 
-          <div className="mt-1 border-t border-zinc-800 pt-1">
+          <div className="mt-1 border-t border-ink-700 pt-1">
             {creating ? (
               <form onSubmit={handleCreate} className="flex flex-col gap-2 p-1.5">
                 <input
@@ -246,37 +249,37 @@ export function WorkspaceSelector({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Workspace name"
-                  className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                  className={FIELD}
                 />
                 <input
                   value={domain}
                   onChange={(e) => setDomain(e.target.value)}
                   placeholder="Short label, e.g. climate policy"
-                  className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                  className={FIELD}
                 />
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Optional: describe the research area in 1–2 sentences. Used to auto-discover relevant sources."
+                  placeholder="Optional: a sentence or two on the research area. Used to suggest sources."
                   rows={3}
-                  className="resize-none rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-[12px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-500 leading-relaxed"
+                  className={`${FIELD} resize-none leading-relaxed`}
                 />
                 {description.trim() && (
-                  <label className="flex cursor-pointer items-center gap-2 px-0.5 text-[11.5px] text-zinc-400 hover:text-zinc-200">
+                  <label className="flex cursor-pointer items-center gap-2 px-0.5 text-[11.5px] text-muted hover:text-paper-dim">
                     <input
                       type="checkbox"
                       checked={autoDiscover}
                       onChange={(e) => setAutoDiscover(e.target.checked)}
-                      className="h-3 w-3 rounded accent-zinc-300"
+                      className="h-3 w-3 rounded accent-brass"
                     />
-                    Auto-discover sources after creation
+                    Suggest sources once it's created
                   </label>
                 )}
                 <div className="flex gap-1.5">
                   <button
                     type="submit"
                     disabled={saving || !name.trim() || !domain.trim()}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-zinc-100 py-1.5 text-[12px] font-medium text-zinc-900 hover:bg-white disabled:opacity-40"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-brass py-1.5 text-[12px] font-medium text-ink-900 hover:bg-brass-bright disabled:opacity-40"
                   >
                     {saving ? <Loader2 size={12} className="animate-spin" /> : null}
                     {saving ? "Creating…" : "Create"}
@@ -284,7 +287,7 @@ export function WorkspaceSelector({
                   <button
                     type="button"
                     onClick={reset}
-                    className="rounded-md border border-zinc-700 px-3 py-1.5 text-[12px] text-zinc-500 hover:text-zinc-300"
+                    className="rounded-md border border-ink-600 px-3 py-1.5 text-[12px] text-muted hover:text-paper-dim"
                   >
                     Cancel
                   </button>
@@ -293,7 +296,7 @@ export function WorkspaceSelector({
             ) : (
               <button
                 onClick={() => setCreating(true)}
-                className="flex w-full items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-[12.5px] text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-300"
+                className="flex w-full items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-[12.5px] text-muted hover:bg-ink-750 hover:text-paper-dim"
               >
                 <Plus size={13} />
                 New workspace
