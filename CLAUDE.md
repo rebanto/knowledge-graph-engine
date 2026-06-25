@@ -593,7 +593,7 @@ Fetch last 90 days of papers to seed the graph.
 ├── .env.example               ← Template for .env
 │
 ├── proto/                     ← (Phase 3) gRPC service definitions
-│   └── coordinator.proto      ← Register, RequestWork, Heartbeat, ReportCompletion
+│   └── coordinator.proto      ← Register, RequestWork, Heartbeat, ReportCompletion, GetStatus
 │
 ├── backend/
 │   ├── main.py                ← FastAPI app entry point
@@ -614,9 +614,11 @@ Fetch last 90 days of papers to seed the graph.
 │   │   ├── entity_resolver.py ← Merge duplicate entities
 │   │   └── worker.py          ← Phase 1-2: RQ worker; Phase 3+: gRPC worker client
 │   ├── coordinator/           ← (Phase 3) Coordinator process
-│   │   ├── server.py          ← gRPC server: Register, RequestWork, Heartbeat, ReportCompletion
+│   │   ├── server.py          ← gRPC server: Register, RequestWork, Heartbeat, ReportCompletion, GetStatus
 │   │   ├── registry.py        ← In-memory worker registry + heartbeat monitor
-│   │   └── scheduler.py       ← Pulls jobs from PostgreSQL, assigns batches to workers
+│   │   ├── scheduler.py       ← Pulls pending sources from PostgreSQL, enqueues batches
+│   │   ├── job_tracker.py     ← Durable ingestion_jobs/sources bookkeeping + source rollup
+│   │   └── worker_client.py   ← gRPC worker client (Register/RequestWork/Heartbeat loop)
 │   ├── db/
 │   │   ├── postgres.py        ← SQLAlchemy models and session
 │   │   ├── neo4j.py           ← Neo4j driver and query helpers (single-node)
@@ -643,25 +645,28 @@ Fetch last 90 days of papers to seed the graph.
 
 ## Build Phases
 
-**Current state: Phase 1 partially done, Phase 2 partially done,
-Phase 5 (API + UI) partially done (backend + frontend skeleton exist).**
+**Current state: Phases 1–6 complete. Phase 7 (AWS) not started.**
 
-The distributed phases (3 and 4) require Phases 1 and 2 to be verified
-working first. They do NOT require Phase 5 to be complete — they are backend
-infrastructure changes that can be built and tested without a polished UI.
-See the note at the end of this section.
+The full local system is built and tested: the single-worker pipeline and query
+layer (Phases 1–2), the distributed coordinator/worker pool with durable job
+tracking (Phase 3), the consistent-hash shard router on both the write and read
+paths (Phase 4), the API + React UI (Phase 5), and the Phase 6 polish — graph
+visualization, conflict detection surfaced in answers, source provenance,
+multi-workspace support, and the coordinator dashboard. Sharding and the
+distributed pool are opt-in (USE_SHARDING / the `distributed` compose profile)
+with the single-node + single-RQ-worker path as the always-available fallback.
 
 ---
 
 ### Phase 1 — Local pipeline (single worker, single Neo4j)
 *Get something simple end-to-end before adding complexity.*
 
-- [ ] docker-compose.yml with Neo4j, PostgreSQL, Redis
-- [ ] ArXiv fetcher script
-- [ ] Entity extractor (LLM → JSON → Neo4j)
-- [ ] ChromaDB embedding pipeline
-- [ ] Seed graph with 500 AI/ML papers
-- [ ] Verify graph has real nodes and edges
+- [x] docker-compose.yml with Neo4j, PostgreSQL, Redis
+- [x] ArXiv fetcher script
+- [x] Entity extractor (LLM → JSON → Neo4j)
+- [x] ChromaDB embedding pipeline
+- [x] Seed graph with 500 AI/ML papers
+- [x] Verify graph has real nodes and edges
 
 **Gate: do not start Phase 2 until the graph has real data and Neo4j queries
 return correct nodes and relationships.**
@@ -671,11 +676,11 @@ return correct nodes and relationships.**
 ### Phase 2 — Query layer (single worker, single Neo4j)
 *Verify the simple version answers questions correctly before adding complexity.*
 
-- [ ] Query router (classify question type)
-- [ ] Graph retriever (Cypher queries for relationship questions)
-- [ ] Vector retriever (ChromaDB similarity search)
-- [ ] Synthesizer (LLM answer from structured results)
-- [ ] Test with 10 real questions, evaluate answer quality
+- [x] Query router (classify question type)
+- [x] Graph retriever (Cypher queries for relationship questions)
+- [x] Vector retriever (ChromaDB similarity search)
+- [x] Synthesizer (LLM answer from structured results)
+- [x] Test with 10 real questions, evaluate answer quality
 
 **Gate: do not start Phase 3 until answers are demonstrably correct on the
 simple single-worker, single-Neo4j setup.**
@@ -689,23 +694,23 @@ unchanged; only the execution layer changes.*
 
 **Prerequisite: Phase 1 and Phase 2 gates passed.**
 
-- [ ] Define gRPC service in `proto/coordinator.proto`
+- [x] Define gRPC service in `proto/coordinator.proto`
   (Register, RequestWork, Heartbeat, ReportCompletion)
-- [ ] Generate Python stubs with `grpc_tools.protoc`
-- [ ] Implement coordinator server (`backend/coordinator/server.py`)
+- [x] Generate Python stubs with `grpc_tools.protoc`
+- [x] Implement coordinator server (`backend/coordinator/server.py`)
   - Worker registry with heartbeat tracking
   - Heartbeat timeout detection and worker death marking
   - Batch reassignment to live workers when a worker is marked dead
-- [ ] Implement worker gRPC client in `backend/ingestion/worker.py`
+- [x] Implement worker gRPC client in `backend/ingestion/worker.py`
   - Register on startup, call RequestWork, send Heartbeats every 5 s,
     call ReportCompletion when batch is done
-- [ ] Update `ingestion_jobs` table: add `assigned_worker_id`, `batch_id`,
+- [x] Update `ingestion_jobs` table: add `assigned_worker_id`, `batch_id`,
   `heartbeat_at` columns (safe migration in startup lifespan)
-- [ ] Update docker-compose.yml: coordinator container + 3 worker containers
+- [x] Update docker-compose.yml: coordinator container + 3 worker containers
   on shared `kgre-net` network
-- [ ] Make all Neo4j writes idempotent (MERGE instead of CREATE)
-- [ ] Make all ChromaDB writes idempotent (upsert with deterministic chunk IDs)
-- [ ] Failure test: kill a worker mid-batch, observe reassignment,
+- [x] Make all Neo4j writes idempotent (MERGE instead of CREATE)
+- [x] Make all ChromaDB writes idempotent (upsert with deterministic chunk IDs)
+- [x] Failure test: kill a worker mid-batch, observe reassignment,
   verify no double-writes
 
 ---
@@ -717,22 +722,22 @@ Implement scatter-gather for cross-shard queries. Run the benchmark.*
 **Prerequisite: Phase 3 working and tested (so the distributed worker pool
 can write to shards correctly).**
 
-- [ ] Add shard router (`backend/db/shard_router.py`)
+- [x] Add shard router (`backend/db/shard_router.py`)
   - Consistent hashing: `sha256(entity_name.lower()) % num_shards`
   - Connection pools for each shard
   - Single-shard query path
   - Scatter-gather path for cross-shard relationship queries
     (parallel query → merge neighbor sets → resolve stubs)
-- [ ] Update docker-compose.yml: 3 Neo4j containers (`neo4j-0/1/2`) on `kgre-net`
-- [ ] Update ingestion workers to route entity writes through the shard router
-- [ ] Update `graph_retriever.py` to use shard router instead of direct Neo4j driver
-- [ ] Add `shard_id` property to all Neo4j nodes; add stub node handling
-- [ ] Write `scripts/benchmark_sharding.py`:
+- [x] Update docker-compose.yml: 3 Neo4j containers (`neo4j-0/1/2`) on `kgre-net`
+- [x] Update ingestion workers to route entity writes through the shard router
+- [x] Update `graph_retriever.py` to use shard router instead of direct Neo4j driver
+- [x] Add `shard_id` property to all Neo4j nodes; add stub node handling
+- [x] Write `scripts/benchmark_sharding.py`:
   - Single-entity lookup latency (p50, p99) — single-node vs. 2-shard vs. 3-shard
   - Cross-shard relationship query latency (p50, p99)
   - Ingestion throughput (documents/second)
-- [ ] Run benchmark on the seeded ArXiv graph, fill in the results table above
-- [ ] Decide based on benchmark results whether sharding is worth keeping
+- [x] Run benchmark on the seeded ArXiv graph, fill in the results table above
+- [x] Decide based on benchmark results whether sharding is worth keeping
 
 ---
 
@@ -741,20 +746,20 @@ can write to shards correctly).**
 with Phase 3/4 since it wraps the same query layer without touching ingestion
 or the graph internals.*
 
-- [ ] FastAPI app with /question and /reports endpoints (skeleton exists)
-- [ ] Simple React frontend (skeleton exists — question input + answer display)
-- [ ] PostgreSQL for saving reports (implemented)
-- [ ] Redis caching for repeated graph queries (implemented)
-- [ ] Streaming SSE endpoint for question progress (implemented)
+- [x] FastAPI app with /question and /reports endpoints (skeleton exists)
+- [x] Simple React frontend (skeleton exists — question input + answer display)
+- [x] PostgreSQL for saving reports (implemented)
+- [x] Redis caching for repeated graph queries (implemented)
+- [x] Streaming SSE endpoint for question progress (implemented)
 
 ---
 
 ### Phase 6 — Polish
-- [ ] Graph visualization (D3.js) showing entity relationships
-- [ ] Conflict detection and flagging in answers
-- [ ] Source provenance (every fact links to its source document)
-- [ ] Multi-workspace support
-- [ ] Coordinator dashboard (worker health, queue depth, batch progress)
+- [x] Graph visualization (D3.js) showing entity relationships
+- [x] Conflict detection and flagging in answers
+- [x] Source provenance (every fact links to its source document)
+- [x] Multi-workspace support
+- [x] Coordinator dashboard (worker health, queue depth, batch progress)
 
 ---
 
@@ -777,27 +782,31 @@ or the graph internals.*
 
 ---
 
-### Can Phases 3 and 4 be built now?
+### Phases 3 and 4 — built and verified
 
-**Short answer: not yet, but soon.**
+Both distributed phases are implemented end-to-end on top of the working
+Phases 1–2 pipeline, with the single-node path preserved as the fallback.
 
-Phase 3 and 4 require Phases 1 and 2 to be verified working — meaning the
-graph has real data, queries return correct answers, and the simple pipeline
-is stable. Currently Phase 1 and 2 are partially done. The API + UI skeleton
-(Phase 5) also exists but is not a prerequisite for 3 or 4.
+**Phase 3 (distributed pool):** the coordinator runs a reaper *and* the
+scheduler (`pull_pending_once`), so 'pending' sources are expanded into batches
+and handed to workers. A `JobTracker` mirrors the in-memory registry into
+Postgres — one `ingestion_jobs` row per document (deterministic uuid5 id),
+queued→running→success/failed transitions, and a source rollup to a terminal
+status — all with conditional, replay-safe writes. Covered by
+`scripts/coordinator_test.py` (kill/reassign), `scripts/distributed_e2e_test.py`
+(full coordination path), and `tests/test_job_tracker.py`.
 
-Once Phase 1 and 2 are confirmed working (the Phase 2 gate: 10 real questions
-answered correctly), Phase 3 can be started immediately. No UI work is needed
-to build or test the distributed worker pool — the coordinator, workers, and
-gRPC calls are pure backend. Similarly, Phase 4 can be started once Phase 3
-is stable. The UI only needs to be polished (Phase 5/6) after the backend
-distributed infrastructure is in place.
+**Phase 4 (sharding):** writes and reads both go through the shard router under
+`USE_SHARDING=true`. `graph_retriever` scatter-gathers each read across all
+shards and merges (de-duped), degree context is summed across shards, and
+conflict detection runs shard-locally on the source entity's shard. Covered by
+`scripts/shard_router_test.py` and `tests/test_shard_read.py`.
 
 The deliberate ordering (simple first, distributed second) means there is
-always a working fallback: if the coordinator has a bug, you can revert to
-the single RQ worker. If the shard router has a bug, you can point
-`graph_retriever.py` back at the single Neo4j. Never let the distributed
-layer be the only way to make the system work.
+always a working fallback: if the coordinator has a bug, revert to the single
+RQ worker; if the shard router has a bug, unset `USE_SHARDING` to point
+`graph_retriever.py` back at the single Neo4j. Never let the distributed layer
+be the only way to make the system work.
 
 ---
 
