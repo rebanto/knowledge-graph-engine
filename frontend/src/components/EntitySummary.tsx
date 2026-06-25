@@ -1,13 +1,13 @@
 import type { GraphRecord, KeyEntity } from "../types";
 
-// Colours matched to GraphViewer node colours
+// Colours matched to GraphViewer node colours (theme node palette)
 const NODE_COLOR: Record<string, string> = {
-  Person:       "#4fb3a3",
-  Paper:        "#c9974a",
-  Concept:      "#9b8cf0",
-  Organization: "#6b9bd1",
-  Topic:        "#d97a9c",
-  Event:        "#7cb88f",
+  Person:       "#5fb39a",
+  Paper:        "#d6a44e",
+  Concept:      "#b394e0",
+  Organization: "#6f9fd6",
+  Topic:        "#de7fa0",
+  Event:        "#84c08f",
 };
 
 // ── Fallback parser for legacy / no-key_entities responses ───────────────────
@@ -75,7 +75,7 @@ export function EntitySummary({ records, retrieval_type, key_entities = [] }: Pr
                 <p className="truncate text-[12px] font-medium" style={{ color }}>
                   {e.name}
                 </p>
-                <p className="text-[10.5px] text-zinc-600">{e.type}</p>
+                <p className="text-[10.5px] text-faint">{e.type}</p>
               </div>
             </div>
           );
@@ -93,16 +93,15 @@ export function EntitySummary({ records, retrieval_type, key_entities = [] }: Pr
   const extra = paths.length - visible.length;
 
   return (
-    <div className="rounded-xl border border-zinc-800/50 bg-zinc-900/20 p-4">
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-zinc-500">
-        <span><span className="font-medium text-zinc-300">{records.length}</span> results</span>
-        {entityCount > 0 && <span><span className="font-medium text-zinc-300">{entityCount}</span> entities</span>}
+    <div className="rounded-xl border border-ink-700 bg-ink-800/40 p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px] text-muted">
+        <span><span className="font-medium text-paper-dim">{records.length}</span> results</span>
+        {entityCount > 0 && <span><span className="font-medium text-paper-dim">{entityCount}</span> entities</span>}
         {relTypes.length > 0 && (
           <span className="flex flex-wrap items-center gap-1">
             via
             {relTypes.map((t) => (
-              <span key={t} className="rounded px-1.5 py-0.5 font-mono text-[10px]"
-                style={{ backgroundColor: "#6b6b7620", color: "#a1a1aa" }}>{t}</span>
+              <span key={t} className="rounded bg-ink-700 px-1.5 py-0.5 font-mono text-[10px] text-muted">{t}</span>
             ))}
           </span>
         )}
@@ -111,13 +110,13 @@ export function EntitySummary({ records, retrieval_type, key_entities = [] }: Pr
         <div className="flex flex-col gap-2">
           {visible.map((p, i) => (
             <div key={i} className="flex min-w-0 items-center gap-1.5">
-              <span className="max-w-[180px] truncate rounded-md bg-zinc-800/60 px-2 py-1 text-[11.5px] text-zinc-300">{p.from}</span>
-              <span className="flex-shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 bg-zinc-800/40">{p.rel}</span>
-              <span className="flex-shrink-0 text-[11px] text-zinc-600">→</span>
-              <span className="max-w-[180px] truncate rounded-md bg-zinc-800/60 px-2 py-1 text-[11.5px] text-zinc-300">{p.to}</span>
+              <span className="max-w-[180px] truncate rounded-md bg-ink-700 px-2 py-1 text-[11.5px] text-paper-dim">{p.from}</span>
+              <span className="flex-shrink-0 rounded bg-ink-750 px-1.5 py-0.5 font-mono text-[10px] text-faint">{p.rel}</span>
+              <span className="flex-shrink-0 text-[11px] text-brass">→</span>
+              <span className="max-w-[180px] truncate rounded-md bg-ink-700 px-2 py-1 text-[11.5px] text-paper-dim">{p.to}</span>
             </div>
           ))}
-          {extra > 0 && <p className="text-[11px] text-zinc-600">+{extra} more</p>}
+          {extra > 0 && <p className="text-[11px] text-faint">+{extra} more</p>}
         </div>
       )}
     </div>
