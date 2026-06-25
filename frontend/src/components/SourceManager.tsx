@@ -130,20 +130,19 @@ function WorkerBanner({ status }: { status: QueueStatus | null }) {
 
   if (!online) {
     return (
-      <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3">
-        <WifiOff size={14} className="mt-0.5 flex-shrink-0 text-amber-400" />
+      <div className="mb-5 flex items-start gap-3 rounded-xl border border-brass/25 bg-brass-dim px-4 py-3">
+        <WifiOff size={14} className="mt-0.5 flex-shrink-0 text-brass" />
         <div className="min-w-0">
-          <p className="text-[12.5px] font-medium text-amber-300">
-            Ingestion worker is offline
-            {queued > 0 && ` — ${queued} job${queued !== 1 ? "s" : ""} queued`}
+          <p className="text-[12.5px] font-medium text-brass">
+            Nobody's reading right now
+            {queued > 0 && ` — ${queued} job${queued !== 1 ? "s" : ""} waiting`}
           </p>
-          <p className="mt-0.5 text-[11.5px] text-amber-400/70">
-            Sources stay at "Queued" until the worker starts.{" "}
-            Run{" "}
-            <code className="rounded bg-zinc-900 px-1 py-0.5 text-[11px] text-zinc-300">
+          <p className="mt-0.5 text-[11.5px] text-brass/70">
+            Sources sit in "Waiting" until the ingestion worker is up. Run{" "}
+            <code className="rounded bg-ink-900 px-1 py-0.5 text-[11px] text-paper-dim">
               .\dev.ps1
             </code>{" "}
-            to start all services.
+            to bring the services online.
           </p>
         </div>
       </div>
@@ -151,13 +150,13 @@ function WorkerBanner({ status }: { status: QueueStatus | null }) {
   }
 
   return (
-    <div className="mb-5 flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/6 px-4 py-2.5">
-      <Wifi size={13} className="flex-shrink-0 text-emerald-400" />
-      <p className="text-[12px] text-emerald-300/80">
-        <span className="font-medium text-emerald-300">
+    <div className="mb-5 flex items-center gap-3 rounded-xl border border-ok/20 bg-ok-dim px-4 py-2.5">
+      <Wifi size={13} className="flex-shrink-0 text-ok" />
+      <p className="text-[12px] text-ok/80">
+        <span className="font-medium text-ok">
           {status.worker_count} worker{status.worker_count !== 1 ? "s" : ""} online
         </span>
-        {queued > 0 && ` · ${queued} job${queued !== 1 ? "s" : ""} in queue`}
+        {queued > 0 && ` · ${queued} job${queued !== 1 ? "s" : ""} in the queue`}
       </p>
     </div>
   );
@@ -574,16 +573,16 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
         {/* Page header */}
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-[18px] font-semibold text-zinc-100">Sources</h2>
-            <p className="mt-0.5 text-[13px] text-zinc-500">
+            <h2 className="font-display text-[22px] font-medium text-paper">Sources</h2>
+            <p className="mt-0.5 text-[13px] text-muted">
               {loading
                 ? "Loading…"
                 : sources.length === 0
-                ? "No sources yet — add one to start building the knowledge graph."
+                ? "Nothing here yet — add a source and the graph starts to fill in."
                 : [
                     `${sources.length} source${sources.length !== 1 ? "s" : ""}`,
-                    counts.active > 0 && `${counts.active} processing`,
-                    counts.error > 0 && `${counts.error} error${counts.error !== 1 ? "s" : ""}`,
+                    counts.active > 0 && `${counts.active} reading`,
+                    counts.error > 0 && `${counts.error} failed`,
                   ]
                     .filter(Boolean)
                     .join(" · ")}
@@ -592,7 +591,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
           <button
             onClick={() => { refresh(); syncQuietly(); }}
             title="Refresh"
-            className="rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+            className="rounded-md p-1.5 text-muted transition-colors hover:bg-ink-750 hover:text-paper-dim"
           >
             <RefreshCw size={14} />
           </button>
