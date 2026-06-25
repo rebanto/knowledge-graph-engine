@@ -5,6 +5,8 @@ __pycache__/
 .venv/
 venv/
 chroma_data/
+chroma_data.bak*/
+*.log
 uploads/
 *.egg-info/
 .pytest_cache/
