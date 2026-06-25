@@ -69,6 +69,27 @@ class CoordinatorServicer(pb_grpc.CoordinatorServicer):
             await self._track(self.tracker.touch_heartbeat(request.batch_id))
         return pb.HeartbeatAck(keep_going=keep)
 
+    async def GetStatus(self, request, context):
+        snap = await self.registry.status_snapshot()
+        return pb.ClusterStatus(
+            pending=snap["pending"],
+            reassignments=snap["reassignments"],
+            dead_workers=snap["dead_workers"],
+            heartbeat_timeout_secs=snap["heartbeat_timeout_secs"],
+            workers=[
+                pb.WorkerStatus(
+                    worker_id=w["worker_id"],
+                    host=w["host"],
+                    state=w["state"],
+                    batch_id=w["batch_id"],
+                    completed=w["completed"],
+                    total=w["total"],
+                    seconds_since_heartbeat=w["seconds_since_heartbeat"],
+                )
+                for w in snap["workers"]
+            ],
+        )
+
     async def ReportCompletion(self, request, context):
         # Capture the batch's docs BEFORE registry.complete (which is pure but
         # may, in future, drop bookkeeping) so we can map urls → source_id.
