@@ -186,11 +186,15 @@ async def process_document(
             source_id=source_id,
         )
 
-        # Conflict detection scans for contradictory edges; that scan is a
-        # single-node feature. Skip it under sharding where the two endpoints
-        # may live on different shards — the simple path keeps full detection.
-        if rel["type"] in ("SUPPORTS", "CONTRADICTS") and not shard_router.is_enabled():
-            await check_and_flag_conflict(src, tgt, rel["type"], doc_id, workspace_id)
+        # Conflict detection scans for an opposite claim about the same pair.
+        # Both claims share source entity `src`, and merge_edge stores edges on
+        # the source's shard, so they're co-located — the scan works under
+        # sharding too, run on src's shard via the router.
+        if rel["type"] in ("SUPPORTS", "CONTRADICTS"):
+            if shard_router.is_enabled():
+                await g.check_and_flag_conflict(src, tgt, rel["type"], doc_id, workspace_id)
+            else:
+                await check_and_flag_conflict(src, tgt, rel["type"], doc_id, workspace_id)
 
     await g.mark_paper_processed(doc_id, workspace_id)
     return True

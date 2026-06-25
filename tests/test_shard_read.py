@@ -86,6 +86,28 @@ async def test_run_read_dedupes_cross_shard_stub(router):
     assert [r["name"] for r in rows] == [z], f"stub not de-duped across shards: {rows}"
 
 
+async def test_check_and_flag_conflict_works_under_sharding(router):
+    """Two sources make opposite claims about (a, b). Both edges share source a,
+    so they co-locate on a's shard — the shard-scoped conflict check must flag
+    them and the read pass must then surface the disputed pair."""
+    from backend.core.graph_retriever import _detect_conflicts
+    ws = _ws(router)
+    a, b = "KGRE_ShardConflictA", "KGRE_ShardConflictB"
+    await router.merge_node("Concept", a, ws)
+    await router.merge_node("Concept", b, ws)
+    await router.merge_edge(a, "Concept", b, "Concept", "SUPPORTS", ws,
+                            {"source_document_id": "doc_pro"})
+    await router.merge_edge(a, "Concept", b, "Concept", "CONTRADICTS", ws,
+                            {"source_document_id": "doc_con"})
+
+    flagged = await router.check_and_flag_conflict(a, b, "CONTRADICTS", "doc_con", ws)
+    assert flagged is True, "opposite claims on the same shard were not detected"
+
+    conflicts = await _detect_conflicts(ws, [a, b])
+    assert len(conflicts) == 1
+    assert set(conflicts[0]["claim_types"]) == {"SUPPORTS", "CONTRADICTS"}
+
+
 async def test_entity_degree_context_sums_across_shards(router):
     """Z is the target of two cross-shard SUPPORTS edges whose physical copies
     live on different shards. Its degree must be the SUM (2), proving the read

@@ -272,6 +272,61 @@ class ShardRouter:
         direct = b in na or a in nb
         return {"cross_shard": True, "direct": direct, "shared_neighbors": shared}
 
+    # ── Conflict detection (shard-local, used by the ingestion worker) ───────────
+
+    async def check_and_flag_conflict(
+        self, source_name: str, target_name: str, edge_type: str,
+        source_document_id: str, workspace_id: str,
+    ) -> bool:
+        """Flag a contradiction between two sources about (source, target).
+
+        This works under sharding because merge_edge stores every edge on the
+        SOURCE entity's shard, so a's SUPPORTS *and* a's CONTRADICTS edge to b
+        are co-located on shard_for(a) — the opposite-claim scan, the conflict_flag
+        writes, and the CONFLICTS_WITH merge all run on that one shard (b is at
+        least a local stub there). Mirrors conflict_detector.check_and_flag_conflict
+        for the single-node path; that path stays the default when USE_SHARDING is
+        off.
+        """
+        opposite = {"SUPPORTS": "CONTRADICTS", "CONTRADICTS": "SUPPORTS"}.get(edge_type)
+        if not opposite:
+            return False
+
+        idx = self.shard_for(source_name)
+        async with self._drivers[idx].session() as s:
+            r = await s.run(
+                f"""
+                MATCH (a {{name: $src, workspace_id: $ws}})
+                      -[r:{opposite}]->
+                      (b {{name: $tgt, workspace_id: $ws}})
+                WHERE r.source_document_id <> $doc
+                RETURN count(r) AS c
+                """,
+                src=source_name, tgt=target_name, ws=workspace_id, doc=source_document_id,
+            )
+            has_conflict = (await r.single())["c"] > 0
+            if not has_conflict:
+                return False
+
+            await s.run(
+                """
+                MATCH (a {name: $src, workspace_id: $ws})-[r]->(b {name: $tgt, workspace_id: $ws})
+                WHERE type(r) IN ['SUPPORTS', 'CONTRADICTS']
+                SET r.conflict_flag = true
+                """,
+                src=source_name, tgt=target_name, ws=workspace_id,
+            )
+            await s.run(
+                """
+                MATCH (a {name: $src, workspace_id: $ws})
+                MATCH (b {name: $tgt, workspace_id: $ws})
+                MERGE (a)-[c:CONFLICTS_WITH]->(b)
+                ON CREATE SET c.created_at = timestamp(), c.workspace_id = $ws
+                """,
+                src=source_name, tgt=target_name, ws=workspace_id,
+            )
+        return True
+
     # ── Scatter-gather reads (used by graph_retriever under USE_SHARDING) ────────
 
     async def run_read(
