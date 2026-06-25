@@ -44,6 +44,15 @@ _ADD_SOURCE = """
 """
 
 
+def _row_key(row: dict) -> str:
+    """Stable identity for a result row, used to de-dupe across shards. Falls
+    back to repr for unhashable/odd shapes so de-duplication never throws."""
+    try:
+        return repr(sorted((k, repr(v)) for k, v in row.items()))
+    except Exception:
+        return repr(row)
+
+
 def num_shards() -> int:
     return int(os.environ.get("NUM_SHARDS", 3))
 
@@ -262,6 +271,101 @@ class ShardRouter:
         shared = sorted(na & nb)
         direct = b in na or a in nb
         return {"cross_shard": True, "direct": direct, "shared_neighbors": shared}
+
+    # ── Scatter-gather reads (used by graph_retriever under USE_SHARDING) ────────
+
+    async def run_read(
+        self, cypher: str, params: Optional[dict] = None, timeout: float = 15.0,
+    ) -> list[dict]:
+        """Execute a read-only Cypher on every shard in parallel and merge.
+
+        This is the scatter-gather read path. Each shard holds a slice of the
+        entity space plus stub nodes for cross-shard edge targets, so running the
+        same workspace-scoped query on all shards and unioning the rows
+        reconstructs the logical result the single-node graph would have returned.
+
+        Identical-row de-duplication collapses a record that legitimately appears
+        on more than one shard (e.g. a stub of an entity referenced from several
+        shards). The Cypher itself is unchanged from the single-node path — only
+        the physical fan-out differs (per CLAUDE.md: "keeps the Cypher identical").
+
+        Caveat: a query that aggregates across the whole graph (e.g. a bare
+        ``RETURN count(*)``) returns one partial row per shard rather than a
+        global total; entity- and relationship-shaped queries — the overwhelming
+        majority the router LLM emits — merge cleanly because their identifying
+        columns (names, ids) survive the union.
+        """
+        params = params or {}
+
+        async def _one(idx: int) -> list[dict]:
+            try:
+                async with self._drivers[idx].session() as s:
+                    res = await asyncio.wait_for(s.run(cypher, **params), timeout)
+                    return await res.data()
+            except Exception:
+                # A single shard being slow or down degrades gracefully to a
+                # partial result rather than failing the whole query.
+                return []
+
+        per_shard = await asyncio.gather(*(_one(i) for i in range(self.n)))
+
+        merged: list[dict] = []
+        seen: set[str] = set()
+        for rows in per_shard:
+            for row in rows:
+                key = _row_key(row)
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(row)
+        return merged
+
+    async def entity_degree_context(
+        self, workspace_id: str, names: list[str], timeout: float = 8.0,
+    ) -> list[dict]:
+        """Per-entity degree summed across shards.
+
+        An entity's edges are split: outgoing cross-shard edges live on its own
+        shard, while edges where it is the *target* live on the source entity's
+        shard (pointing at a local stub of this entity). Each physical edge is
+        counted on exactly one shard, so summing per-name degrees across shards
+        yields the true total with no double counting.
+        """
+        if not names:
+            return []
+        cypher = """
+            UNWIND $names AS nm
+            MATCH (n {name: nm, workspace_id: $ws})
+            OPTIONAL MATCH (n)-[r]-()
+            WITH n.name AS name, labels(n)[0] AS lbl, count(r) AS deg
+            RETURN name, lbl AS type, deg AS degree
+        """
+        params = {"names": names[:20], "ws": workspace_id}
+
+        async def _one(idx: int) -> list[dict]:
+            try:
+                async with self._drivers[idx].session() as s:
+                    res = await asyncio.wait_for(s.run(cypher, **params), timeout)
+                    return await res.data()
+            except Exception:
+                return []
+
+        per_shard = await asyncio.gather(*(_one(i) for i in range(self.n)))
+
+        summed: dict[str, dict] = {}
+        for rows in per_shard:
+            for row in rows:
+                name = row.get("name")
+                if name is None:
+                    continue
+                agg = summed.setdefault(
+                    name, {"name": name, "type": row.get("type"), "degree": 0})
+                agg["degree"] += row.get("degree") or 0
+                # Prefer a concrete (non-stub) label if a later shard supplies one.
+                if agg["type"] is None and row.get("type") is not None:
+                    agg["type"] = row["type"]
+
+        return sorted(summed.values(), key=lambda r: r["degree"], reverse=True)[:20]
 
     # ── Maintenance / stats ─────────────────────────────────────────────────────
 
