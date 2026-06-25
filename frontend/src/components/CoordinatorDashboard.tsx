@@ -26,6 +26,9 @@ function WorkerCard({ w, timeout }: { w: CoordinatorWorker; timeout: number }) {
   const pct = w.total > 0 ? Math.round((w.completed / w.total) * 100) : 0;
   // A heartbeat older than 60% of the timeout is drifting toward a reap.
   const stale = w.state === "processing" && timeout > 0 && w.seconds_since_heartbeat > timeout * 0.6;
+  // Only processing workers heartbeat; for idle/dead it's just last contact, so
+  // don't frame a large idle gap as a worrying "since heartbeat".
+  const contactLabel = w.state === "processing" ? "since heartbeat" : "since last seen";
 
   return (
     <div className={`rounded-xl border bg-zinc-900/20 p-3.5 ${sm.border}`}>
@@ -47,7 +50,7 @@ function WorkerCard({ w, timeout }: { w: CoordinatorWorker; timeout: number }) {
               <Server size={10} /> {w.host || "—"}
             </span>
             <span className={`inline-flex items-center gap-1 ${stale ? "text-amber-400/80" : ""}`}>
-              <Clock size={10} /> {w.seconds_since_heartbeat.toFixed(1)}s since heartbeat
+              <Clock size={10} /> {w.seconds_since_heartbeat.toFixed(1)}s {contactLabel}
             </span>
           </div>
 
