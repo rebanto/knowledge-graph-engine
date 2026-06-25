@@ -68,7 +68,7 @@ html {
 
 body {
   margin: 0;
-  background: #0c0b09;
+  background: #0a0908;
   color: #ece4d6;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -78,6 +78,61 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+/* ── The lit room ──────────────────────────────────────────────────────────
+   The interface is staged in a dark room lit from above by a single brass
+   source. These two fixed layers replace the flat near-black with depth:
+   a warm overhead glow, a cool violet counter-light, and an edge vignette. */
+.app-aura {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(70% 55% at 50% -8%, rgba(214, 164, 78, 0.13), transparent 60%),
+    radial-gradient(50% 50% at 100% 0%, rgba(179, 148, 224, 0.06), transparent 55%),
+    radial-gradient(60% 60% at 0% 100%, rgba(95, 179, 154, 0.04), transparent 55%),
+    #0a0908;
+}
+.app-vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 240px 50px rgba(0, 0, 0, 0.55);
+}
+
+/* ── Illuminated surfaces ───────────────────────────────────────────────────
+   Panels read as physical: a faint top highlight (light from above) plus a
+   gentle top-to-bottom gradient, instead of a flat fill. */
+.surface {
+  background: linear-gradient(180deg, #141110 0%, #100e0b 100%);
+  border: 1px solid #221c16;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.03);
+}
+.surface-raised {
+  background: linear-gradient(180deg, #1b1712 0%, #141110 100%);
+  border: 1px solid #2b241c;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+    0 18px 50px -24px rgba(0, 0, 0, 0.75);
+}
+
+/* Brass that emits light, not just colour. */
+.glow-brass {
+  box-shadow: 0 0 0 1px rgba(214, 164, 78, 0.18), 0 10px 34px -12px rgba(214, 164, 78, 0.5);
+}
+.glow-brass-soft {
+  box-shadow: 0 0 26px -8px rgba(214, 164, 78, 0.45);
+}
+.text-glow {
+  text-shadow: 0 0 22px rgba(214, 164, 78, 0.35);
+}
+
+/* A springy default for interactive motion. */
+.ease-spring {
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 ::selection {
