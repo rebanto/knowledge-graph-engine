@@ -48,6 +48,10 @@
   --color-flag: #e06a4f;
   --color-flag-dim: #e06a4f1c;
 
+  /* Healthy / ready / online — a warm sage, not a cold mint */
+  --color-ok: #7fbf94;
+  --color-ok-dim: #7fbf941c;
+
   /* Node palette — shared by the graph canvas, entity chips and charts */
   --color-node-paper: #d6a44e;
   --color-node-person: #5fb39a;
