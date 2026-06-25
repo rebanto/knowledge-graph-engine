@@ -1,9 +1,9 @@
-import { Database, Loader2, Zap } from "lucide-react";
+import { Database, Loader2, Sparkle, ArrowUpRight } from "lucide-react";
 
 const EXAMPLES = [
   "Which authors have written the most papers in this dataset?",
-  "What concepts are most commonly associated with reinforcement learning?",
-  "What has Yijun Chen worked on, and what topics does it relate to?",
+  "What concepts cluster most tightly around reinforcement learning?",
+  "What has Yijun Chen worked on, and how does it connect to everything else?",
 ];
 
 interface EmptyStateProps {
@@ -25,18 +25,20 @@ export function EmptyState({
 }: EmptyStateProps) {
   if (!hasSources) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-900 ring-1 ring-zinc-800">
-          <Database size={20} className="text-zinc-500" />
+      <div className="dot-grid flex flex-1 flex-col items-center justify-center px-6 text-center">
+        <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl border border-ink-700 bg-ink-800">
+          <Database size={20} className="text-faint" />
         </div>
-        <h2 className="text-[16px] font-semibold text-zinc-200">No sources in this workspace</h2>
-        <p className="mt-2 max-w-xs text-[13px] leading-relaxed text-zinc-500">
-          Add sources to start building the knowledge graph. Once ingested, you can query relationships and retrieve evidence from the documents.
+        <h2 className="font-display text-[22px] font-medium text-paper">An empty graph</h2>
+        <p className="mt-2.5 max-w-sm text-[13px] leading-relaxed text-muted">
+          Point this workspace at a few sources — papers, feeds, PDFs, web pages.
+          Once they're read in, you can trace the relationships between everything
+          they mention and pull evidence straight from the text.
         </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <div className="mt-7 flex flex-wrap justify-center gap-2">
           <button
             onClick={onGoToSources}
-            className="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-[13px] font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-100"
+            className="rounded-lg border border-ink-600 bg-ink-800 px-4 py-2 text-[13px] font-medium text-paper-dim transition-colors hover:border-ink-500 hover:text-paper"
           >
             Add sources
           </button>
@@ -44,12 +46,12 @@ export function EmptyState({
             <button
               onClick={onDiscover}
               disabled={discovering}
-              className="flex items-center gap-2 rounded-lg bg-zinc-100 px-4 py-2 text-[13px] font-medium text-zinc-900 transition-colors hover:bg-white disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg bg-brass px-4 py-2 text-[13px] font-medium text-ink-900 transition-colors hover:bg-brass-bright disabled:opacity-50"
             >
               {discovering
                 ? <Loader2 size={13} className="animate-spin" />
-                : <Zap size={13} />}
-              {discovering ? "Discovering…" : "Auto-discover sources"}
+                : <Sparkle size={13} />}
+              {discovering ? "Looking…" : "Suggest some for me"}
             </button>
           )}
         </div>
@@ -58,18 +60,18 @@ export function EmptyState({
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-      <p className="mb-4 text-[12px] font-medium uppercase tracking-wider text-zinc-600">
-        Try a query
-      </p>
-      <div className="flex flex-col gap-2">
+    <div className="dot-grid flex flex-1 flex-col items-center justify-center px-6 text-center">
+      <h2 className="font-display text-[22px] font-medium text-paper">What do you want to know?</h2>
+      <p className="eyebrow mt-5 mb-3 text-faint">Or start with one of these</p>
+      <div className="flex max-w-md flex-col gap-2">
         {EXAMPLES.map((q) => (
           <button
             key={q}
             onClick={() => onPick(q)}
-            className="rounded-lg border border-zinc-800 bg-zinc-900/30 px-3.5 py-2 text-left text-[12.5px] text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-200"
+            className="group flex items-center justify-between gap-3 rounded-lg border border-ink-700 bg-ink-800/50 px-4 py-2.5 text-left text-[12.5px] text-paper-dim transition-colors hover:border-brass/30 hover:bg-ink-800 hover:text-paper"
           >
             {q}
+            <ArrowUpRight size={14} className="flex-shrink-0 text-ghost transition-colors group-hover:text-brass" />
           </button>
         ))}
       </div>
