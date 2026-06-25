@@ -203,7 +203,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-[#0a0a0c]">
+    <div className="flex h-screen bg-ink-900 text-paper">
       <Sidebar
         reports={reports}
         activeId={active?.id ?? null}
@@ -218,8 +218,8 @@ export default function App() {
         onDeleteWorkspace={handleDeleteWorkspace}
       />
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-1 border-b border-zinc-800/60 px-8 pt-3">
+      <main className="flex min-w-0 flex-1 flex-col bg-ink-900">
+        <div className="flex items-center gap-1 border-b border-ink-700 px-8 pt-3">
           {([
             { id: "ask"     as const, label: "Ask",     icon: MessageSquare },
             { id: "explore" as const, label: "Graph",   icon: Network },
@@ -229,13 +229,13 @@ export default function App() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-[12.5px] font-medium transition-colors ${
+              className={`flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[12.5px] font-medium transition-colors ${
                 tab === t.id
-                  ? "border-zinc-100 text-zinc-100"
-                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+                  ? "border-brass text-paper"
+                  : "border-transparent text-muted hover:text-paper-dim"
               }`}
             >
-              <t.icon size={13} />
+              <t.icon size={13} className={tab === t.id ? "text-brass" : ""} />
               {t.label}
             </button>
           ))}
