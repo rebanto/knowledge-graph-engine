@@ -601,18 +601,18 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
         {!addOpen ? (
           <button
             onClick={() => setAddOpen(true)}
-            className="mb-5 flex w-full items-center gap-2 rounded-xl border border-dashed border-zinc-800 px-4 py-3 text-[13px] text-zinc-500 transition-colors hover:border-zinc-600 hover:text-zinc-300"
+            className="mb-5 flex w-full items-center gap-2 rounded-xl border border-dashed border-ink-600 px-4 py-3 text-[13px] text-muted transition-colors hover:border-brass/40 hover:text-paper-dim"
           >
             <Plus size={14} />
             Add a source…
           </button>
         ) : (
-          <div className="mb-5 rounded-xl border border-zinc-800/60 bg-zinc-900/30 p-4">
+          <div className="mb-5 rounded-xl border border-ink-700 bg-ink-800/40 p-4">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-[13px] font-medium text-zinc-300">Add a source</p>
+              <p className="text-[13px] font-medium text-paper-dim">Add a source</p>
               <button
                 onClick={() => { setAddOpen(false); setAddUrl(""); setFormError(null); }}
-                className="text-[11px] text-zinc-600 hover:text-zinc-400"
+                className="text-[11px] text-faint hover:text-muted"
               >
                 Cancel
               </button>
@@ -629,8 +629,8 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
                     onClick={() => { setAddType(t); setAddUrl(""); setFormError(null); }}
                     className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11.5px] font-medium transition-colors ${
                       addType === t
-                        ? "border-zinc-600 bg-zinc-800 text-zinc-100"
-                        : "border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
+                        ? "border-brass/40 bg-brass-dim text-brass"
+                        : "border-ink-700 text-muted hover:border-ink-600 hover:text-paper-dim"
                     }`}
                   >
                     <Icon size={11} />
@@ -640,7 +640,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
               })}
             </div>
 
-            <p className="mb-2.5 text-[11px] text-zinc-600">{TYPE_META[addType].hint}</p>
+            <p className="mb-2.5 text-[11px] text-faint">{TYPE_META[addType].hint}</p>
 
             {addType === "pdf_upload" ? (
               <div>
@@ -655,7 +655,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   disabled={adding}
-                  className="flex items-center gap-2 rounded-lg border border-dashed border-zinc-700 px-4 py-3 text-[13px] text-zinc-400 transition-colors hover:border-zinc-500 hover:text-zinc-300 disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-lg border border-dashed border-ink-600 px-4 py-3 text-[13px] text-muted transition-colors hover:border-brass/40 hover:text-paper-dim disabled:opacity-50"
                 >
                   {adding ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
                   {adding ? "Uploading…" : "Choose a PDF file…"}
@@ -681,12 +681,12 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
                     setFormError(null);
                   }}
                   placeholder={TYPE_META[addType].placeholder}
-                  className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-[13px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-600"
+                  className="min-w-0 flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-[13px] text-paper outline-none placeholder:text-faint focus:border-brass/50"
                 />
                 <button
                   type="submit"
                   disabled={adding || !addUrl.trim()}
-                  className="flex items-center gap-1.5 rounded-lg bg-zinc-100 px-3 py-2 text-[13px] font-medium text-zinc-900 transition-colors hover:bg-white disabled:opacity-40"
+                  className="flex items-center gap-1.5 rounded-lg bg-brass px-3 py-2 text-[13px] font-medium text-ink-900 transition-colors hover:bg-brass-bright disabled:opacity-40"
                 >
                   {adding ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
                   Add
@@ -694,7 +694,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
               </form>
             )}
 
-            {formError && <p className="mt-2 text-[12px] text-rose-400">{formError}</p>}
+            {formError && <p className="mt-2 text-[12px] text-flag">{formError}</p>}
           </div>
         )}
 
@@ -707,8 +707,8 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
                 onClick={() => setFilter(tab.id)}
                 className={`rounded-lg px-3 py-1.5 text-[11.5px] font-medium transition-colors ${
                   filter === tab.id
-                    ? "bg-zinc-800 text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-ink-700 text-paper"
+                    : "text-muted hover:text-paper-dim"
                 }`}
               >
                 {tab.label}
@@ -720,19 +720,19 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
         {/* Source list */}
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 size={16} className="animate-spin text-zinc-600" />
+            <Loader2 size={16} className="animate-spin text-faint" />
           </div>
         ) : sources.length === 0 ? (
-          <div className="rounded-xl border border-zinc-800/40 bg-zinc-900/20 p-10 text-center">
-            <Activity size={20} className="mx-auto mb-3 text-zinc-700" />
-            <p className="text-[13px] text-zinc-500">No sources yet.</p>
-            <p className="mt-1 text-[12px] text-zinc-600">
-              Add an ArXiv category, RSS feed, web URL, or upload a PDF to begin.
+          <div className="dot-grid rounded-xl border border-ink-700 bg-ink-800/20 p-10 text-center">
+            <Activity size={20} className="mx-auto mb-3 text-ghost" />
+            <p className="font-display text-[15px] text-paper-dim">Nothing to read yet</p>
+            <p className="mt-1 text-[12px] text-muted">
+              Add an ArXiv category, an RSS feed, a web page, or a PDF to begin.
             </p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-xl border border-zinc-800/40 bg-zinc-900/20 p-8 text-center">
-            <p className="text-[13px] text-zinc-500">No sources match this filter.</p>
+          <div className="rounded-xl border border-ink-700 bg-ink-800/20 p-8 text-center">
+            <p className="text-[13px] text-muted">Nothing matches this filter.</p>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
