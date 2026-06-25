@@ -1,73 +1,50 @@
-# React + TypeScript + Vite
+# Lattice — frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The web interface for the Knowledge Graph Research Engine: ask a question,
+watch it get routed to the graph or the documents (or both), and read an
+answer that traces every claim back to a source.
 
-Currently, two official plugins are available:
+React + TypeScript + Vite, Tailwind v4, D3 for the graph canvas, Recharts
+for insight charts, `lucide-react` for icons. No component library — the UI
+is hand-built in one consistent idiom.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Design
 
-## React Compiler
+The visual language ("warm ink + brass", Fraunces serif display, an
+editorial drop-cap, eyebrow labels, a graph-paper texture) is documented in
+[`DESIGN.md`](./DESIGN.md). All tokens live in `src/index.css` under
+`@theme`. Reach for the existing utilities before inventing new colours.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Develop
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev      # Vite dev server on :5173, proxies /api to the backend
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Point the proxy at a non-default backend with `VITE_PROXY_TARGET`
+(see `vite.config.ts`). The retrying axios client survives a backend
+restart without a page reload.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+npm run build    # tsc -b && vite build
+npm run lint     # eslint
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Layout
+
+```
+src/
+├── App.tsx              app shell, tab nav, the Ask view
+├── api.ts               axios client + endpoints (with retry)
+├── index.css            the theme — design tokens and base styles
+├── components/
+│   ├── Sidebar          wordmark, workspace switcher, question history
+│   ├── QuestionInput    the composer
+│   ├── AnswerView       routed answer: prose, entities, insights, sources
+│   ├── GraphViewer      the D3 force-directed knowledge graph
+│   ├── SourceManager    add/inspect ingestion sources
+│   ├── CoordinatorDashboard   distributed worker-pool health
+│   └── …                badges, banners, insight cards, empty states
+└── types.ts             shared API types
 ```
