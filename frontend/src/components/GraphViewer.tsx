@@ -9,12 +9,12 @@ import { getGraph } from "../api";
 // ── Visual vocabulary ────────────────────────────────────────────────────────
 
 const NODE_COLOR: Record<NodeType, string> = {
-  Paper:        "#e0a64a",
-  Person:       "#4fb3a3",
-  Concept:      "#9b8cf0",
-  Organization: "#6b9bd1",
-  Topic:        "#e0729c",
-  Event:        "#7cb88f",
+  Paper:        "#d6a44e",
+  Person:       "#5fb39a",
+  Concept:      "#b394e0",
+  Organization: "#6f9fd6",
+  Topic:        "#de7fa0",
+  Event:        "#84c08f",
 };
 
 // Edges are colored by semantic GROUP rather than by exact type — a dozen
@@ -35,13 +35,13 @@ const EDGE_GROUP_OF: Record<string, EdgeGroup> = {
 };
 
 const GROUP_COLOR: Record<EdgeGroup, string> = {
-  authorship: "#4fb3a3",
-  content:    "#8b7fe0",
-  concept:    "#6b9bd1",
-  citation:   "#e0a64a",
-  funding:    "#d4a843",
-  support:    "#7cb88f",
-  conflict:   "#e2574c",
+  authorship: "#5fb39a",
+  content:    "#b394e0",
+  concept:    "#6f9fd6",
+  citation:   "#d6a44e",
+  funding:    "#c2873a",
+  support:    "#84c08f",
+  conflict:   "#e06a4f",
 };
 
 const GROUP_LABEL: Record<EdgeGroup, string> = {
@@ -54,7 +54,7 @@ const GROUP_LABEL: Record<EdgeGroup, string> = {
   conflict:   "Conflict",
 };
 
-const EDGE_FALLBACK = "#52525b";
+const EDGE_FALLBACK = "#6d6557";
 
 function edgeGroup(type: string): EdgeGroup | null {
   return EDGE_GROUP_OF[type] ?? null;
@@ -280,7 +280,7 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
       .attr("font-size", 8).attr("font-family", "ui-monospace, monospace")
       .attr("fill", (d) => edgeColor(d.type, d.conflict))
       .attr("text-anchor", "middle").attr("dominant-baseline", "middle")
-      .attr("paint-order", "stroke").attr("stroke", "#0a0a0c").attr("stroke-width", 3)
+      .attr("paint-order", "stroke").attr("stroke", "#0c0b09").attr("stroke-width", 3)
       .attr("pointer-events", "none").attr("opacity", 0);
 
     // ── Nodes ─────────────────────────────────────────────────────────────
@@ -289,7 +289,7 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
       .data(nodes).join("circle")
       .attr("r", (d) => rScale(d.degree))
       .attr("fill", (d) => NODE_COLOR[d.type] ?? "#888")
-      .attr("stroke", "#0a0a0c").attr("stroke-width", 1.5)
+      .attr("stroke", "#0c0b09").attr("stroke-width", 1.5)
       .style("cursor", "pointer")
       .on("click", (e, d) => {
         e.stopPropagation();
@@ -321,8 +321,8 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
     labelG.append("text")
       .text((d) => (d.name.length > 30 ? d.name.slice(0, 30) + "…" : d.name))
       .attr("font-size", 11).attr("font-family", "Inter, system-ui, sans-serif")
-      .attr("font-weight", 500).attr("fill", "#e4e4e7")
-      .attr("paint-order", "stroke").attr("stroke", "#0a0a0c").attr("stroke-width", 3.5)
+      .attr("font-weight", 500).attr("fill", "#ece4d6")
+      .attr("paint-order", "stroke").attr("stroke", "#0c0b09").attr("stroke-width", 3.5)
       .attr("stroke-linejoin", "round")
       .attr("dy", "0.34em");
 
@@ -403,7 +403,7 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
           if (focusSet && !focusSet.has(d.id)) return 0.14;
           return 1;
         })
-        .attr("stroke", (d) => (selId === d.id ? "#fff" : "#0a0a0c"))
+        .attr("stroke", (d) => (selId === d.id ? "#fff" : "#0c0b09"))
         .attr("stroke-width", (d) => (selId === d.id ? 3 : 1.5));
 
       link.attr("opacity", (d) => {
