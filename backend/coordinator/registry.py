@@ -155,6 +155,13 @@ class WorkerRegistry:
                     self.reassignments += len(batch.docs)
         return reaped
 
+    async def get_batch_docs(self, batch_id: str) -> list[DocRef]:
+        """The documents of a batch, for the Postgres job-tracking layer to map
+        completed document_urls back to their source_id. Empty if unknown."""
+        async with self._lock:
+            batch = self._batches.get(batch_id)
+            return list(batch.docs) if batch else []
+
     async def snapshot(self) -> dict:
         async with self._lock:
             return {
