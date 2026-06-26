@@ -1,4 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
+// ── URL state helpers ────────────────────────────────────────────────────────
+const VALID_TABS = ["ask", "explore", "sources", "cluster"] as const;
+
+function readUrl() {
+  const p = new URLSearchParams(window.location.search);
+  const w = p.get("w") ?? "arxiv_seed";
+  const rawT = p.get("t") ?? "";
+  const t: import("./components/Rail").Tab = (VALID_TABS as readonly string[]).includes(rawT)
+    ? (rawT as import("./components/Rail").Tab)
+    : "ask";
+  const r = p.get("r") ?? null;
+  return { w, t, r };
+}
+
+function writeUrl(workspaceId: string, tab: string, reportId: string | null) {
+  const p = new URLSearchParams();
+  p.set("w", workspaceId);
+  p.set("t", tab);
+  if (reportId) p.set("r", reportId);
+  history.replaceState(null, "", `?${p}`);
+}
 import axios from "axios";
 import { Loader2, ArrowRight } from "lucide-react";
 import { Rail, type Tab } from "./components/Rail";
@@ -27,9 +49,11 @@ function describeError(err: unknown): string {
 }
 
 export default function App() {
+  const initialUrl = useRef(readUrl());
+
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [workspaceId, setWorkspaceId] = useState("arxiv_seed");
-  const [tab, setTab] = useState<Tab>("ask");
+  const [workspaceId, setWorkspaceId] = useState(initialUrl.current.w);
+  const [tab, setTab] = useState<Tab>(initialUrl.current.t);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [reports, setReports] = useState<ReportSummary[]>([]);
   const [active, setActive] = useState<QuestionResponse | null>(null);
@@ -43,6 +67,8 @@ export default function App() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const cancelStreamRef = useRef<(() => void) | null>(null);
   const sourcePollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Pending report ID from the URL — loaded once reports arrive after mount.
+  const pendingReportId = useRef<string | null>(initialUrl.current.r);
 
   useEffect(() => {
     listWorkspaces()
@@ -89,6 +115,32 @@ export default function App() {
 
   // Cancel in-flight stream when component unmounts
   useEffect(() => () => { cancelStreamRef.current?.(); }, []);
+
+  // Keep the URL in sync so refresh restores exactly this view.
+  useEffect(() => {
+    writeUrl(workspaceId, tab, active?.id ?? null);
+  }, [workspaceId, tab, active?.id]);
+
+  // If the page loaded with ?r=<id>, restore that report once its workspace's
+  // reports have been fetched.
+  useEffect(() => {
+    const rid = pendingReportId.current;
+    if (!rid || reports.length === 0) return;
+    pendingReportId.current = null;
+    const found = reports.find((r) => r.id === rid);
+    if (!found) return;
+    getReport(rid)
+      .then(setActive)
+      .catch(() => {});
+  }, [reports]);
+
+  // If the URL named a workspace that doesn't exist, fall back to the first one.
+  useEffect(() => {
+    if (workspaces.length === 0) return;
+    if (!workspaces.find((w) => w.id === workspaceId)) {
+      setWorkspaceId(workspaces[0].id);
+    }
+  }, [workspaces, workspaceId]);
 
   const activeWorkspace = workspaces.find((w) => w.id === workspaceId) ?? null;
   const hasSources = sourceCount === null ? true : sourceCount > 0;
