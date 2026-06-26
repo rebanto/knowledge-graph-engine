@@ -6,6 +6,9 @@ from pydantic import BaseModel
 class QuestionRequest(BaseModel):
     question: str
     workspace_id: str = "arxiv_seed"
+    # When set, this question is a follow-up turn in an existing thread and is
+    # answered with that thread's context. Omitted/None starts a new conversation.
+    conversation_id: str | None = None
 
 
 class QuestionResponse(BaseModel):
@@ -23,9 +26,38 @@ class QuestionResponse(BaseModel):
     version: int
     cached: bool
     created_at: datetime
+    # ── Conversation threading ──
+    conversation_id: str | None = None
+    turn_index: int | None = None
+    # The rewritten, self-contained question the retrievers ran on. Null on the
+    # first turn or whenever the follow-up was already standalone.
+    standalone_question: str | None = None
 
     class Config:
         from_attributes = True
+
+
+# ── Conversations ──────────────────────────────────────────────────────────────
+
+class ConversationSummary(BaseModel):
+    id: str
+    title: str
+    turn_count: int
+    retrieval_type: str | None = None  # routing of the most recent turn, for the dot
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationDetail(BaseModel):
+    id: str
+    workspace_id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    turns: list[QuestionResponse] = []
 
 
 class ReportSummary(BaseModel):
