@@ -1,6 +1,6 @@
 import { Database, Loader2, Sparkles, ArrowUpRight } from "lucide-react";
 
-const EXAMPLES = [
+const FALLBACK_EXAMPLES = [
   "Which authors have written the most papers in this dataset?",
   "What concepts cluster most tightly around reinforcement learning?",
   "What has Yijun Chen worked on, and how does it connect to everything else?",
@@ -54,21 +54,41 @@ export function NeedsSources({
 }
 
 // The example-prompt list shown under the hero when sources exist.
-export function ExamplePrompts({ onPick }: Pick<EmptyStateProps, "onPick">) {
+export function ExamplePrompts({
+  onPick,
+  questions,
+  loading,
+}: Pick<EmptyStateProps, "onPick"> & { questions?: string[]; loading?: boolean }) {
+  const displayQuestions =
+    questions && questions.length > 0 ? questions : loading ? [] : FALLBACK_EXAMPLES;
+
   return (
     <div className="mt-8 w-full">
       <p className="eyebrow mb-3 text-center text-faint">Or start with one of these</p>
-      <div className="animate-rise-in-stagger flex flex-col gap-2">
-        {EXAMPLES.map((q) => (
-          <button
-            key={q}
-            onClick={() => onPick(q)}
-            className="group flex items-center justify-between gap-3 rounded-xl border border-ink-700 bg-ink-800/40 px-4 py-3 text-left text-[13px] text-paper-dim transition-all duration-200 ease-spring hover:border-brass/30 hover:bg-ink-800 hover:text-paper"
-          >
-            {q}
-            <ArrowUpRight size={15} className="flex-shrink-0 text-ghost transition-colors group-hover:text-brass" />
-          </button>
-        ))}
+      <div className="flex flex-col gap-2">
+        {loading && displayQuestions.length === 0 ? (
+          // Skeleton shimmer while Gemini generates suggestions
+          [0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-[42px] animate-pulse rounded-xl border border-ink-700 bg-ink-800/40"
+              style={{ animationDelay: `${i * 80}ms` }}
+            />
+          ))
+        ) : (
+          <div className="animate-rise-in-stagger flex flex-col gap-2">
+            {displayQuestions.map((q) => (
+              <button
+                key={q}
+                onClick={() => onPick(q)}
+                className="group flex items-center justify-between gap-3 rounded-xl border border-ink-700 bg-ink-800/40 px-4 py-3 text-left text-[13px] text-paper-dim transition-all duration-200 ease-spring hover:border-brass/30 hover:bg-ink-800 hover:text-paper"
+              >
+                {q}
+                <ArrowUpRight size={15} className="flex-shrink-0 text-ghost transition-colors group-hover:text-brass" />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

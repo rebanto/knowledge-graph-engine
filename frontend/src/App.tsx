@@ -13,7 +13,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import {
   streamQuestion, listReports, getReport, listWorkspaces, createWorkspace,
   updateWorkspace, deleteWorkspace, deleteReport,
-  listSources, discoverSources,
+  listSources, discoverSources, getSuggestedQuestions,
 } from "./api";
 import type { QuestionResponse, ReportSummary, Workspace } from "./types";
 
@@ -39,6 +39,8 @@ export default function App() {
   const [sourceCount, setSourceCount] = useState<number | null>(null);
   const [processingCount, setProcessingCount] = useState(0);
   const [discovering, setDiscovering] = useState(false);
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const cancelStreamRef = useRef<(() => void) | null>(null);
   const sourcePollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -73,10 +75,16 @@ export default function App() {
     setActive(null);
     setSourceCount(null);
     setProcessingCount(0);
+    setSuggestedQuestions([]);
     listReports(workspaceId)
       .then(setReports)
       .catch((err) => setError(describeError(err)));
     refreshSources();
+    setSuggestionsLoading(true);
+    getSuggestedQuestions(workspaceId)
+      .then(setSuggestedQuestions)
+      .catch(() => setSuggestedQuestions([]))
+      .finally(() => setSuggestionsLoading(false));
   }, [workspaceId, refreshSources]);
 
   // Cancel in-flight stream when component unmounts
@@ -295,7 +303,11 @@ export default function App() {
                   {askStatus}
 
                   {hasSources ? (
-                    <ExamplePrompts onPick={handleSubmit} />
+                    <ExamplePrompts
+                      onPick={handleSubmit}
+                      questions={suggestedQuestions}
+                      loading={suggestionsLoading}
+                    />
                   ) : (
                     <NeedsSources
                       hasDescription={!!activeWorkspace?.description}

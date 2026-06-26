@@ -203,6 +203,13 @@ export async function getCoordinatorStatus() {
   return data;
 }
 
+export async function getSuggestedQuestions(workspaceId: string): Promise<string[]> {
+  const { data } = await client.get<{ questions: string[] }>(
+    `/api/workspaces/${workspaceId}/suggested-questions`,
+  );
+  return data.questions ?? [];
+}
+
 export async function cleanupWorkspace(workspaceId: string) {
   const { data } = await client.post<{
     status: string;

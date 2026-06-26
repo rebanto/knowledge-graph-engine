@@ -10,6 +10,7 @@ from backend.db.queue import get_queue
 from backend.ingestion.jobs import run_ingestion_job
 from backend.models.schemas import WorkspaceCreate, WorkspaceUpdate, WorkspaceResponse, SourceResponse
 from backend.core.source_discovery import suggest_arxiv_categories
+from backend.core.llm_client import generate_json
 
 router = APIRouter()
 
@@ -137,3 +138,59 @@ async def delete_workspace(workspace_id: str, db: AsyncSession = Depends(get_asy
         await redis_db.invalidate_workspace_caches(workspace_id)
     except Exception:
         pass
+
+
+_SUGGEST_QUESTIONS_PROMPT = """You are helping a user explore a research knowledge graph.
+Given the workspace details below, generate exactly 3 natural-language questions that would
+be interesting and answerable using the data in this workspace.
+
+Mix question styles:
+- At least one relationship/connection question (graph traversal: "How is X connected to Y?", "Who collaborated with…?")
+- At least one knowledge/summary question (vector search: "What are the latest findings on…?", "Summarize the state of…")
+- At least one that is specific to the domain/sources listed
+
+Keep each question concise (under 15 words). Do not number them. Do not repeat boilerplate.
+Make them specific enough to be useful, not generic filler.
+
+Return ONLY valid JSON: {{"questions": ["question 1", "question 2", "question 3"]}}
+
+Workspace name: {name}
+Domain: {domain}
+Description: {description}
+Sources ({source_count} total): {source_sample}"""
+
+
+@router.get("/workspaces/{workspace_id}/suggested-questions")
+async def suggested_questions(workspace_id: str, db: AsyncSession = Depends(get_async_db)):
+    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
+    workspace = result.scalar_one_or_none()
+    if not workspace:
+        raise HTTPException(404, "Workspace not found")
+
+    sources_result = await db.execute(
+        select(Source)
+        .where(Source.workspace_id == workspace_id)
+        .order_by(Source.created_at.desc())
+        .limit(6)
+    )
+    sources = sources_result.scalars().all()
+
+    source_sample = ", ".join(s.url for s in sources) if sources else "none yet"
+    description = workspace.description or workspace.domain
+
+    prompt = _SUGGEST_QUESTIONS_PROMPT.format(
+        name=workspace.name,
+        domain=workspace.domain,
+        description=description,
+        source_count=len(sources),
+        source_sample=source_sample,
+    )
+
+    try:
+        data = await generate_json(prompt)
+        questions = data.get("questions", [])
+        questions = [q for q in questions if isinstance(q, str) and q.strip()][:3]
+    except Exception:
+        questions = []
+
+    return {"questions": questions}
