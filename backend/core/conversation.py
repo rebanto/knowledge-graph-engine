@@ -12,6 +12,8 @@ live alongside it but are split out so this part stays trivially testable.
 """
 import os
 
+from backend.core.llm_client import generate_json
+
 # Recent turns kept verbatim in the window. Recent turns carry the most
 # coreference weight ("his", "that paper"), so they stay in full.
 CONV_WINDOW_TURNS = int(os.environ.get("CONV_WINDOW_TURNS", 6))
@@ -89,3 +91,61 @@ def build_history_block(
 def window_turns(turns: list[dict], window: int = CONV_WINDOW_TURNS) -> list[dict]:
     """The most recent `window` turns, oldest→newest, kept verbatim."""
     return turns[-window:] if window > 0 else []
+
+
+# ── Query rewriting (question condensation) ────────────────────────────────────
+
+_CONTEXTUALIZE_PROMPT = """You rewrite a user's follow-up question into a STANDALONE question for a research search engine.
+
+The engine searches a knowledge graph and a document store. It has NO memory of the conversation, so the follow-up must be made fully self-contained: resolve every pronoun ("he", "she", "it", "they"), demonstrative ("that paper", "those authors", "this approach"), and elliptical reference ("what about funding?", "and earlier?") into the explicit entity or topic it refers to, using the conversation history below.
+
+Rules:
+- Preserve the user's intent exactly. Do NOT answer the question or add new constraints they didn't ask for.
+- Keep it concise — one question, no preamble.
+- If the follow-up is ALREADY standalone, or clearly starts a NEW topic unrelated to the history, return it unchanged and set is_followup to false.
+- Only set is_followup to true when you actually had to pull context from the history to resolve a reference.
+
+Conversation history:
+{history}
+
+Follow-up question: {question}
+
+Return ONLY valid JSON: {{"standalone_question": "...", "is_followup": true|false}}"""
+
+# A rewrite should never balloon into a paragraph — if the model returns
+# something implausibly long, we distrust it and fall back to the original.
+_MAX_STANDALONE_CHARS = 400
+
+
+async def contextualize_question(question: str, history_block: str) -> dict:
+    """Rewrite a follow-up into a standalone question using the history block.
+
+    Returns ``{"standalone": str, "rewritten": bool, "is_followup": bool}``.
+
+    The LLM call is SKIPPED entirely when there is no history — a new
+    conversation's first question is already standalone, so we pay nothing
+    (no latency, no tokens) on the common single-shot path. The rewrite only
+    fires from the second turn onward.
+    """
+    question = question.strip()
+    if not history_block.strip():
+        return {"standalone": question, "rewritten": False, "is_followup": False}
+
+    try:
+        data = await generate_json(
+            _CONTEXTUALIZE_PROMPT.format(history=history_block, question=question)
+        )
+    except Exception:
+        # Any failure (quota, timeout, bad JSON) must not sink the question —
+        # degrade to retrieving on the literal follow-up text.
+        return {"standalone": question, "rewritten": False, "is_followup": False}
+
+    standalone = (data.get("standalone_question") or "").strip()
+    is_followup = bool(data.get("is_followup"))
+
+    # Guard against a degenerate rewrite: empty, suspiciously long, or unchanged.
+    if not standalone or len(standalone) > _MAX_STANDALONE_CHARS:
+        return {"standalone": question, "rewritten": False, "is_followup": is_followup}
+
+    rewritten = standalone.lower() != question.lower()
+    return {"standalone": standalone, "rewritten": rewritten, "is_followup": is_followup}
