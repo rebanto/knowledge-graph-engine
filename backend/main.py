@@ -41,6 +41,19 @@ async def lifespan(app: FastAPI):
             "ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ",
         ):
             await conn.execute(text(f"ALTER TABLE ingestion_jobs {col_ddl}"))
+        # Conversations: thread metadata + the columns that turn a report into a
+        # turn. create_all already made the `conversations` table; these guard an
+        # older `reports` table that predates threading.
+        for col_ddl in (
+            "ADD COLUMN IF NOT EXISTS conversation_id TEXT",
+            "ADD COLUMN IF NOT EXISTS turn_index INTEGER",
+            "ADD COLUMN IF NOT EXISTS standalone_question TEXT",
+        ):
+            await conn.execute(text(f"ALTER TABLE reports {col_ddl}"))
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_reports_conversation_id "
+                 "ON reports (conversation_id)")
+        )
         # Safe migration: upgrade TIMESTAMP WITHOUT TIME ZONE → TIMESTAMPTZ
         # Only runs when the column is still the old naive type; no-ops otherwise.
         await conn.execute(text("""
