@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 
 from backend.db.postgres import async_engine, AsyncSessionLocal, Base
 from backend.db.models import Workspace, Source
-from backend.api.routes import questions, graph, workspaces, sources, system
+from backend.api.routes import questions, graph, workspaces, sources, system, conversations
 from backend.core.llm_client import DailyQuotaExhausted
 from backend.core.observability import (
     RequestIDMiddleware, generate_latest, CONTENT_TYPE_LATEST, log,
@@ -157,6 +157,7 @@ async def handle_quota_exhausted(request: Request, exc: DailyQuotaExhausted):
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 app.include_router(questions.router, prefix="/api")
+app.include_router(conversations.router, prefix="/api")
 app.include_router(graph.router, prefix="/api")
 app.include_router(workspaces.router, prefix="/api")
 app.include_router(sources.router, prefix="/api")
