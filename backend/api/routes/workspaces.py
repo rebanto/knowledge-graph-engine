@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.postgres import get_async_db
@@ -164,12 +164,17 @@ Sources ({source_count} total): {source_sample}"""
 
 
 async def _clear_question_cache(workspace_id: str, db: AsyncSession) -> None:
-    """Null out the cached suggested questions so the next GET regenerates them."""
-    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
-    workspace = result.scalar_one_or_none()
-    if workspace:
-        workspace.suggested_questions = None
-        await db.commit()
+    """Null out the cached suggested questions so the next GET regenerates them.
+
+    Uses a direct UPDATE to avoid the extra SELECT round-trip; the session does
+    not need to hold the full Workspace object just to clear one column.
+    """
+    await db.execute(
+        update(Workspace)
+        .where(Workspace.id == workspace_id)
+        .values(suggested_questions=None)
+    )
+    await db.commit()
 
 
 @router.get("/workspaces/{workspace_id}/suggested-questions")

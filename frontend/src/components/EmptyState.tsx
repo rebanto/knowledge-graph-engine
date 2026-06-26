@@ -60,7 +60,9 @@ export function ExamplePrompts({
 
   return (
     <div className="mt-8 w-full">
-      <p className="eyebrow mb-3 text-center text-faint">Or start with one of these</p>
+      {hasQuestions && (
+        <p className="eyebrow mb-3 text-center text-faint">Or start with one of these</p>
+      )}
       <div className="flex flex-col gap-2">
         {loading && !hasQuestions ? (
           [0, 1, 2].map((i) => (
