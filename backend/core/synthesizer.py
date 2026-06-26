@@ -2,7 +2,7 @@ import json
 from backend.core.llm_client import generate_json, generate_text
 
 SYNTHESIS_PROMPT = """You are an expert research analyst with deep expertise in knowledge graphs and academic research.
-
+{conversation_context}
 Question: {question}
 Retrieval method used: {retrieval_type}
 
@@ -81,7 +81,7 @@ Hard rules:
 """
 
 _FALLBACK_PROMPT = """Answer this research question using ONLY the provided data. Do not use outside knowledge.
-
+{conversation_context}
 Question: {question}
 
 Data:
@@ -90,14 +90,39 @@ Data:
 Write a concise, well-cited prose answer (2–4 paragraphs). Bold entity names."""
 
 
+# Wraps the history block in an instruction that lets the synthesizer reference
+# earlier turns for continuity ("as noted earlier") WITHOUT loosening grounding:
+# the conversation is context, never a source of facts. Only the retrieved data
+# may be cited. Empty when there is no history (first turn / single-shot).
+_CONVERSATION_CONTEXT_TEMPLATE = """
+This is a follow-up in an ongoing conversation. Use the history ONLY to understand what the user is referring to and to keep continuity (you may say "as noted earlier"). Do NOT treat anything in the history as a fact to cite — every cited fact must still come from the Retrieved data below.
+
+Conversation so far:
+{history}
+"""
+
+
+def _conversation_context(history_block: str | None) -> str:
+    if not history_block or not history_block.strip():
+        return ""
+    return _CONVERSATION_CONTEXT_TEMPLATE.format(history=history_block.strip())
+
+
 # Large enough to hold the full retrieved set (top-k vector chunks + graph
 # records). The old 8k cap silently dropped most retrieved chunks before the
 # LLM saw them, which made answers miss content that was actually retrieved.
 _SYNTH_INPUT_CHARS = 40000
 
 
-async def synthesize_answer(question: str, results: dict, retrieval_type: str = "hybrid") -> dict:
+async def synthesize_answer(
+    question: str,
+    results: dict,
+    retrieval_type: str = "hybrid",
+    conversation_context: str | None = None,
+) -> dict:
+    ctx = _conversation_context(conversation_context)
     prompt = SYNTHESIS_PROMPT.format(
+        conversation_context=ctx,
         question=question,
         retrieval_type=retrieval_type,
         results=json.dumps(results, indent=2, default=str)[:_SYNTH_INPUT_CHARS],
@@ -109,6 +134,7 @@ async def synthesize_answer(question: str, results: dict, retrieval_type: str = 
     if not answer:
         answer = await generate_text(
             _FALLBACK_PROMPT.format(
+                conversation_context=ctx,
                 question=question,
                 results=json.dumps(results, default=str)[:5000],
             )
