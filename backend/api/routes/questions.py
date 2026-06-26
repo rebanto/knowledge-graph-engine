@@ -9,12 +9,14 @@ from sse_starlette.sse import EventSourceResponse
 
 from backend.db.postgres import get_async_db
 from backend.db.models import Report
+from backend.db import conversations as conv_store
 from backend.models.schemas import QuestionRequest, QuestionResponse, ReportSummary
 from backend.core.qa_pipeline import answer_question
 from backend.core.router import classify_question
 from backend.core.graph_retriever import run_graph_query, UnsafeQueryError
 from backend.core.vector_retriever import run_vector_query
 from backend.core.synthesizer import synthesize_answer
+from backend.core import conversation as conv
 from backend.core.resilience import CircuitBreakerError
 import asyncio
 
@@ -23,7 +25,22 @@ router = APIRouter()
 
 @router.post("/question", response_model=QuestionResponse)
 async def ask_question(req: QuestionRequest, db: AsyncSession = Depends(get_async_db)):
-    result = await answer_question(req.question, req.workspace_id)
+    # Load prior context when this is a follow-up turn in an existing thread.
+    ctx = (
+        await conv_store.load_thread_context(db, req.conversation_id)
+        if req.conversation_id
+        else {"conversation": None, "summary": None, "turns": [], "next_index": 0}
+    )
+
+    result = await answer_question(
+        req.question, req.workspace_id, history=ctx["turns"], summary=ctx["summary"]
+    )
+
+    # Resolve (or open) the conversation this turn belongs to.
+    conversation = ctx["conversation"]
+    if conversation is None:
+        conversation = await conv_store.create_conversation(db, req.workspace_id, req.question)
+    turn_index = ctx["next_index"]
 
     count_result = await db.execute(
         select(func.count(Report.id)).where(
@@ -50,8 +67,12 @@ async def ask_question(req: QuestionRequest, db: AsyncSession = Depends(get_asyn
         },
         version=version,
         created_at=datetime.now(timezone.utc),
+        conversation_id=conversation.id,
+        turn_index=turn_index,
+        standalone_question=result.get("standalone_question"),
     )
     db.add(report)
+    await conv_store.touch_and_maybe_summarize(db, conversation, turn_index)
     await db.commit()
     await db.refresh(report)
 
@@ -70,6 +91,9 @@ async def ask_question(req: QuestionRequest, db: AsyncSession = Depends(get_asyn
         version=report.version,
         cached=result["cached"],
         created_at=report.created_at,
+        conversation_id=conversation.id,
+        turn_index=turn_index,
+        standalone_question=result.get("standalone_question"),
     )
 
 
