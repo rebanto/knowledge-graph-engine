@@ -149,3 +149,50 @@ async def contextualize_question(question: str, history_block: str) -> dict:
 
     rewritten = standalone.lower() != question.lower()
     return {"standalone": standalone, "rewritten": rewritten, "is_followup": is_followup}
+
+
+# ── Rolling summary (memory of aged-out turns) ─────────────────────────────────
+
+_SUMMARY_PROMPT = """You maintain a running summary of a research conversation so older turns can be dropped while their context is preserved.
+
+Update the existing summary to incorporate the turn that just aged out of the recent window. Keep the summary tight: capture the entities, topics, and findings discussed — the facts a later question might refer back to — not the phrasing. Aim for under 150 words. Write it as plain prose, no bullet points, no preamble.
+
+Existing summary (may be empty):
+{summary}
+
+Turn that aged out:
+Q: {question}
+A: {answer}
+
+Return ONLY valid JSON: {{"summary": "..."}}"""
+
+# Backstop so a pathological model response can't grow the stored summary without
+# bound across a long conversation.
+_MAX_SUMMARY_CHARS = 2000
+
+
+async def update_rolling_summary(prev_summary: str | None, aged_out_turn: dict) -> str:
+    """Fold one turn that fell out of the verbatim window into the rolling summary.
+
+    Called only when a conversation grows past the window, so the cost is one
+    cheap LLM call per turn beyond the window — not per turn. On any failure we
+    keep the previous summary unchanged (losing a little old context is far
+    better than failing the user's current question).
+    """
+    prev = (prev_summary or "").strip()
+    question = (aged_out_turn.get("question") or "").strip()
+    answer = trim_answer(aged_out_turn.get("answer") or "", limit=800)
+    if not question:
+        return prev
+
+    try:
+        data = await generate_json(
+            _SUMMARY_PROMPT.format(summary=prev or "(none yet)", question=question, answer=answer)
+        )
+    except Exception:
+        return prev
+
+    summary = (data.get("summary") or "").strip()
+    if not summary:
+        return prev
+    return summary[:_MAX_SUMMARY_CHARS].rstrip()
