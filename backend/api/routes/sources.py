@@ -14,6 +14,7 @@ from backend.models.schemas import SourceCreate, SourceResponse, SourceJobsRespo
 from backend.db import chroma as chroma_db
 from backend.db import neo4j as neo4j_db
 from backend.db import redis as redis_db
+from backend.api.routes.workspaces import _clear_question_cache
 
 router = APIRouter()
 
@@ -72,6 +73,7 @@ async def create_source(
     await db.refresh(source)
 
     get_queue().enqueue(run_ingestion_job, source.id, job_timeout=1800)
+    await _clear_question_cache(workspace_id, db)
     return source
 
 
@@ -96,6 +98,7 @@ async def upload_pdf_source(
     await db.refresh(source)
 
     get_queue().enqueue(run_ingestion_job, source.id, job_timeout=1800)
+    await _clear_question_cache(workspace_id, db)
     return source
 
 
@@ -277,6 +280,7 @@ async def delete_source(
 
     # Invalidate route + Cypher caches — their results may reference deleted content
     await redis_db.invalidate_workspace_caches(workspace_id)
+    await _clear_question_cache(workspace_id, db)
 
     return {"status": "deleted", "graph": graph_result}
 

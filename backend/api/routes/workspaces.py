@@ -74,6 +74,9 @@ async def discover_sources(workspace_id: str, db: AsyncSession = Depends(get_asy
         get_queue().enqueue(run_ingestion_job, source.id, job_timeout=1800)
         created.append(source)
 
+    if created:
+        await _clear_question_cache(workspace_id, db)
+
     return created
 
 
@@ -160,12 +163,26 @@ Description: {description}
 Sources ({source_count} total): {source_sample}"""
 
 
+async def _clear_question_cache(workspace_id: str, db: AsyncSession) -> None:
+    """Null out the cached suggested questions so the next GET regenerates them."""
+    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
+    workspace = result.scalar_one_or_none()
+    if workspace:
+        workspace.suggested_questions = None
+        await db.commit()
+
+
 @router.get("/workspaces/{workspace_id}/suggested-questions")
 async def suggested_questions(workspace_id: str, db: AsyncSession = Depends(get_async_db)):
     result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
     workspace = result.scalar_one_or_none()
     if not workspace:
         raise HTTPException(404, "Workspace not found")
+
+    # Cache hit: return stored questions without calling Gemini.
+    cached = workspace.suggested_questions
+    if cached and isinstance(cached, list) and len(cached) > 0:
+        return {"questions": cached}
 
     sources_result = await db.execute(
         select(Source)
@@ -175,7 +192,10 @@ async def suggested_questions(workspace_id: str, db: AsyncSession = Depends(get_
     )
     sources = sources_result.scalars().all()
 
-    source_sample = ", ".join(s.url for s in sources) if sources else "none yet"
+    if not sources:
+        return {"questions": []}
+
+    source_sample = ", ".join(s.url for s in sources)
     description = workspace.description or workspace.domain
 
     prompt = _SUGGEST_QUESTIONS_PROMPT.format(
@@ -192,5 +212,9 @@ async def suggested_questions(workspace_id: str, db: AsyncSession = Depends(get_
         questions = [q for q in questions if isinstance(q, str) and q.strip()][:3]
     except Exception:
         questions = []
+
+    if questions:
+        workspace.suggested_questions = questions
+        await db.commit()
 
     return {"questions": questions}

@@ -12,6 +12,7 @@ class Workspace(Base):
     name = Column(String, nullable=False)
     domain = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+    suggested_questions = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 

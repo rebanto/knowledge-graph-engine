@@ -31,6 +31,9 @@ async def lifespan(app: FastAPI):
         await conn.execute(
             text("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS description TEXT")
         )
+        await conn.execute(
+            text("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS suggested_questions JSONB")
+        )
         # Phase 3: distributed-worker bookkeeping columns on ingestion_jobs.
         for col_ddl in (
             "ADD COLUMN IF NOT EXISTS assigned_worker_id TEXT",

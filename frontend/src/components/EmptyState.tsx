@@ -1,11 +1,5 @@
 import { Database, Loader2, Sparkles, ArrowUpRight } from "lucide-react";
 
-const FALLBACK_EXAMPLES = [
-  "Which authors have written the most papers in this dataset?",
-  "What concepts cluster most tightly around reinforcement learning?",
-  "What has Yijun Chen worked on, and how does it connect to everything else?",
-];
-
 interface EmptyStateProps {
   onPick: (q: string) => void;
   hasSources: boolean;
@@ -59,15 +53,16 @@ export function ExamplePrompts({
   questions,
   loading,
 }: Pick<EmptyStateProps, "onPick"> & { questions?: string[]; loading?: boolean }) {
-  const displayQuestions =
-    questions && questions.length > 0 ? questions : loading ? [] : FALLBACK_EXAMPLES;
+  const hasQuestions = questions && questions.length > 0;
+
+  // Nothing to show and not loading — render nothing rather than fallback noise.
+  if (!loading && !hasQuestions) return null;
 
   return (
     <div className="mt-8 w-full">
       <p className="eyebrow mb-3 text-center text-faint">Or start with one of these</p>
       <div className="flex flex-col gap-2">
-        {loading && displayQuestions.length === 0 ? (
-          // Skeleton shimmer while Gemini generates suggestions
+        {loading && !hasQuestions ? (
           [0, 1, 2].map((i) => (
             <div
               key={i}
@@ -77,7 +72,7 @@ export function ExamplePrompts({
           ))
         ) : (
           <div className="animate-rise-in-stagger flex flex-col gap-2">
-            {displayQuestions.map((q) => (
+            {questions!.map((q) => (
               <button
                 key={q}
                 onClick={() => onPick(q)}
