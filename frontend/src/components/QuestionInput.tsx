@@ -6,9 +6,16 @@ interface QuestionInputProps {
   loading: boolean;
   hero?: boolean;
   autoFocus?: boolean;
+  placeholder?: string;
 }
 
-export function QuestionInput({ onSubmit, loading, hero = false, autoFocus = false }: QuestionInputProps) {
+export function QuestionInput({
+  onSubmit,
+  loading,
+  hero = false,
+  autoFocus = false,
+  placeholder = "Ask the graph a hard question…",
+}: QuestionInputProps) {
   const [value, setValue] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
@@ -27,7 +34,7 @@ export function QuestionInput({ onSubmit, loading, hero = false, autoFocus = fal
         value={value}
         autoFocus={autoFocus}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Ask the graph a hard question…"
+        placeholder={placeholder}
         disabled={loading}
         className={`relative w-full rounded-2xl border border-ink-700 bg-ink-800/70 text-paper placeholder:text-faint outline-none transition-colors duration-200 ease-spring focus:border-brass/45 focus:bg-ink-800 disabled:opacity-60 ${
           hero
