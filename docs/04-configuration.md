@@ -37,6 +37,19 @@ All configuration is environment variables (loaded from `.env` via
 | `LLM_MODEL` | `gemini-flash-lite-latest` | `llm_client.py` | The Gemini model for all text/JSON/stream/OCR calls. |
 | `LLM_CALL_TIMEOUT` | `90` (s) | `llm_client.py` | Hard ceiling on a single text/JSON Gemini call. The SDK has no built-in timeout; without this a hung call wedges an LLM thread, then extraction, then strands the source at `running`. |
 | `LLM_OCR_TIMEOUT` | `180` (s) | `llm_client.py` | Longer ceiling for multimodal PDF OCR. |
+| `MAX_CYPHER_ATTEMPTS` | `3` | `graph_retriever.py` | Self-correction budget: 1 initial generation + repairs on Neo4j error + one reformulation on an empty result. |
+
+### Retrieval quality
+
+| Variable | Default | Used by | Notes |
+|----------|---------|---------|-------|
+| `USE_RERANKER` | `true` | `reranker.py` | Two-stage vector retrieval: over-fetch with the bi-encoder, then rerank with a cross-encoder. Degrades to bi-encoder order if the model can't load. |
+| `RERANK_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | `reranker.py` | CrossEncoder weights used for reranking. |
+| `RERANK_FETCH_MULTIPLIER` | `3` | `reranker.py` | Candidates pulled before reranking, as a multiple of final `top_k`. |
+| `ENTITY_RESOLVE_HIGH` | `0.90` | `entity_resolver.py` | Cosine ≥ this auto-merges two entity names. |
+| `ENTITY_RESOLVE_LOW` | `0.82` | `entity_resolver.py` | Cosine in `[LOW, HIGH)` is escalated to an LLM adjudicator; below `LOW` is a new entity. |
+| `ENTITY_RESOLVE_ADJUDICATE` | `true` | `entity_resolver.py` | Whether borderline pairs are sent to the LLM (off → treat borderline as non-match). |
+| `GRAPH_ALGO_EDGE_LIMIT` | `20000` | `graph_algorithms.py` | Max edges pulled into networkx for PageRank/community detection. |
 
 ### Cache TTLs (seconds)
 
@@ -46,6 +59,7 @@ All configuration is environment variables (loaded from `.env` via
 | `CACHE_TTL_ROUTE` | `86400` | Route classification (24h) |
 | `CACHE_TTL_CYPHER` | `300` | Cypher result sets (5 min) |
 | `CACHE_TTL_EMBED` | `604800` | Question embeddings (7 days) |
+| `CACHE_TTL_INFLUENCE` | `300` | PageRank / community results per workspace (5 min) |
 
 > **Answers are intentionally never cached.** A cached answer taken before a new
 > source finishes ingesting would silently omit that source's content. The TTL

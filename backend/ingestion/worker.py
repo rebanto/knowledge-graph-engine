@@ -145,9 +145,15 @@ async def process_document(
 
     # 5. Extracted entities → nodes, and link the Paper to each one so the
     #    document is connected to its own content (not just its authors).
+    #    LLM-extracted entities are the ones that genuinely collide (varied surface
+    #    forms across papers), so they go through the adjudicating async resolver;
+    #    structured authors above stay on the cheap synchronous path.
     for entity in extraction["entities"]:
         etype = entity["type"]
-        canonical = resolver.resolve(entity["name"], etype)
+        canonical = await resolver.resolve_async(
+            entity["name"], etype,
+            aliases=entity.get("aliases"), context=title,
+        )
         resolved_names[entity["name"]] = canonical
         await g.merge_node(etype, canonical, workspace_id, source_id=source_id)
 

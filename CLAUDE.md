@@ -98,8 +98,19 @@ Stores entities and the relationships between them.
 - **Edges:** AUTHORED, CITED, FUNDED_BY, CONFLICTS_WITH, COLLABORATED_WITH, PUBLISHED_IN
 - **Each edge has:** source document, confidence score, timestamp, conflict flag
 - **Queries written in:** Cypher (Neo4j native)
-- **Algorithms used:** shortest path, PageRank centrality, community detection,
-  contradiction detection (when two sources make conflicting claims about an edge)
+- **Algorithms used (where each lives):**
+  - *Shortest path / connection finding* — `shard_router.find_connection` (single-shard
+    Cypher var-length path, or cross-shard scatter-gather neighbour intersection).
+  - *PageRank centrality* — `backend/core/graph_algorithms.compute_pagerank`
+    (networkx over the workspace subgraph; surfaced in answers as `entity_influence`
+    and via `GET /graph/influence`). This replaced the old degree-count "centrality".
+  - *Community detection* — `graph_algorithms.compute_communities` (Louvain modularity,
+    greedy-modularity fallback; via `GET /graph/communities`).
+  - *Contradiction detection* — `ingestion/conflict_detector.py` (CONFLICTS_WITH edge
+    auto-created when two sources make conflicting claims about an edge).
+  - networkx is used deliberately instead of Neo4j GDS: no plugin dependency, works
+    unchanged over the sharded layout, and the graphs are small enough for an
+    in-memory pass. Results are cached per workspace and swept on new ingestion.
 - **Sharding (Phase 4+):** 2-3 Neo4j instances behind a shard router. See the
   "Sharded Knowledge Graph" section below for details.
 
@@ -684,6 +695,34 @@ visualization, conflict detection surfaced in answers, source provenance,
 multi-workspace support, and the coordinator dashboard. Sharding and the
 distributed pool are opt-in (USE_SHARDING / the `distributed` compose profile)
 with the single-node + single-RQ-worker path as the always-available fallback.
+
+**Retrieval-quality & evaluation layer (on top of Phases 1–6).** The AI core is
+now measured, not just asserted, mirroring the discipline of the Phase-4 sharding
+benchmark:
+
+- **Evaluation harness** (`backend/eval/`, `scripts/benchmark_quality.py`): a
+  checked-in golden set scored for routing accuracy + confusion matrix, retrieval
+  hit-rate, **faithfulness / unsupported-claim rate** (an independent LLM judge
+  checks every answer claim against the retrieved data — the measured form of
+  "the LLM never invents facts"), and entity-resolution precision/recall/F1.
+- **Multi-hop benchmark** (`scripts/benchmark_multihop.py`): runs ≥2-hop
+  relationship questions graph-only vs vector-only (the `force_route` hook) to
+  show, concretely, what graph traversal does that vector search structurally
+  can't.
+- **Cypher self-correction**: `graph_retriever` repairs failed queries (error fed
+  back to the LLM) and reformulates empty results, bounded by `MAX_CYPHER_ATTEMPTS`.
+- **Cross-encoder reranking** (`backend/core/reranker.py`): two-stage vector
+  retrieval (bi-encoder over-fetch → cross-encoder rerank), opt-in via
+  `USE_RERANKER` with graceful fallback.
+- **Graph algorithms** (`backend/core/graph_algorithms.py`): real PageRank
+  centrality (surfaced in answers + `GET /graph/influence`) and Louvain community
+  detection (`GET /graph/communities`), via networkx — replacing the old
+  degree-count "centrality".
+- **Stronger entity resolution**: context-aware embeddings + three-band decision
+  with LLM adjudication of borderline pairs.
+
+Pure logic across all of the above is covered by the `pytest` suite in `tests/`;
+the methodology is documented in [`docs/18-evaluation.md`](docs/18-evaluation.md).
 
 ---
 

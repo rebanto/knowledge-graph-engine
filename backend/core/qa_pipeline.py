@@ -14,6 +14,7 @@ async def answer_question(
     *,
     history: list[dict] | None = None,
     summary: str | None = None,
+    force_route: str | None = None,
 ) -> dict:
     # Answer caching is intentionally absent: a cached answer taken before a
     # new source finishes ingesting would silently omit that source's content,
@@ -24,8 +25,13 @@ async def answer_question(
     # `history` (oldest→newest {question, answer}) and `summary` carry prior
     # conversation context; when both are empty this is a plain single-shot
     # question and the contextualizer is skipped (no added LLM call).
+    # `force_route` ("graph"|"vector"|"hybrid") bypasses the classifier and the
+    # cross-retriever fallback, pinning the question to one retrieval path. Used by
+    # the multi-hop benchmark to contrast graph-only vs vector-only fairly; None in
+    # production, so normal routing is unchanged.
     cache_misses_total.labels(cache="answer").inc()
-    return await _compute_answer(question, workspace_id, history or [], summary)
+    return await _compute_answer(
+        question, workspace_id, history or [], summary, force_route)
 
 
 async def _compute_answer(
@@ -33,6 +39,7 @@ async def _compute_answer(
     workspace_id: str,
     history: list[dict],
     summary: str | None,
+    force_route: str | None = None,
 ) -> dict:
     # ── Resolve follow-up into a standalone question before anything else ──────
     # Routing, Cypher generation, and embedding all retrieve far better on a
@@ -41,25 +48,30 @@ async def _compute_answer(
     ctx = await conv.contextualize_question(question, history_block)
     standalone = ctx["standalone"]
 
-    routing = await classify_question(standalone, workspace_id)
+    if force_route in ("graph", "vector", "hybrid"):
+        routing = {"type": force_route, "reasoning": "forced (benchmark)"}
+    else:
+        routing = await classify_question(standalone, workspace_id)
     qtype = routing["type"]
 
     graph_records: list[dict] = []
     entity_stats: list[dict] = []
     conflicts: list[dict] = []
+    influence: list[dict] = []
     vector_chunks: list[dict] = []
     cypher = None
     results: dict = {}
 
     # ── Run graph and vector retrieval in parallel for hybrid queries ──────────
     async def _graph():
-        nonlocal cypher, graph_records, entity_stats, conflicts
+        nonlocal cypher, graph_records, entity_stats, conflicts, influence
         try:
             graph_result = await run_graph_query(standalone, workspace_id)
             cypher = graph_result["cypher"]
             graph_records = graph_result["records"]
             entity_stats = graph_result.get("entity_stats", [])
             conflicts = graph_result.get("conflicts", [])
+            influence = graph_result.get("influence", [])
         except (UnsafeQueryError, CircuitBreakerError):
             pass  # Degrade gracefully — vector search still proceeds
 
@@ -71,6 +83,10 @@ async def _compute_answer(
         except Exception:
             pass  # Degrade gracefully — graph results still used
 
+    # A forced route keeps the path pure (no cross-retriever fallback) so a
+    # benchmark of graph-only vs vector-only isn't silently merged.
+    forced = force_route in ("graph", "vector", "hybrid")
+
     if qtype == "hybrid":
         await asyncio.gather(_graph(), _vector())
     elif qtype == "graph":
@@ -79,13 +95,13 @@ async def _compute_answer(
         # to the graph (or the graph genuinely has nothing on it). Rather than
         # answer "no information" while the answer sits in the vector store, fall
         # back to vector search when the graph came back empty.
-        if not graph_records and not entity_stats:
+        if not forced and not graph_records and not entity_stats:
             await _vector()
     else:
         await _vector()
         # Symmetric fallback: a relationship question misrouted to vector still
         # gets a chance at the graph instead of returning nothing.
-        if not vector_chunks:
+        if not forced and not vector_chunks:
             await _graph()
 
     if graph_records:
@@ -95,6 +111,10 @@ async def _compute_answer(
     if conflicts:
         # Hand the disputed claims to the synthesizer so the prose calls them out.
         results["conflicts"] = conflicts
+    if influence:
+        # PageRank centrality for the answer's entities — lets the synthesizer
+        # say which entity is most influential in the graph, not just present.
+        results["entity_influence"] = influence
     if vector_chunks:
         results["vector_passages"] = vector_chunks
 

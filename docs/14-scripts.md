@@ -64,20 +64,33 @@ These are standalone assertions against **real services**, not a pytest suite.
 | [`shard_router_test.py`](../scripts/shard_router_test.py) | 4 | Consistent hashing distributes evenly; a node lands on exactly its hash shard; a cross-shard edge stores a stub target; scatter-gather finds the shared neighbour of two cross-shard entities. Needs shards on 7687/7688/7689. |
 | [`sharded_ingest_test.py`](../scripts/sharded_ingest_test.py) | 4 | The **real** ingestion pipeline with `USE_SHARDING=true` writes documents across all 3 shards while ChromaDB and source status behave as in single-node. Needs shards + `GEMINI_API_KEY`. |
 | [`benchmark_sharding.py`](../scripts/benchmark_sharding.py) | 4 | Single-node vs 2-shard vs 3-shard latency (single-entity p50/p99, cross-shard relationship p50/p99) over the same live instances. Writes to an isolated benchmark workspace and cleans up. Produces the table in [Sharding](10-sharding.md#benchmark-results). |
+| [`benchmark_quality.py`](../scripts/benchmark_quality.py) | eval | Answer-quality benchmark over the golden set: routing accuracy + confusion matrix, retrieval hit-rate, **faithfulness / unsupported-claim rate** (LLM judge), and entity-resolution P/R/F1. Needs the full stack + a seeded workspace; `--no-faithfulness` skips the judge. See [Evaluation](18-evaluation.md). |
+| [`benchmark_multihop.py`](../scripts/benchmark_multihop.py) | eval | Runs multi-hop relationship questions down graph-only and vector-only paths (via the `force_route` hook) and prints both answers side by side — the proof that graph traversal does what vector search structurally can't. |
 
 ```powershell
 # Phase 4 examples
 python scripts/shard_router_test.py
 python scripts/sharded_ingest_test.py
 python scripts/benchmark_sharding.py --entities 300 --queries 200
+
+# Quality / evaluation
+python scripts/benchmark_quality.py --workspace arxiv_seed
+python scripts/benchmark_multihop.py --workspace arxiv_seed
 ```
 
 ## Note on testing approach
 
-There is no `pytest`/`unittest` suite in the repo; verification is done through
-these **executable, real-service scripts**. They double as living documentation
-of the trickier invariants (event-loop disposal, worker reassignment,
-shard routing). When changing the ingestion or distributed layers, run the
-relevant harness as your regression check.
+There are two complementary layers:
+
+1. A **`pytest` suite** in [`tests/`](../tests) for pure logic that runs without
+   services — chunking, routing/fallback control flow, the Cypher self-correction
+   loop, the cross-encoder reranker ordering, three-band entity resolution, the
+   graph algorithms (PageRank/communities), and the evaluation metrics. A few
+   tests opportunistically hit live Neo4j/Postgres and auto-skip when unavailable.
+   Run with `pytest`.
+2. These **executable, real-service scripts**, which verify the trickier
+   end-to-end invariants (event-loop disposal, worker reassignment, shard
+   routing) and produce the benchmark numbers. When changing the ingestion or
+   distributed layers, run the relevant harness as your regression check.
 
 Continue to [Operations & troubleshooting](15-operations.md).

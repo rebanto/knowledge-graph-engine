@@ -61,6 +61,11 @@ ingestion_queue_depth = Gauge(
     "ingestion_queue_depth",
     "Current number of jobs in the ingestion queue",
 )
+cypher_repairs_total = Counter(
+    "cypher_repairs_total",
+    "Text-to-Cypher self-correction attempts by outcome",
+    ["outcome"],  # syntax_repair | empty_reformulate | repaired_ok | gave_up
+)
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
