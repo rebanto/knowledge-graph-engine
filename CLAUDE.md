@@ -696,6 +696,34 @@ multi-workspace support, and the coordinator dashboard. Sharding and the
 distributed pool are opt-in (USE_SHARDING / the `distributed` compose profile)
 with the single-node + single-RQ-worker path as the always-available fallback.
 
+**Retrieval-quality & evaluation layer (on top of Phases 1–6).** The AI core is
+now measured, not just asserted, mirroring the discipline of the Phase-4 sharding
+benchmark:
+
+- **Evaluation harness** (`backend/eval/`, `scripts/benchmark_quality.py`): a
+  checked-in golden set scored for routing accuracy + confusion matrix, retrieval
+  hit-rate, **faithfulness / unsupported-claim rate** (an independent LLM judge
+  checks every answer claim against the retrieved data — the measured form of
+  "the LLM never invents facts"), and entity-resolution precision/recall/F1.
+- **Multi-hop benchmark** (`scripts/benchmark_multihop.py`): runs ≥2-hop
+  relationship questions graph-only vs vector-only (the `force_route` hook) to
+  show, concretely, what graph traversal does that vector search structurally
+  can't.
+- **Cypher self-correction**: `graph_retriever` repairs failed queries (error fed
+  back to the LLM) and reformulates empty results, bounded by `MAX_CYPHER_ATTEMPTS`.
+- **Cross-encoder reranking** (`backend/core/reranker.py`): two-stage vector
+  retrieval (bi-encoder over-fetch → cross-encoder rerank), opt-in via
+  `USE_RERANKER` with graceful fallback.
+- **Graph algorithms** (`backend/core/graph_algorithms.py`): real PageRank
+  centrality (surfaced in answers + `GET /graph/influence`) and Louvain community
+  detection (`GET /graph/communities`), via networkx — replacing the old
+  degree-count "centrality".
+- **Stronger entity resolution**: context-aware embeddings + three-band decision
+  with LLM adjudication of borderline pairs.
+
+Pure logic across all of the above is covered by the `pytest` suite in `tests/`;
+the methodology is documented in [`docs/18-evaluation.md`](docs/18-evaluation.md).
+
 ---
 
 ### Phase 1 — Local pipeline (single worker, single Neo4j)
