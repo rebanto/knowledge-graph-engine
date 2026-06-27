@@ -98,8 +98,19 @@ Stores entities and the relationships between them.
 - **Edges:** AUTHORED, CITED, FUNDED_BY, CONFLICTS_WITH, COLLABORATED_WITH, PUBLISHED_IN
 - **Each edge has:** source document, confidence score, timestamp, conflict flag
 - **Queries written in:** Cypher (Neo4j native)
-- **Algorithms used:** shortest path, PageRank centrality, community detection,
-  contradiction detection (when two sources make conflicting claims about an edge)
+- **Algorithms used (where each lives):**
+  - *Shortest path / connection finding* — `shard_router.find_connection` (single-shard
+    Cypher var-length path, or cross-shard scatter-gather neighbour intersection).
+  - *PageRank centrality* — `backend/core/graph_algorithms.compute_pagerank`
+    (networkx over the workspace subgraph; surfaced in answers as `entity_influence`
+    and via `GET /graph/influence`). This replaced the old degree-count "centrality".
+  - *Community detection* — `graph_algorithms.compute_communities` (Louvain modularity,
+    greedy-modularity fallback; via `GET /graph/communities`).
+  - *Contradiction detection* — `ingestion/conflict_detector.py` (CONFLICTS_WITH edge
+    auto-created when two sources make conflicting claims about an edge).
+  - networkx is used deliberately instead of Neo4j GDS: no plugin dependency, works
+    unchanged over the sharded layout, and the graphs are small enough for an
+    in-memory pass. Results are cached per workspace and swept on new ingestion.
 - **Sharding (Phase 4+):** 2-3 Neo4j instances behind a shard router. See the
   "Sharded Knowledge Graph" section below for details.
 
