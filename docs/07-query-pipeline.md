@@ -56,12 +56,22 @@ for 24h (`route:<hash>`).
    `FOREACH` → raises `UnsafeQueryError`. **Only read-only Cypher executes.**
 3. **Cache.** The generated Cypher's result set is cached for 5 min
    (`cypher:<hash>`); a hit skips Neo4j entirely.
-4. **Execute** against Neo4j (circuit-breaker-guarded, 15s timeout).
+4. **Execute with self-correction.** `_execute_with_repair` runs the query and,
+   bounded by `MAX_CYPHER_ATTEMPTS` (default 3): on a Neo4j error it feeds the
+   error + schema back to the LLM and regenerates (`REPAIR_PROMPT`); on a valid
+   but **empty** result it reformulates once to broaden/relax the match
+   (`REFORMULATE_PROMPT`). A `CircuitBreakerError` propagates untouched (not a
+   query bug); after the budget is spent the question degrades to vector search as
+   before. Outcomes are counted in `cypher_repairs_total`.
 5. **Entity-degree context.** Entity-looking strings in the result are collected
    and a secondary query fetches each one's degree (connection count), giving the
    synthesizer a sense of which entities are hubs. Best-effort; failures ignored.
+6. **PageRank influence.** The answer's entities are annotated with their
+   PageRank centrality (`graph_algorithms.influence_for_names`, reusing the cached
+   whole-workspace ranking), so the synthesizer can say which entity is most
+   *influential*, not merely present. Best-effort; failures ignored.
 
-Returns `{cypher, records, entity_stats}`.
+Returns `{cypher, records, entity_stats, conflicts, influence}`.
 
 > **Under Phase 4 sharding** the execution layer changes (the graph retriever
 > can route through the shard router's `find_connection` scatter-gather) but the
@@ -73,10 +83,17 @@ Returns `{cypher, records, entity_stats}`.
 
 1. **Embed the question** (`all-MiniLM-L6-v2`), with a 7-day Redis embedding
    cache (`embed:<hash>`) — the same text always embeds identically.
-2. **Query** the workspace's ChromaDB collection for the top-k nearest chunks
-   (default `top_k=8` in the pipeline). Empty collections are handled (Chroma
-   raises if `n_results` exceeds the count, so it's clamped).
-3. Return chunks as `{text, source_title, source_url, distance}`.
+2. **Over-fetch** the workspace's ChromaDB collection. When reranking is enabled
+   (`USE_RERANKER`, default on) it pulls `top_k × RERANK_FETCH_MULTIPLIER`
+   candidates with the bi-encoder; otherwise just `top_k` (default 8 in the
+   pipeline). Empty collections are clamped (Chroma raises if `n_results` exceeds
+   the count).
+3. **Rerank.** A cross-encoder (`reranker.py`, default
+   `ms-marco-MiniLM-L-6-v2`) scores each `(question, chunk)` pair jointly and
+   keeps the top-k — far more accurate than the bi-encoder's independent-embedding
+   cosine. Runs in its own thread pool; degrades to bi-encoder order if the model
+   can't load or reranking is disabled.
+4. Return chunks as `{text, source_title, source_url, distance, rerank_score}`.
 
 ## Stage 3 — Synthesis
 
