@@ -10,15 +10,15 @@ function readUrl() {
   const t: import("./components/Rail").Tab = (VALID_TABS as readonly string[]).includes(rawT)
     ? (rawT as import("./components/Rail").Tab)
     : "ask";
-  const r = p.get("r") ?? null;
-  return { w, t, r };
+  const c = p.get("c") ?? null;
+  return { w, t, c };
 }
 
-function writeUrl(workspaceId: string, tab: string, reportId: string | null) {
+function writeUrl(workspaceId: string, tab: string, conversationId: string | null) {
   const p = new URLSearchParams();
   p.set("w", workspaceId);
   p.set("t", tab);
-  if (reportId) p.set("r", reportId);
+  if (conversationId) p.set("c", conversationId);
   history.replaceState(null, "", `?${p}`);
 }
 import axios from "axios";
@@ -26,18 +26,18 @@ import { Loader2, ArrowRight } from "lucide-react";
 import { Rail, type Tab } from "./components/Rail";
 import { HistoryDrawer } from "./components/HistoryDrawer";
 import { QuestionInput } from "./components/QuestionInput";
-import { AnswerView } from "./components/AnswerView";
+import { ConversationView } from "./components/ConversationView";
 import { ExamplePrompts, NeedsSources } from "./components/EmptyState";
 import { GraphViewer } from "./components/GraphViewer";
 import { SourceManager } from "./components/SourceManager";
 import { CoordinatorDashboard } from "./components/CoordinatorDashboard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import {
-  streamQuestion, listReports, getReport, listWorkspaces, createWorkspace,
-  updateWorkspace, deleteWorkspace, deleteReport,
+  streamQuestion, listConversations, getConversation, deleteConversation,
+  listWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace,
   listSources, discoverSources, getSuggestedQuestions,
 } from "./api";
-import type { QuestionResponse, ReportSummary, Workspace } from "./types";
+import type { ConversationSummary, ConversationDetail, Workspace } from "./types";
 
 function describeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
@@ -55,10 +55,13 @@ export default function App() {
   const [workspaceId, setWorkspaceId] = useState(initialUrl.current.w);
   const [tab, setTab] = useState<Tab>(initialUrl.current.t);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [reports, setReports] = useState<ReportSummary[]>([]);
-  const [active, setActive] = useState<QuestionResponse | null>(null);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [activeConvo, setActiveConvo] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
+  // The standalone question a follow-up was condensed into, shown live while the
+  // turn streams so the user sees how their "what about…?" was interpreted.
+  const [rewriteNote, setRewriteNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sourceCount, setSourceCount] = useState<number | null>(null);
   const [processingCount, setProcessingCount] = useState(0);
@@ -67,14 +70,22 @@ export default function App() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const cancelStreamRef = useRef<(() => void) | null>(null);
   const sourcePollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Pending report ID from the URL — loaded once reports arrive after mount.
-  const pendingReportId = useRef<string | null>(initialUrl.current.r);
+  // Pending conversation ID from the URL — opened once the list arrives.
+  const pendingConvoId = useRef<string | null>(initialUrl.current.c);
 
   useEffect(() => {
     listWorkspaces()
       .then(setWorkspaces)
       .catch((err) => setError(describeError(err)));
   }, []);
+
+  const refreshConversations = useCallback(async () => {
+    try {
+      setConversations(await listConversations(workspaceId));
+    } catch (err) {
+      setError(describeError(err));
+    }
+  }, [workspaceId]);
 
   const refreshSources = useCallback(async () => {
     try {
@@ -98,41 +109,37 @@ export default function App() {
   }, [processingCount, refreshSources]);
 
   useEffect(() => {
-    setActive(null);
+    setActiveConvo(null);
     setSourceCount(null);
     setProcessingCount(0);
     setSuggestedQuestions([]);
-    listReports(workspaceId)
-      .then(setReports)
-      .catch((err) => setError(describeError(err)));
+    refreshConversations();
     refreshSources();
     setSuggestionsLoading(true);
     getSuggestedQuestions(workspaceId)
       .then(setSuggestedQuestions)
       .catch(() => setSuggestedQuestions([]))
       .finally(() => setSuggestionsLoading(false));
-  }, [workspaceId, refreshSources]);
+  }, [workspaceId, refreshConversations, refreshSources]);
 
   // Cancel in-flight stream when component unmounts
   useEffect(() => () => { cancelStreamRef.current?.(); }, []);
 
   // Keep the URL in sync so refresh restores exactly this view.
   useEffect(() => {
-    writeUrl(workspaceId, tab, active?.id ?? null);
-  }, [workspaceId, tab, active?.id]);
+    writeUrl(workspaceId, tab, activeConvo?.id ?? null);
+  }, [workspaceId, tab, activeConvo?.id]);
 
-  // If the page loaded with ?r=<id>, restore that report once its workspace's
-  // reports have been fetched.
+  // If the page loaded with ?c=<id>, open that conversation once the list is in.
   useEffect(() => {
-    const rid = pendingReportId.current;
-    if (!rid || reports.length === 0) return;
-    pendingReportId.current = null;
-    const found = reports.find((r) => r.id === rid);
-    if (!found) return;
-    getReport(rid)
-      .then(setActive)
+    const cid = pendingConvoId.current;
+    if (!cid || conversations.length === 0) return;
+    pendingConvoId.current = null;
+    if (!conversations.find((c) => c.id === cid)) return;
+    getConversation(cid)
+      .then(setActiveConvo)
       .catch(() => {});
-  }, [reports]);
+  }, [conversations]);
 
   // If the URL named a workspace that doesn't exist, fall back to the first one.
   useEffect(() => {
@@ -149,45 +156,59 @@ export default function App() {
     // Cancel any in-flight stream from a previous question
     cancelStreamRef.current?.();
 
+    const conversationId = activeConvo?.id ?? null;
     setLoading(true);
     setError(null);
-    setStreamStatus("Working out where to look…");
+    setRewriteNote(null);
+    setStreamStatus(conversationId ? "Threading your follow-up…" : "Working out where to look…");
 
-    const cancel = streamQuestion(question, workspaceId, {
-      onProgress: (status) => setStreamStatus(status),
-      onRouting: () => {},
-      onDone: (result) => {
-        setActive(result);
-        setStreamStatus(null);
-        setLoading(false);
-        setReports((prev) => [
-          {
-            id: result.id,
-            question: result.question,
-            answer: result.answer,
-            retrieval_type: result.retrieval_type,
-            version: result.version,
-            created_at: result.created_at,
-          },
-          ...prev,
-        ]);
+    const cancel = streamQuestion(
+      question,
+      workspaceId,
+      {
+        onProgress: (status) => setStreamStatus(status),
+        onRouting: () => {},
+        onRewrite: (standalone) => setRewriteNote(standalone),
+        onDone: (result) => {
+          setStreamStatus(null);
+          setRewriteNote(null);
+          setLoading(false);
+          setActiveConvo((prev) => {
+            // Append to the open thread when the turn belongs to it…
+            if (prev && result.conversation_id && result.conversation_id === prev.id) {
+              return { ...prev, turns: [...prev.turns, result], updated_at: result.created_at };
+            }
+            // …otherwise this opened a brand-new conversation.
+            return {
+              id: result.conversation_id ?? result.id,
+              workspace_id: workspaceId,
+              title: result.question,
+              created_at: result.created_at,
+              updated_at: result.created_at,
+              turns: [result],
+            };
+          });
+          refreshConversations();
+        },
+        onError: (detail) => {
+          setError(detail);
+          setStreamStatus(null);
+          setRewriteNote(null);
+          setLoading(false);
+        },
       },
-      onError: (detail) => {
-        setError(detail);
-        setStreamStatus(null);
-        setLoading(false);
-      },
-    });
+      conversationId,
+    );
 
     cancelStreamRef.current = cancel;
   }
 
-  async function handleSelect(report: ReportSummary) {
+  async function handleSelectConversation(conversation: ConversationSummary) {
     try {
-      const full = await getReport(report.id);
-      setActive(full);
+      const full = await getConversation(conversation.id);
+      setActiveConvo(full);
     } catch {
-      setError("Couldn't load that report.");
+      setError("Couldn't load that conversation.");
     }
   }
 
@@ -237,15 +258,15 @@ export default function App() {
       return remaining;
     });
     if (workspaceId === id) {
-      setReports([]);
-      setActive(null);
+      setConversations([]);
+      setActiveConvo(null);
     }
   }
 
-  async function handleDeleteReport(reportId: string) {
-    await deleteReport(reportId);
-    setReports((prev) => prev.filter((r) => r.id !== reportId));
-    if (active?.id === reportId) setActive(null);
+  async function handleDeleteConversation(conversationId: string) {
+    await deleteConversation(conversationId);
+    setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+    if (activeConvo?.id === conversationId) setActiveConvo(null);
   }
 
   async function handleDiscover() {
@@ -270,6 +291,9 @@ export default function App() {
           <Loader2 size={11} className="animate-spin flex-shrink-0" />
           {streamStatus}
         </p>
+      )}
+      {rewriteNote && (
+        <p className="mt-1 text-[12px] italic text-faint">interpreted as: “{rewriteNote}”</p>
       )}
       {error && <p className="mt-2.5 text-[12.5px] text-flag">{error}</p>}
       {processingCount > 0 && !loading && (
@@ -304,18 +328,18 @@ export default function App() {
         onTab={(t) => setTab(t)}
         historyOpen={historyOpen}
         onToggleHistory={() => setHistoryOpen((o) => !o)}
-        historyCount={reports.length}
+        historyCount={conversations.length}
         workspace={activeWorkspace}
       />
 
       <HistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        reports={reports}
-        activeId={active?.id ?? null}
-        onSelect={(r) => { setTab("ask"); handleSelect(r); }}
-        onNew={() => { setTab("ask"); setActive(null); }}
-        onDeleteReport={handleDeleteReport}
+        conversations={conversations}
+        activeId={activeConvo?.id ?? null}
+        onSelect={(c) => { setTab("ask"); handleSelectConversation(c); }}
+        onNew={() => { setTab("ask"); setActiveConvo(null); }}
+        onDeleteConversation={handleDeleteConversation}
         workspaces={workspaces}
         workspaceId={workspaceId}
         onWorkspaceChange={setWorkspaceId}
@@ -326,20 +350,22 @@ export default function App() {
 
       <main className="relative z-10 flex min-w-0 flex-1 flex-col">
         {tab === "ask" ? (
-          active ? (
-            // ── Answered: slim ask bar pinned to the top, answer below ──────
+          activeConvo ? (
+            // ── In a thread: slim follow-up bar pinned on top, turns below ──────
             <>
               <div className="border-b border-ink-700/60 px-8 py-3.5">
                 <div className="mx-auto max-w-2xl">
-                  <QuestionInput onSubmit={handleSubmit} loading={loading} />
+                  <QuestionInput
+                    onSubmit={handleSubmit}
+                    loading={loading}
+                    placeholder="Ask a follow-up — it remembers the thread…"
+                  />
                   {askStatus}
                 </div>
               </div>
               <div className="min-w-0 flex-1 overflow-y-auto scrollbar-thin">
                 <div className="mx-auto max-w-2xl px-8 py-9">
-                  <ErrorBoundary>
-                    <AnswerView report={active} />
-                  </ErrorBoundary>
+                  <ConversationView conversation={activeConvo} />
                 </div>
               </div>
             </>
