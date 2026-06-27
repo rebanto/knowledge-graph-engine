@@ -123,9 +123,15 @@ RESOLUTION_PAIRS = [
 # graph path and the vector-only path and contrasts which produced a grounded,
 # relationship-bearing answer.
 MULTIHOP = [
-    "Which concepts are used by papers that also cite the most-cited paper in this dataset?",
-    "Find authors who collaborated with the authors of transformer papers.",
-    "Which methods extend or improve a method that was itself compared against BERT?",
-    "What topics connect the two most influential authors in the graph?",
-    "Which papers share a concept with the highest-PageRank paper but were written by different authors?",
+    # "Friend of a friend" — a two-hop join through a shared collaborator. Vector
+    # search has no notion of a shared neighbour; this is structurally a graph op.
+    "Find researchers who share a co-author but have not written a paper together.",
+    # Variable-length transitive path — degrees of separation between researchers.
+    "Which researchers are connected to each other through a chain of collaborations?",
+    # Two-hop join: papers linked via a shared author (Paper←AUTHORED→Person→AUTHORED→Paper).
+    "Which papers are connected to other papers through a shared author?",
+    # The conflict USP — a concept SUPPORTED by one source and CONTRADICTED by another.
+    "Which concepts are contradicted by one source but supported by another?",
+    # Claim chains — following SUPPORTS edges from one concept to another.
+    "What chains of SUPPORTS relationships connect one concept to another?",
 ]
