@@ -18,11 +18,20 @@ Requires the full local stack + a seeded workspace.
     python scripts/benchmark_multihop.py --workspace arxiv_seed
 """
 import sys
+import logging
 import asyncio
 import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Force UTF-8 output (Windows cp1252 can't encode the box/arrow characters), and
+# quiet the harmless per-shard "label not found" notifications from scatter-gather.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+logging.getLogger("neo4j").setLevel(logging.ERROR)
 
 from dotenv import load_dotenv
 load_dotenv()

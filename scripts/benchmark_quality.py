@@ -23,11 +23,23 @@ seeded workspace. Faithfulness + borderline resolution make LLM calls; pass
     python scripts/benchmark_quality.py --workspace arxiv_seed --no-faithfulness
 """
 import sys
+import logging
 import asyncio
 import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Windows consoles default to cp1252, which can't encode the arrows/≥ used in the
+# report; force UTF-8 so the output renders instead of crashing.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+# Under sharding the scatter-gather read hits every shard, and shards that don't
+# hold a given label/relationship return a harmless WARNING notification. Quiet
+# them so the benchmark output is clean.
+logging.getLogger("neo4j").setLevel(logging.ERROR)
 
 from dotenv import load_dotenv
 load_dotenv()
