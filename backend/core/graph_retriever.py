@@ -3,6 +3,7 @@ import asyncio
 from backend.core.llm_client import generate_json
 from backend.db.neo4j import get_async_driver
 from backend.db import shard_router
+from backend.core import graph_algorithms
 from backend.db.redis import get_cached_cypher, set_cached_cypher
 from backend.core.resilience import neo4j_breaker, CircuitBreakerError
 from backend.core.observability import cache_hits_total, cache_misses_total
@@ -184,6 +185,18 @@ async def _detect_conflicts(workspace_id: str, names: list[str]) -> list[dict]:
     return conflicts
 
 
+async def _entity_influence(workspace_id: str, names: list[str]) -> list[dict]:
+    """PageRank scores for the answer's entities (degree counts immediate edges;
+    PageRank propagates influence through the graph). Degrades to [] on any
+    failure so the answer still renders without centrality annotation."""
+    if not names:
+        return []
+    try:
+        return await graph_algorithms.influence_for_names(workspace_id, names)
+    except Exception:
+        return []
+
+
 async def run_graph_query(question: str, workspace_id: str) -> dict:
     cypher = await question_to_cypher(question, workspace_id)
 
@@ -192,25 +205,29 @@ async def run_graph_query(question: str, workspace_id: str) -> dict:
     if cached_records is not None:
         cache_hits_total.labels(cache="cypher").inc()
         names = _candidate_names(cached_records)
-        conflicts = await _detect_conflicts(workspace_id, names)
+        conflicts, influence = await asyncio.gather(
+            _detect_conflicts(workspace_id, names),
+            _entity_influence(workspace_id, names),
+        )
         return {"cypher": cypher, "records": cached_records,
-                "entity_stats": [], "conflicts": conflicts}
+                "entity_stats": [], "conflicts": conflicts, "influence": influence}
 
     cache_misses_total.labels(cache="cypher").inc()
     records = await _exec(cypher)
 
     unique_names = _candidate_names(records)
-    # Degree context and conflict detection both key off the answer's entities;
-    # run them in parallel since neither depends on the other.
-    entity_stats, conflicts = await asyncio.gather(
+    # Degree context, conflict detection, and PageRank influence all key off the
+    # answer's entities; run them in parallel since none depends on the others.
+    entity_stats, conflicts, influence = await asyncio.gather(
         _entity_degree_context(workspace_id, unique_names),
         _detect_conflicts(workspace_id, unique_names),
+        _entity_influence(workspace_id, unique_names),
     )
 
     await set_cached_cypher(cypher, records)
 
-    return {"cypher": cypher, "records": records,
-            "entity_stats": entity_stats, "conflicts": conflicts}
+    return {"cypher": cypher, "records": records, "entity_stats": entity_stats,
+            "conflicts": conflicts, "influence": influence}
 
 
 def _candidate_names(records: list[dict]) -> list[str]:

@@ -47,19 +47,21 @@ async def _compute_answer(
     graph_records: list[dict] = []
     entity_stats: list[dict] = []
     conflicts: list[dict] = []
+    influence: list[dict] = []
     vector_chunks: list[dict] = []
     cypher = None
     results: dict = {}
 
     # ── Run graph and vector retrieval in parallel for hybrid queries ──────────
     async def _graph():
-        nonlocal cypher, graph_records, entity_stats, conflicts
+        nonlocal cypher, graph_records, entity_stats, conflicts, influence
         try:
             graph_result = await run_graph_query(standalone, workspace_id)
             cypher = graph_result["cypher"]
             graph_records = graph_result["records"]
             entity_stats = graph_result.get("entity_stats", [])
             conflicts = graph_result.get("conflicts", [])
+            influence = graph_result.get("influence", [])
         except (UnsafeQueryError, CircuitBreakerError):
             pass  # Degrade gracefully — vector search still proceeds
 
@@ -95,6 +97,10 @@ async def _compute_answer(
     if conflicts:
         # Hand the disputed claims to the synthesizer so the prose calls them out.
         results["conflicts"] = conflicts
+    if influence:
+        # PageRank centrality for the answer's entities — lets the synthesizer
+        # say which entity is most influential in the graph, not just present.
+        results["entity_influence"] = influence
     if vector_chunks:
         results["vector_passages"] = vector_chunks
 
