@@ -20,6 +20,14 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
         <h1 className="font-display text-[26px] font-medium leading-[1.25] tracking-tight text-paper">
           {report.question}
         </h1>
+        {report.standalone_question && (
+          <p
+            className="mt-2 text-[12.5px] italic text-faint"
+            title="Your follow-up was resolved into this self-contained question before searching"
+          >
+            interpreted as: “{report.standalone_question}”
+          </p>
+        )}
         <div className="mt-3 flex items-center gap-2">
           <RoutingBadge type={report.retrieval_type} />
           {report.cached && (
