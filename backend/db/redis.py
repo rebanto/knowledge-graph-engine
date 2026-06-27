@@ -18,6 +18,7 @@ TTL_ANSWERS = int(os.environ.get("CACHE_TTL_ANSWERS", 3600))
 TTL_ROUTE   = int(os.environ.get("CACHE_TTL_ROUTE",   86400))
 TTL_CYPHER  = int(os.environ.get("CACHE_TTL_CYPHER",  300))
 TTL_EMBED   = int(os.environ.get("CACHE_TTL_EMBED",   604800))  # 7 days
+TTL_INFLUENCE = int(os.environ.get("CACHE_TTL_INFLUENCE", 300))  # PageRank/communities
 
 
 def get_async_client() -> aioredis.Redis:
@@ -115,6 +116,25 @@ async def set_cached_embedding(text: str, embedding: list) -> None:
     await get_async_client().set(_key("embed", text), encoded, ex=TTL_EMBED)
 
 
+# ── Graph-algorithm cache (PageRank influence / communities) ───────────────────
+# Whole-workspace PageRank and community detection pull the entire subgraph into
+# networkx — too heavy to run on every question. The result changes only when the
+# graph does, so it is cached per (workspace, kind) and swept on new ingestion
+# (see invalidate_workspace_caches). `kind` is "influence" or "communities".
+
+async def get_cached_graph_algo(workspace_id: str, kind: str) -> Optional[list]:
+    raw = await get_async_client().get(_key("influence", workspace_id, kind))
+    return json.loads(raw) if raw else None
+
+
+async def set_cached_graph_algo(workspace_id: str, kind: str, result: list) -> None:
+    await get_async_client().set(
+        _key("influence", workspace_id, kind),
+        json.dumps(result, default=str),
+        ex=TTL_INFLUENCE,
+    )
+
+
 # ── In-flight request deduplication ───────────────────────────────────────────
 
 async def acquire_inflight_lock(workspace_id: str, question: str) -> bool:
@@ -174,7 +194,8 @@ async def invalidate_workspace_caches(workspace_id: str) -> None:
     # SCAN instead of KEYS so we don't block Redis on large keyspaces.
     # qa:* is swept defensively — answer caching is disabled, but old entries
     # written before that change would otherwise be served stale indefinitely.
-    for pattern in ["route:*", "cypher:*", "qa:*"]:
+    # influence:* holds cached PageRank/community results, now stale after new data.
+    for pattern in ["route:*", "cypher:*", "qa:*", "influence:*"]:
         cursor = 0
         while True:
             cursor, keys = await client.scan(cursor, match=pattern, count=200)
