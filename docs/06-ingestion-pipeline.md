@@ -119,12 +119,28 @@ useless; the value is in the conceptual structure connecting documents.
 prevents duplicate nodes for the same real-world entity referred to slightly
 differently across sources:
 
-- On `resolve(name, type)`, embed the name (`all-MiniLM-L6-v2`) and compare by
-  **cosine similarity** against the per-type registry. ≥ **0.85** → treat as the
-  existing canonical name; otherwise register the new name as canonical.
+- The embedded key is **context-aware**: `name | type: <type> | aka <aliases>`
+  rather than the bare name, so same-spelling/different-kind collisions ("BERT"
+  the model vs "Bert" the person) are pushed apart and known aliases are pulled
+  together. Cosine similarity is computed against the per-type registry.
+- **Two decision paths:**
+  - `resolve(name, type)` — synchronous, single-threshold (≥ `0.85` merges).
+    Used for LLM-free structured names (authors) and the offline seed script.
+  - `resolve_async(name, type, aliases, context)` — **three-band**, used for
+    LLM-extracted entities (the ones that actually collide):
+    - cosine ≥ `ENTITY_RESOLVE_HIGH` (0.90) → **auto-merge**;
+    - cosine < `ENTITY_RESOLVE_LOW` (0.82) → **new entity**;
+    - in between → **LLM adjudication** (`_adjudicate_same`): a cheap yes/no on
+      whether the two names denote the same entity. The borderline band is
+      exactly where a fixed threshold guesses wrong in both directions (false
+      merges collapse distinct entities; false splits duplicate them). Fails
+      closed (no merge) on error.
 - The registry is **seeded from Redis** at job start (`load_from_redis`) and
   **flushed back** at job end (`flush_to_redis`), keyed `resolver:<ws>:<type>`,
   so dedup spans multiple sources and survives worker restarts (30-day TTL).
+- Resolution quality is **measured**: `decide_pair` runs the same banding against
+  labeled pairs in the quality benchmark, reporting precision/recall/F1 — see
+  [Evaluation](18-evaluation.md).
 
 ## Idempotency
 
