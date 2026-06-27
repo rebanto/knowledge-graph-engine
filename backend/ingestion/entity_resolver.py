@@ -9,13 +9,25 @@ _model = None
 #   sim >= HIGH                → confidently the same entity, auto-merge
 #   LOW <= sim < HIGH          → borderline, escalate to an LLM adjudicator
 #   sim <  LOW                 → confidently distinct, register as new
-# Bare cosine on a name string is a blunt instrument: "BERT" (model) and "Bert"
-# (person) sit close; "GPT-4" and "GPT-4o" sit close but differ. The borderline
-# band is exactly where embedding similarity is unreliable, so a cheap LLM yes/no
-# resolves those cases instead of a hard threshold guessing wrong in both
-# directions (false merges collapse distinct entities; false splits duplicate them).
-_HIGH = float(os.environ.get("ENTITY_RESOLVE_HIGH", 0.90))
-_LOW = float(os.environ.get("ENTITY_RESOLVE_LOW", 0.82))
+#
+# The bands are set by PRINCIPLE, not fitted to the eval pairs: the bi-encoder is
+# a strong signal only at the extremes and a weak one in the middle, so we trust
+# it alone only there and let the LLM arbitrate the wide ambiguous band.
+#   * HIGH = 0.97 — auto-merge ONLY near-identical surface forms (case/whitespace
+#     variants like "transformer"/"Transformer"). Versioned names such as
+#     "GPT-4"/"GPT-4o" sit at ~0.95 yet are DIFFERENT entities, so anything below
+#     0.97 must be confirmed, not auto-merged.
+#   * LOW = 0.55 — below this the pair is almost certainly unrelated, so skip the
+#     LLM call. Above it (but below HIGH) covers the cases embeddings get wrong in
+#     both directions: acronym↔expansion pairs ("LSTM"/"Long Short-Term Memory"
+#     score ~0.59, "CNN"/"Convolutional Neural Network" ~0.76) that should merge
+#     but score low, AND near-synonyms ("attention"/"self-attention" ~0.84) that
+#     should NOT. A cheap LLM yes/no resolves both far better than any fixed cut.
+# Trade-off: a lower LOW sends more borderline pairs to the LLM during ingestion
+# (extra calls); ENTITY_RESOLVE_ADJUDICATE=false disables that and treats the
+# whole borderline band as non-matches.
+_HIGH = float(os.environ.get("ENTITY_RESOLVE_HIGH", 0.97))
+_LOW = float(os.environ.get("ENTITY_RESOLVE_LOW", 0.55))
 _ADJUDICATE = os.environ.get("ENTITY_RESOLVE_ADJUDICATE", "true").lower() in ("1", "true", "yes")
 
 

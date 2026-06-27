@@ -46,8 +46,8 @@ All configuration is environment variables (loaded from `.env` via
 | `USE_RERANKER` | `true` | `reranker.py` | Two-stage vector retrieval: over-fetch with the bi-encoder, then rerank with a cross-encoder. Degrades to bi-encoder order if the model can't load. |
 | `RERANK_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | `reranker.py` | CrossEncoder weights used for reranking. |
 | `RERANK_FETCH_MULTIPLIER` | `3` | `reranker.py` | Candidates pulled before reranking, as a multiple of final `top_k`. |
-| `ENTITY_RESOLVE_HIGH` | `0.90` | `entity_resolver.py` | Cosine ≥ this auto-merges two entity names. |
-| `ENTITY_RESOLVE_LOW` | `0.82` | `entity_resolver.py` | Cosine in `[LOW, HIGH)` is escalated to an LLM adjudicator; below `LOW` is a new entity. |
+| `ENTITY_RESOLVE_HIGH` | `0.97` | `entity_resolver.py` | Cosine ≥ this auto-merges (only near-identical surface forms). |
+| `ENTITY_RESOLVE_LOW` | `0.55` | `entity_resolver.py` | Cosine in `[LOW, HIGH)` is escalated to an LLM adjudicator; below `LOW` is a new entity. The wide middle band routes acronym↔expansion pairs to the LLM (see [Evaluation](18-evaluation.md)). |
 | `ENTITY_RESOLVE_ADJUDICATE` | `true` | `entity_resolver.py` | Whether borderline pairs are sent to the LLM (off → treat borderline as non-match). |
 | `GRAPH_ALGO_EDGE_LIMIT` | `20000` | `graph_algorithms.py` | Max edges pulled into networkx for PageRank/community detection. |
 

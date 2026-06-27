@@ -128,8 +128,8 @@ differently across sources:
     Used for LLM-free structured names (authors) and the offline seed script.
   - `resolve_async(name, type, aliases, context)` — **three-band**, used for
     LLM-extracted entities (the ones that actually collide):
-    - cosine ≥ `ENTITY_RESOLVE_HIGH` (0.90) → **auto-merge**;
-    - cosine < `ENTITY_RESOLVE_LOW` (0.82) → **new entity**;
+    - cosine ≥ `ENTITY_RESOLVE_HIGH` (0.97) → **auto-merge** (near-identical only);
+    - cosine < `ENTITY_RESOLVE_LOW` (0.55) → **new entity**;
     - in between → **LLM adjudication** (`_adjudicate_same`): a cheap yes/no on
       whether the two names denote the same entity. The borderline band is
       exactly where a fixed threshold guesses wrong in both directions (false
