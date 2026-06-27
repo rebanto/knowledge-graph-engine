@@ -1,6 +1,9 @@
 import axios from "axios";
 import axiosRetry from "axios-retry";
-import type { GraphData, QuestionResponse, ReportSummary, Workspace, Source } from "./types";
+import type {
+  GraphData, QuestionResponse, ReportSummary, Workspace, Source,
+  ConversationSummary, ConversationDetail,
+} from "./types";
 
 // Default to same-origin ("") so requests go through Vite's /api proxy in dev
 // (and through whatever serves the built frontend in prod). Set VITE_API_URL to
@@ -25,11 +28,12 @@ axiosRetry(client, {
 export async function askQuestion(
   question: string,
   workspaceId = "arxiv_seed",
+  conversationId?: string | null,
   signal?: AbortSignal,
 ) {
   const { data } = await client.post<QuestionResponse>(
     "/api/question",
-    { question, workspace_id: workspaceId },
+    { question, workspace_id: workspaceId, conversation_id: conversationId ?? null },
     { signal },
   );
   return data;
@@ -41,11 +45,14 @@ export function streamQuestion(
   callbacks: {
     onRouting?: (type: string) => void;
     onProgress?: (status: string) => void;
+    onRewrite?: (standalone: string) => void;
     onDone?: (result: QuestionResponse) => void;
     onError?: (detail: string) => void;
   },
+  conversationId?: string | null,
 ): () => void {
   const params = new URLSearchParams({ question, workspace_id: workspaceId });
+  if (conversationId) params.set("conversation_id", conversationId);
   const es = new EventSource(`${BASE_URL}/api/question/stream?${params}`);
 
   // Track whether the stream completed successfully so we can ignore the
@@ -57,6 +64,9 @@ export function streamQuestion(
   });
   es.addEventListener("progress", (e) => {
     try { callbacks.onProgress?.(JSON.parse(e.data).status); } catch {}
+  });
+  es.addEventListener("rewrite", (e) => {
+    try { callbacks.onRewrite?.(JSON.parse(e.data).standalone); } catch {}
   });
   es.addEventListener("done", (e) => {
     finished = true;
@@ -86,7 +96,7 @@ export function streamQuestion(
       // still gets an answer even if streaming isn't available.
       es.close();
       callbacks.onProgress?.("Falling back to direct request…");
-      askQuestion(question, workspaceId)
+      askQuestion(question, workspaceId, conversationId)
         .then((result) => callbacks.onDone?.(result))
         .catch(() =>
           callbacks.onError?.(
@@ -112,6 +122,26 @@ export async function listReports(workspaceId = "arxiv_seed") {
 export async function getReport(reportId: string) {
   const { data } = await client.get<QuestionResponse>(`/api/reports/${reportId}`);
   return data;
+}
+
+// ── Conversations ──────────────────────────────────────────────────────────────
+
+export async function listConversations(workspaceId = "arxiv_seed") {
+  const { data } = await client.get<ConversationSummary[]>("/api/conversations", {
+    params: { workspace_id: workspaceId },
+  });
+  return data;
+}
+
+export async function getConversation(conversationId: string) {
+  const { data } = await client.get<ConversationDetail>(
+    `/api/conversations/${conversationId}`,
+  );
+  return data;
+}
+
+export async function deleteConversation(conversationId: string) {
+  await client.delete(`/api/conversations/${conversationId}`);
 }
 
 export async function getGraph(workspaceId = "arxiv_seed", limit = 150) {
