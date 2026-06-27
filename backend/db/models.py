@@ -16,6 +16,31 @@ class Workspace(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
+class Conversation(Base):
+    """A multi-turn thread. Its turns are Report rows sharing this id.
+
+    Reusing reports for the turns keeps the data model small: a report is already
+    a (question, answer, sources_used) record, which is exactly one turn. This
+    row just holds the thread-level metadata — a derived title and the rolling
+    summary of turns that have aged out of the verbatim window.
+    """
+
+    __tablename__ = "conversations"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    workspace_id = Column(String, nullable=False, index=True)
+    title = Column(Text, nullable=False)
+    # Rolling summary of older turns (everything before the verbatim window).
+    # NULL until a conversation grows past CONV_WINDOW_TURNS turns.
+    summary = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
+
+
 class Report(Base):
     __tablename__ = "reports"
 
@@ -28,6 +53,13 @@ class Report(Base):
     sources_used = Column(JSONB, nullable=True)
     version = Column(Integer, default=1)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    # ── Conversation threading (nullable; legacy single-shot reports leave these NULL) ──
+    # conversation_id groups a report's turns; turn_index orders them (0-based);
+    # standalone_question is the rewritten, self-contained question the retrievers
+    # actually ran on (NULL on first turns / when no rewrite was needed).
+    conversation_id = Column(String, nullable=True, index=True)
+    turn_index = Column(Integer, nullable=True)
+    standalone_question = Column(Text, nullable=True)
 
 
 class Source(Base):

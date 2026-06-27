@@ -108,6 +108,32 @@ export interface QuestionResponse {
   version: number;
   cached: boolean;
   created_at: string;
+  // ── Conversation threading ──
+  conversation_id?: string | null;
+  turn_index?: number | null;
+  // The rewritten, self-contained question the retrievers ran on. Present only
+  // when the follow-up was condensed; null on first/standalone turns.
+  standalone_question?: string | null;
+}
+
+// ── Conversations ────────────────────────────────────────────────────────────
+
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  turn_count: number;
+  retrieval_type: RetrievalType | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationDetail {
+  id: string;
+  workspace_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  turns: QuestionResponse[];
 }
 
 export interface ReportSummary {

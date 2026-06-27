@@ -3,22 +3,45 @@ from backend.core.router import classify_question
 from backend.core.graph_retriever import run_graph_query, UnsafeQueryError
 from backend.core.vector_retriever import run_vector_query
 from backend.core.synthesizer import synthesize_answer
+from backend.core import conversation as conv
 from backend.core.resilience import CircuitBreakerError
 from backend.core.observability import cache_misses_total
 
 
-async def answer_question(question: str, workspace_id: str) -> dict:
+async def answer_question(
+    question: str,
+    workspace_id: str,
+    *,
+    history: list[dict] | None = None,
+    summary: str | None = None,
+) -> dict:
     # Answer caching is intentionally absent: a cached answer taken before a
     # new source finishes ingesting would silently omit that source's content,
     # making it look like the engine doesn't know about the new data.
     # Embedding, route-classification, and Cypher caches still apply — only the
     # final synthesised answer is always freshly computed.
+    #
+    # `history` (oldest→newest {question, answer}) and `summary` carry prior
+    # conversation context; when both are empty this is a plain single-shot
+    # question and the contextualizer is skipped (no added LLM call).
     cache_misses_total.labels(cache="answer").inc()
-    return await _compute_answer(question, workspace_id)
+    return await _compute_answer(question, workspace_id, history or [], summary)
 
 
-async def _compute_answer(question: str, workspace_id: str) -> dict:
-    routing = await classify_question(question, workspace_id)
+async def _compute_answer(
+    question: str,
+    workspace_id: str,
+    history: list[dict],
+    summary: str | None,
+) -> dict:
+    # ── Resolve follow-up into a standalone question before anything else ──────
+    # Routing, Cypher generation, and embedding all retrieve far better on a
+    # self-contained question. The whole pipeline downstream runs on `standalone`.
+    history_block = conv.build_history_block(conv.window_turns(history), summary)
+    ctx = await conv.contextualize_question(question, history_block)
+    standalone = ctx["standalone"]
+
+    routing = await classify_question(standalone, workspace_id)
     qtype = routing["type"]
 
     graph_records: list[dict] = []
@@ -32,7 +55,7 @@ async def _compute_answer(question: str, workspace_id: str) -> dict:
     async def _graph():
         nonlocal cypher, graph_records, entity_stats, conflicts
         try:
-            graph_result = await run_graph_query(question, workspace_id)
+            graph_result = await run_graph_query(standalone, workspace_id)
             cypher = graph_result["cypher"]
             graph_records = graph_result["records"]
             entity_stats = graph_result.get("entity_stats", [])
@@ -43,7 +66,7 @@ async def _compute_answer(question: str, workspace_id: str) -> dict:
     async def _vector():
         nonlocal vector_chunks
         try:
-            vector_result = await run_vector_query(question, workspace_id, top_k=8)
+            vector_result = await run_vector_query(standalone, workspace_id, top_k=8)
             vector_chunks = vector_result["chunks"]
         except Exception:
             pass  # Degrade gracefully — graph results still used
@@ -75,7 +98,13 @@ async def _compute_answer(question: str, workspace_id: str) -> dict:
     if vector_chunks:
         results["vector_passages"] = vector_chunks
 
-    synthesis = await synthesize_answer(question, results, retrieval_type=qtype)
+    # Only hand the synthesizer conversation context when there actually is some,
+    # so the single-shot path keeps the original call signature (and old test
+    # stubs keep working).
+    synth_kwargs = {"conversation_context": history_block} if history_block else {}
+    synthesis = await synthesize_answer(
+        standalone, results, retrieval_type=qtype, **synth_kwargs
+    )
 
     return {
         "type": qtype,
@@ -88,4 +117,9 @@ async def _compute_answer(question: str, workspace_id: str) -> dict:
         "key_entities": synthesis.get("key_entities", []),
         "insights": synthesis.get("insights", []),
         "cached": False,
+        # Surface the rewrite so the route can persist it and the UI can show it.
+        # standalone_question is None when no rewrite happened (first turn or an
+        # already-standalone follow-up).
+        "standalone_question": standalone if ctx["rewritten"] else None,
+        "is_followup": ctx["is_followup"],
     }

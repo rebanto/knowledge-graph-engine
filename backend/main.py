@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 
 from backend.db.postgres import async_engine, AsyncSessionLocal, Base
 from backend.db.models import Workspace, Source
-from backend.api.routes import questions, graph, workspaces, sources, system
+from backend.api.routes import questions, graph, workspaces, sources, system, conversations
 from backend.core.llm_client import DailyQuotaExhausted
 from backend.core.observability import (
     RequestIDMiddleware, generate_latest, CONTENT_TYPE_LATEST, log,
@@ -41,6 +41,19 @@ async def lifespan(app: FastAPI):
             "ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ",
         ):
             await conn.execute(text(f"ALTER TABLE ingestion_jobs {col_ddl}"))
+        # Conversations: thread metadata + the columns that turn a report into a
+        # turn. create_all already made the `conversations` table; these guard an
+        # older `reports` table that predates threading.
+        for col_ddl in (
+            "ADD COLUMN IF NOT EXISTS conversation_id TEXT",
+            "ADD COLUMN IF NOT EXISTS turn_index INTEGER",
+            "ADD COLUMN IF NOT EXISTS standalone_question TEXT",
+        ):
+            await conn.execute(text(f"ALTER TABLE reports {col_ddl}"))
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_reports_conversation_id "
+                 "ON reports (conversation_id)")
+        )
         # Safe migration: upgrade TIMESTAMP WITHOUT TIME ZONE → TIMESTAMPTZ
         # Only runs when the column is still the old naive type; no-ops otherwise.
         await conn.execute(text("""
@@ -144,6 +157,7 @@ async def handle_quota_exhausted(request: Request, exc: DailyQuotaExhausted):
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 app.include_router(questions.router, prefix="/api")
+app.include_router(conversations.router, prefix="/api")
 app.include_router(graph.router, prefix="/api")
 app.include_router(workspaces.router, prefix="/api")
 app.include_router(sources.router, prefix="/api")

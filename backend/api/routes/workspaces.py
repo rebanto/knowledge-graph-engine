@@ -114,11 +114,16 @@ async def delete_workspace(workspace_id: str, db: AsyncSession = Depends(get_asy
         for job in jobs_result.scalars().all():
             await db.delete(job)
         await db.delete(source)
-    # Delete related reports
-    from backend.db.models import Report
+    # Delete related reports (conversation turns) and the conversation threads
+    from backend.db.models import Report, Conversation
     reports_result = await db.execute(select(Report).where(Report.workspace_id == workspace_id))
     for report in reports_result.scalars().all():
         await db.delete(report)
+    convos_result = await db.execute(
+        select(Conversation).where(Conversation.workspace_id == workspace_id)
+    )
+    for convo in convos_result.scalars().all():
+        await db.delete(convo)
     await db.delete(workspace)
     await db.commit()
 

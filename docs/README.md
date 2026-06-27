@@ -35,6 +35,7 @@ divergence is called out explicitly (see [Overview → Plan vs. reality](01-over
 | 14 | [Scripts](14-scripts.md) | Every script in `scripts/`: seeding, benchmarking, test harnesses. |
 | 15 | [Operations & troubleshooting](15-operations.md) | Runbook, common failure modes, the "stuck source" story, manual recovery. |
 | 16 | [Glossary](16-glossary.md) | Terms used throughout the codebase and these docs. |
+| 17 | [Conversations](17-conversations.md) | Multi-turn follow-ups: query rewriting, the window + rolling-summary memory, threading. |
 
 ---
 

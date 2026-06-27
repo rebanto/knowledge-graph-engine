@@ -566,6 +566,35 @@ Step 2a changes:
     - Return merged: nodes, edges, paths, conflict flags
 ```
 
+### Conversational follow-ups (multi-turn)
+
+Questions can be asked as a **conversation**, not just one-shot. A follow-up
+("what about his later work?") is answered with the thread's context. The
+mechanism — query rewriting + bounded memory — is the standard conversational-RAG
+pattern and is documented in full in `docs/17-conversations.md`. The short
+version:
+
+```
+A follow-up turn (POST /question or /question/stream with conversation_id):
+  - load the thread's recent turns + rolling summary
+  - build a bounded history block (window + summary, char-capped)
+  - contextualize: LLM rewrites the follow-up into a STANDALONE question
+        (skipped entirely when there is no history — first turns pay nothing)
+  - the EXISTING pipeline (router → graph/vector → synthesizer) then runs on the
+    standalone question, unchanged. The synthesizer also gets the history for
+    continuity, but grounding rules are unchanged (facts only from retrieved data).
+  - persist the turn as a Report with conversation_id / turn_index /
+    standalone_question; fold any turn that ages out of the window into the
+    conversation's rolling summary.
+```
+
+Key files: `backend/core/conversation.py` (history builder, contextualizer,
+summary updater), `backend/db/conversations.py` (thread persistence),
+`backend/api/routes/conversations.py` (list/get/delete). Turns are `Report` rows
+grouped by `conversation_id`, so legacy single-shot reports still render as
+one-turn threads. The single-shot path is preserved: omit `conversation_id` and
+no rewrite happens.
+
 ---
 
 ## Starting Domain
