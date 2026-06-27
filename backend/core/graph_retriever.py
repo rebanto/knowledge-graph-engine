@@ -1,12 +1,16 @@
 import re
+import os
 import asyncio
+from neo4j.exceptions import Neo4jError
 from backend.core.llm_client import generate_json
 from backend.db.neo4j import get_async_driver
 from backend.db import shard_router
 from backend.core import graph_algorithms
 from backend.db.redis import get_cached_cypher, set_cached_cypher
 from backend.core.resilience import neo4j_breaker, CircuitBreakerError
-from backend.core.observability import cache_hits_total, cache_misses_total
+from backend.core.observability import (
+    cache_hits_total, cache_misses_total, cypher_repairs_total,
+)
 
 SCHEMA = """Node labels: Person, Organization, Paper, Concept, Event, Topic
 
@@ -76,18 +80,127 @@ FORBIDDEN = re.compile(
 )
 
 
+# Self-correction: when generated Cypher errors or returns nothing, feed the
+# problem back to the LLM and regenerate. The LLM is a fallible translator, and a
+# single syntax slip or a slightly-wrong label otherwise silently degrades the
+# whole question to vector search. Bounded so a stubborn query can't loop forever.
+MAX_CYPHER_ATTEMPTS = int(os.environ.get("MAX_CYPHER_ATTEMPTS", 3))
+
+REPAIR_PROMPT = """The Cypher you generated for this question failed to execute against Neo4j.
+
+Graph schema:
+{schema}
+
+Workspace filter — EVERY node pattern MUST include: {{workspace_id: "{workspace_id}"}}
+Read-only: MATCH / OPTIONAL MATCH / WHERE / WITH / RETURN / ORDER BY / LIMIT only.
+
+Original question: {question}
+
+Cypher that failed:
+{cypher}
+
+Neo4j error:
+{error}
+
+Fix the query so it executes. Return ONLY valid JSON: {{"cypher": "MATCH ..."}}"""
+
+REFORMULATE_PROMPT = """The Cypher you generated is valid but returned ZERO rows. It may be too
+restrictive, use the wrong relationship direction, or assume a label/relationship that
+isn't how this graph models the question.
+
+Graph schema:
+{schema}
+
+Workspace filter — EVERY node pattern MUST include: {{workspace_id: "{workspace_id}"}}
+Read-only: MATCH / OPTIONAL MATCH / WHERE / WITH / RETURN / ORDER BY / LIMIT only.
+
+Original question: {question}
+
+Cypher that returned nothing:
+{cypher}
+
+Write a broader or corrected query that is more likely to match data — e.g. relax exact-string
+matches to CONTAINS / toLower(), traverse both edge directions, or widen variable-length paths.
+Return ONLY valid JSON: {{"cypher": "MATCH ..."}}"""
+
+
 class UnsafeQueryError(Exception):
     pass
+
+
+def _validate_cypher(cypher: str) -> str:
+    cypher = (cypher or "").strip()
+    if not cypher or FORBIDDEN.search(cypher):
+        raise UnsafeQueryError(f"Rejected unsafe or empty Cypher: {cypher!r}")
+    return cypher
 
 
 async def question_to_cypher(question: str, workspace_id: str) -> str:
     data = await generate_json(
         CYPHER_PROMPT.format(schema=SCHEMA, workspace_id=workspace_id, question=question)
     )
-    cypher = data.get("cypher", "").strip()
-    if not cypher or FORBIDDEN.search(cypher):
-        raise UnsafeQueryError(f"Rejected unsafe or empty Cypher: {cypher!r}")
-    return cypher
+    return _validate_cypher(data.get("cypher", ""))
+
+
+async def _regenerate_cypher(prompt_template: str, **fields) -> str:
+    """Run a repair/reformulate prompt and return validated Cypher (or raise
+    UnsafeQueryError if the model returns something unsafe/empty)."""
+    data = await generate_json(prompt_template.format(schema=SCHEMA, **fields))
+    return _validate_cypher(data.get("cypher", ""))
+
+
+async def _execute_with_repair(question: str, workspace_id: str, cypher: str):
+    """Execute `cypher`, self-correcting on failure or empty result.
+
+    Loop (bounded by MAX_CYPHER_ATTEMPTS):
+      • Neo4j raises (syntax/semantic error) → feed the error back, regenerate, retry.
+      • Query is valid but returns 0 rows → reformulate ONCE (broaden/relax), retry.
+      • Query returns rows → done.
+
+    Returns (final_cypher, records). CircuitBreakerError propagates untouched (it is
+    not a query bug). After the attempt budget is exhausted on a hard error, the
+    last error is re-raised so the caller degrades to vector search as before.
+    """
+    reformulated_once = False
+    last_error: Exception | None = None
+
+    for attempt in range(MAX_CYPHER_ATTEMPTS):
+        try:
+            records = await _exec(cypher)
+        except CircuitBreakerError:
+            raise
+        except Neo4jError as e:
+            last_error = e
+            if attempt == MAX_CYPHER_ATTEMPTS - 1:
+                cypher_repairs_total.labels(outcome="gave_up").inc()
+                raise
+            cypher_repairs_total.labels(outcome="syntax_repair").inc()
+            cypher = await _regenerate_cypher(
+                REPAIR_PROMPT, workspace_id=workspace_id, question=question,
+                cypher=cypher, error=str(e)[:800],
+            )
+            continue
+
+        # Valid query. If it found nothing, try a single broadening reformulation.
+        if not records and not reformulated_once and attempt < MAX_CYPHER_ATTEMPTS - 1:
+            reformulated_once = True
+            cypher_repairs_total.labels(outcome="empty_reformulate").inc()
+            try:
+                new_cypher = await _regenerate_cypher(
+                    REFORMULATE_PROMPT, workspace_id=workspace_id,
+                    question=question, cypher=cypher,
+                )
+            except UnsafeQueryError:
+                return cypher, records  # keep the empty result rather than fail
+            if new_cypher != cypher:
+                cypher = new_cypher
+                continue
+
+        if last_error is not None and records:
+            cypher_repairs_total.labels(outcome="repaired_ok").inc()
+        return cypher, records
+
+    return cypher, []
 
 
 async def _exec(cypher: str, params: dict | None = None, timeout: int = 15) -> list[dict]:
@@ -213,7 +326,9 @@ async def run_graph_query(question: str, workspace_id: str) -> dict:
                 "entity_stats": [], "conflicts": conflicts, "influence": influence}
 
     cache_misses_total.labels(cache="cypher").inc()
-    records = await _exec(cypher)
+    # Self-correcting execution: repairs Neo4j errors and reformulates empty
+    # results before giving up (cypher may change from the cache-probed one).
+    cypher, records = await _execute_with_repair(question, workspace_id, cypher)
 
     unique_names = _candidate_names(records)
     # Degree context, conflict detection, and PageRank influence all key off the
