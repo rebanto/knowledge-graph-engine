@@ -1,0 +1,52 @@
+Multi-hop benchmark — workspace 'arxiv_seed'
+Each question is run graph-only and vector-only (forced routes).
+
+========================================================================
+Q1. Find researchers who share a co-author but have not written a paper together.
+========================================================================
+  GRAPH  : 50 relationship record(s)
+           cypher: MATCH (p1:Person {workspace_id: 'arxiv_seed'})-[:AUTHORED]->(paper:Paper {workspace_id: 'arxiv_seed'})<-[:AUTHORED]-(p2:Person {workspace_id: 'arxiv_seed'}) WHE…
+           Multiple clusters of researchers were identified who share a mutual collaborator but have no recorded direct co-authorship. Specifically, individuals connected through **Morris Alper** and **Tao Fang** exhibit this patte…
+  VECTOR : 8 passage(s) (no traversal possible)
+           Based on the provided dataset, there is no explicit documentation of researchers who share a co-author but have not written a paper together. The retrieved records focus primarily on the historical development of AI and …
+
+========================================================================
+Q2. Which researchers are connected to each other through a chain of collaborations?
+========================================================================
+  GRAPH  : 50 relationship record(s)
+           cypher: MATCH path = (p1:Person {workspace_id: 'arxiv_seed'})-[:COLLABORATED_WITH|AUTHORED*1..4]-(p2:Person {workspace_id: 'arxiv_seed'}) WHERE p1 <> p2 WITH p1, p2, pa…
+           Researchers in this dataset are connected through collaborative chains centered around three primary academic papers. The data shows 52 distinct collaboration paths where investigators are linked through shared authorshi…
+  VECTOR : 8 passage(s) (no traversal possible)
+           Researchers connected through shared research and authorship chains include **Qiaozhu Mei**, **Yutong Xie**, **Walter Yuan**, and **Matthew O. Jackson**, who collaborated on the study *A Turing test of whether AI chatbot…
+
+========================================================================
+Q3. Which papers are connected to other papers through a shared author?
+========================================================================
+  GRAPH  : 50 relationship record(s)
+           cypher: MATCH (p1:Paper {workspace_id: 'arxiv_seed'})<-[:AUTHORED]-(a:Person {workspace_id: 'arxiv_seed'})-[:AUTHORED]->(p2:Paper {workspace_id: 'arxiv_seed'}) WHERE p1…
+           Numerous papers in the provided dataset are interconnected through shared authorship, revealing tight-knit research clusters, particularly in the fields of Vision-Language-Action (VLA) models, video reasoning, and agenti…
+  VECTOR : 8 passage(s) (no traversal possible)
+           Based on the provided dataset, there are no explicit shared author relationships between the identified papers. The retrieved documentation focuses on distinct research themes ranging from agentic academic search and mac…
+
+========================================================================
+Q4. Which concepts are contradicted by one source but supported by another?
+========================================================================
+  GRAPH  : 3 relationship record(s)
+           cypher: MATCH (c:Concept {workspace_id: 'arxiv_seed'}) WHERE (c)<-[:SUPPORTS]-(:Concept) AND (c)<-[:CONTRADICTS]-(:Concept) RETURN c.name AS Concept, count(DISTINCT [(c…
+           The concepts of **CNN**, **vision-language-action**, and **Deep Coordinator** are each characterized by conflicting research records, with every entity supported by one source and simultaneously contradicted by another. …
+  VECTOR : 8 passage(s) (no traversal possible)
+           Research regarding the **Turing test** and its underlying philosophies reveals significant conceptual conflicts, particularly concerning whether the test measures genuine intelligence or merely requires deceptive imitati…
+
+========================================================================
+Q5. What chains of SUPPORTS relationships connect one concept to another?
+========================================================================
+  GRAPH  : 50 relationship record(s)
+           cypher: MATCH path = (start:Concept {workspace_id: "arxiv_seed"})-[r:SUPPORTS*1..5]->(end:Concept {workspace_id: "arxiv_seed"}) WHERE start.name <> end.name RETURN star…
+           The retrieved graph records identify several multi-step chains of research concepts, most notably those centered around **Probe-and-Refine Tuning** and **UNIEGO**. These chains illustrate how foundational techniques, suc…
+  VECTOR : 8 passage(s) (no traversal possible)
+           Based on the provided data, several chains of **SUPPORTS** relationships connect concepts in the fields of clinical intelligence and robotic learning: In the context of **MedRLM**, **uncertainty-gated refinement** suppor…
+
+========================================================================
+SUMMARY: the graph path returned structured relationship records for 5/5 multi-hop questions.
+The vector path can only return passages — it cannot express the chained relationships these questions ask for.
+========================================================================

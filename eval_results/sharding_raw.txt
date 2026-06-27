@@ -1,0 +1,16 @@
+Benchmark: 300 entities, 200 queries per config
+
+running 1-shard config...
+running 2-shard config...
+running 3-shard config...
+
+Query type                            Single   2-shard   3-shard
+----------------------------------------------------------------
+Single-entity lookup p50 (ms)           4.24      4.74      4.43
+Single-entity lookup p99 (ms)           9.42      9.73      9.75
+Relationship query p50 (ms)            17.52      5.39      5.03
+Relationship query p99 (ms)            38.32     29.44     23.73
+
+cross-shard fraction of relationship queries: 2-shard=50%, 3-shard=68%
+
+(Single-node relationship queries run on one instance; the multi-shard rows include scatter-gather overhead for cross-shard pairs.)

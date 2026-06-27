@@ -1,0 +1,39 @@
+Running 12 golden questions against workspace 'arxiv_seed'…
+
+  [g1 ] route OK  (exp graph  → got graph ) retrieval hit   Who are the most prolific authors in this dataset?
+  [g2 ] route MISS (exp graph  → got vector) retrieval hit   How is the Transformer architecture connected to attention m
+  [g3 ] route MISS (exp graph  → got hybrid) retrieval hit   Which methods are most often compared against BERT?
+  [g4 ] route OK  (exp graph  → got graph ) retrieval hit   Which concepts are most central in this knowledge graph?
+  [g5 ] route MISS (exp graph  → got vector) retrieval hit   Which datasets are most frequently used for evaluation?
+  [v1 ] route OK  (exp vector → got vector) retrieval hit   What are the latest findings on reinforcement learning from 
+  [v2 ] route OK  (exp vector → got vector) retrieval hit   Summarize the current state of research on diffusion models.
+  [v3 ] route OK  (exp vector → got vector) retrieval hit   What are the open problems in large language model alignment
+  [v4 ] route OK  (exp vector → got vector) retrieval hit   What evidence exists for scaling laws in neural networks?
+  [v5 ] route OK  (exp vector → got vector) retrieval hit   What are the main approaches to model compression?
+  [h1 ] route OK  (exp hybrid → got hybrid) retrieval hit   Which institutions are most active in transformer research, 
+  [h2 ] route OK  (exp hybrid → got hybrid) retrieval hit   Summarize the work connected to the most influential authors
+
+============================================================
+QUALITY BENCHMARK RESULTS
+============================================================
+
+[1] Routing accuracy: 75.0%  (12 questions)
+
+exp / pred          graph   vector   hybrid    other
+----------------------------------------------------
+graph                   2        2        1        0
+vector                  0        5        0        0
+hybrid                  0        0        2        0
+
+[2] Retrieval hit-rate: 100.0%  (12/12 questions surfaced an expected entity)
+
+[3] Faithfulness (grounding in retrieved data):
+      mean faithfulness      : 90.9%
+      UNSUPPORTED-claim rate : 9.3%  (10/107 claims)
+      answers w/ ≥1 unsupported: 4/12
+
+[4] Entity resolution (16 labeled pairs):
+      precision 100.0%  recall 77.8%  F1 87.5%  accuracy 87.5%
+      tp=7 fp=0 fn=2 tn=7
+
+============================================================
