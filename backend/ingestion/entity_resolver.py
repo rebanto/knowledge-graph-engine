@@ -151,6 +151,23 @@ class EntityResolver:
         return name
 
 
+    async def decide_pair(self, a: str, b: str, entity_type: str, context: str = "") -> bool:
+        """Registry-independent merge decision for two names (same banding +
+        adjudication as resolve_async). Used by the eval harness to measure
+        resolution precision/recall against labeled pairs."""
+        ea = self._encode(_embed_input(a, entity_type))
+        eb = self._encode(_embed_input(b, entity_type))
+        sim = float(_cosine_sim(ea, eb.reshape(1, -1))[0])
+        decision = band(sim, self.low, self.high)
+        if decision == "merge":
+            return True
+        if decision == "new":
+            return False
+        if self.adjudicate:
+            return await _adjudicate_same(a, b, entity_type, context)
+        return False
+
+
 _ADJUDICATION_PROMPT = """Do these two names refer to the SAME real-world {entity_type}?
 
 Name A: "{a}"

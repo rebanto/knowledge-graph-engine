@@ -95,3 +95,23 @@ async def test_first_entity_of_type_registers(monkeypatch):
     out = await r.resolve_async("SAME person", "Person")  # empty Person bucket
     assert out == "SAME person"
     assert r.stats["new"] == 1
+
+
+@pytest.mark.asyncio
+async def test_decide_pair_merge_and_distinct(monkeypatch):
+    r = _resolver(monkeypatch)
+    # Both encode to the same vector → cosine 1.0 → merge.
+    assert await r.decide_pair("SAME a", "SAME b", "Concept") is True
+    # Orthogonal vectors → cosine 0 → distinct.
+    assert await r.decide_pair("SAME a", "DIFF b", "Concept") is False
+
+
+@pytest.mark.asyncio
+async def test_decide_pair_borderline_uses_adjudicator(monkeypatch):
+    r = _resolver(monkeypatch)
+
+    async def _yes(a, b, t, ctx=""):
+        return True
+    monkeypatch.setattr(er, "_adjudicate_same", _yes)
+    # cos(SAME=[1,0], BORDER=[0.85,..]) = 0.85 → borderline → adjudicated True.
+    assert await r.decide_pair("SAME a", "BORDER b", "Concept") is True
