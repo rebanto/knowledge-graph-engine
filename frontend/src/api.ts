@@ -112,6 +112,56 @@ export function streamQuestion(
   };
 }
 
+// ── Deep Research (multi-agent) ──────────────────────────────────────────────
+
+export function streamDeepResearch(
+  question: string,
+  workspaceId = "arxiv_seed",
+  callbacks: {
+    onStatus?: (phase: string, message: string) => void;
+    onPlan?: (subquestions: import("./types").SubQuestionResult[]) => void;
+    onSubagent?: (p: import("./types").SubAgentProgress) => void;
+    onTrust?: (trust: import("./types").TrustScore) => void;
+    onDone?: (result: import("./types").DeepResearchResult) => void;
+    onError?: (detail: string) => void;
+  },
+): () => void {
+  const params = new URLSearchParams({ question, workspace_id: workspaceId });
+  const es = new EventSource(`${BASE_URL}/api/research/deep/stream?${params}`);
+  let finished = false;
+
+  es.addEventListener("status", (e) => {
+    try { const d = JSON.parse(e.data); callbacks.onStatus?.(d.phase, d.message); } catch {}
+  });
+  es.addEventListener("plan", (e) => {
+    try { callbacks.onPlan?.(JSON.parse(e.data).subquestions); } catch {}
+  });
+  es.addEventListener("subagent", (e) => {
+    try { callbacks.onSubagent?.(JSON.parse(e.data)); } catch {}
+  });
+  es.addEventListener("trust", (e) => {
+    try { callbacks.onTrust?.(JSON.parse(e.data)); } catch {}
+  });
+  es.addEventListener("done", (e) => {
+    finished = true;
+    try { callbacks.onDone?.(JSON.parse(e.data)); } catch {}
+    es.close();
+  });
+  es.addEventListener("error", (e) => {
+    if (finished) return;
+    const data = (e as MessageEvent).data;
+    if (data) {
+      try { callbacks.onError?.(JSON.parse(data).detail ?? "The server reported an error."); }
+      catch { callbacks.onError?.("The server reported an error."); }
+    } else {
+      callbacks.onError?.("Couldn't reach the backend. Make sure it's running on port 8000.");
+    }
+    es.close();
+  });
+
+  return () => { finished = true; es.close(); };
+}
+
 export async function listReports(workspaceId = "arxiv_seed") {
   const { data } = await client.get<ReportSummary[]>("/api/reports", {
     params: { workspace_id: workspaceId },
