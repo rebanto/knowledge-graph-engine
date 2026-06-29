@@ -195,3 +195,87 @@ def _trust(claims: list[dict]) -> dict:
     }
 
 
+async def deep_research(
+    question: str,
+    workspace_id: str,
+    *,
+    on_event=None,
+) -> dict:
+    """Run the full plan → research → synthesize → verify loop.
+
+    `on_event(name, payload)` is an optional async callback used by the SSE route
+    to stream progress; it is None for the plain request/response path. The return
+    value is the same dict either way.
+    """
+    async def emit(name: str, payload: dict):
+        if on_event is not None:
+            await on_event(name, payload)
+
+    # ── Plan ───────────────────────────────────────────────────────────────────
+    await emit("status", {"phase": "planning", "message": "Decomposing the question…"})
+    plan = await plan_research(question, workspace_id)
+    await emit("plan", {"subquestions": plan})
+
+    # ── Research (bounded parallel sub-agents) ─────────────────────────────────
+    sem = asyncio.Semaphore(_CONCURRENCY)
+    subanswers: list[dict | None] = [None] * len(plan)
+
+    async def _run(idx: int, sub: dict):
+        async with sem:
+            await emit("subagent", {
+                "index": idx, "status": "running",
+                "question": sub["question"], "route": sub["route"],
+            })
+            try:
+                result = await _research_one(sub, workspace_id)
+            except Exception as exc:  # one sub-agent failing must not sink the run
+                result = {
+                    "question": sub["question"], "route": sub["route"],
+                    "why": sub["why"], "answer": "", "graph_records": [],
+                    "vector_chunks": [], "conflicts": [], "key_entities": [],
+                    "error": str(exc),
+                }
+            subanswers[idx] = result
+            await emit("subagent", {
+                "index": idx, "status": "done",
+                "question": sub["question"], "route": sub["route"],
+                "answer": result["answer"],
+                "evidence": {
+                    "graph_records": len(result["graph_records"]),
+                    "passages": len(result["vector_chunks"]),
+                    "conflicts": len(result["conflicts"]),
+                },
+            })
+
+    await asyncio.gather(*(_run(i, sub) for i, sub in enumerate(plan)))
+    answers: list[dict] = [sa for sa in subanswers if sa is not None]
+
+    # ── Synthesize (lead agent fuses the sub-answers) ──────────────────────────
+    await emit("status", {"phase": "synthesizing", "message": "Fusing the findings…"})
+    final_answer = await generate_text(
+        SYNTHESIS_PROMPT.format(question=question, findings=_findings_block(answers))
+    )
+
+    # ── Verify (faithfulness judge → trust score) ──────────────────────────────
+    await emit("status", {"phase": "verifying", "message": "Fact-checking the report…"})
+    evidence = _aggregate_evidence(answers)
+    claims = await judge_faithfulness(final_answer, evidence)
+    trust = _trust(claims)
+    await emit("trust", trust)
+
+    conflicts = evidence.get("conflicts", [])
+    return {
+        "type": "deep_research",
+        "question": question,
+        "answer": final_answer,
+        "subquestions": [
+            {"question": a["question"], "route": a["route"], "why": a["why"],
+             "answer": a["answer"], "error": a.get("error")}
+            for a in answers
+        ],
+        "key_entities": _dedupe_entities(answers),
+        "conflicts": conflicts,
+        "trust": trust,
+        "graph_records": evidence.get("graph_records", []),
+        "vector_chunks": [p for a in answers for p in a.get("vector_chunks", [])],
+    }
