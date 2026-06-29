@@ -358,6 +358,14 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
       const placed: { x1: number; y1: number; x2: number; y2: number }[] = [];
       const visible = new Set<string>();
       const FONT = 11;
+      // Label budget for the unfocused/unsearched view: keep it modest when zoomed
+      // out (the hubs + whatever fits) and let it climb as the user zooms in, so
+      // detail is revealed on demand. Focus and search are exempt — those always
+      // show what the user is looking at.
+      const budget = focusSet || searchLo
+        ? Infinity
+        : Math.max(14, Math.min(80, Math.round(12 + (t.k - 0.3) * 48)));
+      let shown = 0;
       for (const n of ordered) {
         if (hiddenT.has(n.type)) continue;
         if (n.x == null || n.y == null) continue;
@@ -365,19 +373,19 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
         const isSearch = !!searchLo && n.name.toLowerCase().includes(searchLo);
         // When something is focused, only its neighborhood gets labels.
         if (focusSet && !isFocus) continue;
-        // Otherwise gate the long tail by zoom so we never clutter when zoomed out.
-        if (!focusSet && !isSearch) {
-          const screenR = rScaleRef.current(n.degree) * t.k;
-          if (screenR < 6 && t.k < 1.4 && n.degree < degMax * 0.5) continue;
-        }
+        // Otherwise spend a bounded label budget on the highest-degree nodes
+        // (the list is degree-sorted), so the canvas never fills with text.
+        const discretionary = !isFocus && !isSearch;
+        if (discretionary && shown >= budget) continue;
         const [sx, sy] = t.apply([n.x, n.y]);
         const w = Math.min(n.name.length, 30) * FONT * 0.56 + 10;
         const r = rScaleRef.current(n.degree) * t.k + 5;
         const box = { x1: sx + r, y1: sy - FONT * 0.7, x2: sx + r + w, y2: sy + FONT * 0.7 };
         const hit = placed.some((p) => box.x1 < p.x2 && box.x2 > p.x1 && box.y1 < p.y2 && box.y2 > p.y1);
-        if (hit && !isFocus && !isSearch) continue;
+        if (hit && discretionary) continue;
         placed.push(box);
         visible.add(n.id);
+        if (discretionary) shown++;
       }
 
       labelG
