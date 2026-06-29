@@ -37,6 +37,45 @@ class QuestionResponse(BaseModel):
         from_attributes = True
 
 
+# ── Deep Research (multi-agent orchestrator) ─────────────────────────────────────
+
+class DeepResearchRequest(BaseModel):
+    question: str
+    workspace_id: str = "arxiv_seed"
+
+
+class SubQuestionResult(BaseModel):
+    question: str
+    route: str
+    why: str = ""
+    answer: str = ""
+    error: str | None = None
+
+
+class TrustScore(BaseModel):
+    # None when the answer had no checkable factual claims (vacuously grounded).
+    score: float | None = None
+    supported: int = 0
+    total: int = 0
+    unsupported_claims: list[str] = []
+
+
+class DeepResearchResponse(BaseModel):
+    id: str
+    question: str
+    answer: str
+    subquestions: list[SubQuestionResult] = []
+    key_entities: list[dict[str, Any]] = []
+    conflicts: list[dict[str, Any]] = []
+    trust: TrustScore = TrustScore()
+    version: int
+    created_at: datetime
+    conversation_id: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
 # ── Conversations ──────────────────────────────────────────────────────────────
 
 class ConversationSummary(BaseModel):
