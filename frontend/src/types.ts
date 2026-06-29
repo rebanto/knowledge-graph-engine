@@ -116,6 +116,47 @@ export interface QuestionResponse {
   standalone_question?: string | null;
 }
 
+// ── Deep Research (multi-agent orchestrator) ─────────────────────────────────
+
+export interface SubQuestionResult {
+  question: string;
+  route: RetrievalType;
+  why?: string;
+  answer?: string;
+  error?: string | null;
+}
+
+export interface TrustScore {
+  // null when the answer had no checkable factual claims (vacuously grounded).
+  score: number | null;
+  supported: number;
+  total: number;
+  unsupported_claims: string[];
+}
+
+export interface DeepResearchResult {
+  id: string;
+  question: string;
+  answer: string;
+  subquestions: SubQuestionResult[];
+  key_entities: KeyEntity[];
+  conflicts: Conflict[];
+  trust: TrustScore;
+  version: number;
+  created_at: string;
+  conversation_id?: string | null;
+}
+
+// Live progress frame for one sub-agent while a deep-research run streams.
+export interface SubAgentProgress {
+  index: number;
+  status: "running" | "done";
+  question: string;
+  route: RetrievalType;
+  answer?: string;
+  evidence?: { graph_records: number; passages: number; conflicts: number };
+}
+
 // ── Conversations ────────────────────────────────────────────────────────────
 
 export interface ConversationSummary {
