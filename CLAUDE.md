@@ -721,6 +721,24 @@ benchmark:
 - **Stronger entity resolution**: context-aware embeddings + three-band decision
   with LLM adjudication of borderline pairs.
 
+**Agentic layer (the differentiators — opt-in, additive).** Both layer on top of
+the unchanged single-shot pipeline; see
+[`docs/19-deep-research-and-mcp.md`](docs/19-deep-research-and-mcp.md):
+
+- **Multi-agent Deep Research** (`backend/core/orchestrator.py`,
+  `backend/api/routes/research.py`): a lead agent decomposes a question into
+  routed sub-questions, sub-agents research each through the existing pipeline in
+  bounded parallel, a lead fuses the findings, and the faithfulness judge scores
+  the result — surfaced to the user as a **trust score** (supported-claim
+  fraction + the specific claims it couldn't trace). Exposed as
+  `POST /research/deep` and an SSE stream; UI is the Deep Research toggle.
+- **MCP agent-context server** (`backend/mcp/server.py`,
+  `backend/core/agent_tools.py`): the engine as *grounded memory for any AI
+  agent* over the Model Context Protocol — `semantic_search`, `graph_query`,
+  `find_connection`, `get_entity_context`, `check_conflicts`, `deep_research`.
+  Run with `python -m backend.mcp.server`. This is the strategic moat: a private,
+  relationship-aware context layer for the agent ecosystem.
+
 Pure logic across all of the above is covered by the `pytest` suite in `tests/`;
 the methodology is documented in [`docs/18-evaluation.md`](docs/18-evaluation.md).
 
