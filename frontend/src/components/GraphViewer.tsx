@@ -248,14 +248,14 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
           .id((d) => d.id)
           .distance((l) => {
             const s = l.source as SimNode, t = l.target as SimNode;
-            return s.type === t.type ? 46 : 72;
+            return s.type === t.type ? 58 : 92;
           })
-          .strength(0.55))
+          .strength(0.5))
       .force("charge",
         d3.forceManyBody<SimNode>()
-          .strength((d) => -160 - d.degree * 6)
-          .distanceMax(360))
-      .force("collide", d3.forceCollide<SimNode>((d) => rScale(d.degree) + 6).iterations(2))
+          .strength((d) => -210 - d.degree * 9)
+          .distanceMax(440))
+      .force("collide", d3.forceCollide<SimNode>((d) => rScale(d.degree) + 8).iterations(2))
       .force("x", d3.forceX<SimNode>((d) => (TYPE_ANCHOR[d.type as NodeType]?.ax ?? 0.5) * W).strength(0.05))
       .force("y", d3.forceY<SimNode>((d) => (TYPE_ANCHOR[d.type as NodeType]?.ay ?? 0.5) * H).strength(0.05))
       .alphaDecay(0.02)
