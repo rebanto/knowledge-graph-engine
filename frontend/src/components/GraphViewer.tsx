@@ -267,9 +267,9 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
       .selectAll<SVGLineElement, SimLink>("line")
       .data(links).join("line")
       .attr("stroke", (d) => edgeColor(d.type, d.conflict))
-      .attr("stroke-width", (d) => (d.conflict ? 2.2 : 1.3))
+      .attr("stroke-width", (d) => (d.conflict ? 2 : 1))
       .attr("stroke-dasharray", (d) => (d.conflict ? "5,4" : "none"))
-      .attr("opacity", 0.42)
+      .attr("opacity", 0.22)
       .attr("marker-end", (d) => `url(#arw-${d.conflict ? "conflict" : edgeGroup(d.type) ?? "concept"})`);
 
     // ── Edge labels (revealed on focus) ──────────────────────────────────────
@@ -411,8 +411,8 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
         const g = d.conflict ? "conflict" : edgeGroup(d.type);
         if (g && hiddenG.has(g)) return 0;
         if (hiddenT.has(s.type) || hiddenT.has(tt.type)) return 0;
-        if (focusSet) return focusSet.has(s.id) && focusSet.has(tt.id) ? 0.9 : 0.04;
-        return d.conflict ? 0.7 : 0.4;
+        if (focusSet) return focusSet.has(s.id) && focusSet.has(tt.id) ? 0.9 : 0.03;
+        return d.conflict ? 0.6 : 0.22;
       });
 
       edgeLabel.attr("opacity", (d) => {
