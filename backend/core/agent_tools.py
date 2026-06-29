@@ -82,3 +82,86 @@ async def entity_context(workspace_id: str, name: str, limit: int = 25) -> dict:
     }
 
 
+async def _neighbor_names(workspace_id: str, name: str) -> set[str]:
+    rows = await _read(
+        """
+        MATCH (n {workspace_id: $ws})-[]-(m {workspace_id: $ws})
+        WHERE toLower(n.name) = toLower($name)
+        RETURN DISTINCT m.name AS neighbor
+        """,
+        {"ws": workspace_id, "name": name},
+    )
+    return {r["neighbor"] for r in rows if r.get("neighbor")}
+
+
+async def find_path(
+    workspace_id: str, source: str, target: str, max_hops: int = 5
+) -> dict:
+    """Shortest relationship path between two named entities — the multi-hop
+    traversal vector search structurally cannot do. Returns the ordered nodes and
+    the relationship types between them, or found=False if no path is found.
+
+    Under sharding, a `shortestPath` runs on every shard (catching any same-shard
+    path of any length); if none is found, a cross-shard two-hop fallback
+    intersects the two endpoints' neighbour sets — the documented scatter-gather
+    boundary for connections that straddle shards."""
+    max_hops = max(1, min(int(max_hops), 8))  # keep the var-length scan bounded
+    rows = await _read(
+        f"""
+        MATCH (a {{workspace_id: $ws}}), (b {{workspace_id: $ws}})
+        WHERE toLower(a.name) = toLower($source) AND toLower(b.name) = toLower($target)
+        MATCH p = shortestPath((a)-[*..{max_hops}]-(b))
+        RETURN [n IN nodes(p) | {{name: n.name, type: labels(n)[0]}}] AS nodes,
+               [r IN relationships(p) | type(r)] AS relations
+        """,
+        {"ws": workspace_id, "source": source, "target": target},
+    )
+    if rows:
+        # Across shards there may be several candidates — take the shortest.
+        best = min(rows, key=lambda r: len(r["relations"]))
+        return _path_result(best["nodes"], best["relations"], source, target,
+                            cross_shard=False)
+
+    # Cross-shard two-hop fallback: a path a—m—b where the a→m and m→b edges live
+    # on different shards is invisible to any single shortestPath. Intersect the
+    # neighbour sets instead.
+    if shard_router.is_enabled():
+        na = await _neighbor_names(workspace_id, source)
+        nb = await _neighbor_names(workspace_id, target)
+        if target in na or source in nb:  # direct edge spanning shards
+            return _path_result(
+                [{"name": source, "type": None}, {"name": target, "type": None}],
+                ["CONNECTED"], source, target, cross_shard=True)
+        shared = sorted(na & nb)
+        if shared:
+            mid = shared[0]
+            return _path_result(
+                [{"name": source, "type": None}, {"name": mid, "type": None},
+                 {"name": target, "type": None}],
+                ["CONNECTED", "CONNECTED"], source, target,
+                cross_shard=True, shared_neighbors=shared)
+
+    return {"found": False, "source": source, "target": target, "path": []}
+
+
+def _path_result(nodes, relations, source, target, *, cross_shard, shared_neighbors=None):
+    hops = []
+    for i, node in enumerate(nodes):
+        hops.append({"node": node})
+        if i < len(relations):
+            hops.append({"relation": relations[i]})
+    out = {
+        "found": True,
+        "source": nodes[0]["name"] if nodes else source,
+        "target": nodes[-1]["name"] if nodes else target,
+        "length": len(relations),
+        "nodes": nodes,
+        "relations": relations,
+        "path": hops,
+        "cross_shard": cross_shard,
+    }
+    if shared_neighbors is not None:
+        out["shared_neighbors"] = shared_neighbors
+    return out
+
+
