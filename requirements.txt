@@ -26,3 +26,4 @@ slowapi>=0.1.9
 sse-starlette>=1.8.0
 grpcio>=1.62.0
 grpcio-tools>=1.62.0
+mcp>=1.2.0                      # Model Context Protocol server — exposes the engine as grounded memory for external AI agents
