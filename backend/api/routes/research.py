@@ -95,3 +95,63 @@ async def run_deep_research(
     )
 
 
+@router.get("/research/deep/stream")
+async def stream_deep_research(
+    question: str = Query(...),
+    workspace_id: str = Query(default="arxiv_seed"),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """SSE stream of the deep-research lifecycle.
+
+    Events:
+      status   → {phase, message}                  (planning/synthesizing/verifying)
+      plan     → {subquestions: [...]}
+      subagent → {index, status, question, route, ...}
+      trust    → {score, supported, total, unsupported_claims}
+      done     → full DeepResearchResponse JSON
+      error    → {detail}
+    """
+    async def generate():
+        # The orchestrator drives progress through an async callback; bridge those
+        # callbacks into this generator with a queue so we can `yield` them as SSE.
+        queue: asyncio.Queue = asyncio.Queue()
+        sentinel = object()
+
+        async def on_event(name: str, payload: dict):
+            await queue.put((name, payload))
+
+        async def runner():
+            try:
+                result = await deep_research(question, workspace_id, on_event=on_event)
+                report, conversation, version = await _persist(
+                    db, workspace_id, question, result
+                )
+                await queue.put(("done", {
+                    "id": report.id,
+                    "question": question,
+                    "answer": result["answer"],
+                    "subquestions": result["subquestions"],
+                    "key_entities": result["key_entities"],
+                    "conflicts": result["conflicts"],
+                    "trust": result["trust"],
+                    "version": version,
+                    "created_at": report.created_at.isoformat(),
+                    "conversation_id": conversation.id,
+                }))
+            except Exception as exc:
+                await queue.put(("error", {"detail": str(exc)}))
+            finally:
+                await queue.put(sentinel)
+
+        task = asyncio.create_task(runner())
+        try:
+            while True:
+                item = await queue.get()
+                if item is sentinel:
+                    break
+                name, payload = item
+                yield {"event": name, "data": json.dumps(payload, default=str)}
+        finally:
+            task.cancel()
+
+    return EventSourceResponse(generate())
