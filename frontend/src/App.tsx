@@ -22,11 +22,12 @@ function writeUrl(workspaceId: string, tab: string, conversationId: string | nul
   history.replaceState(null, "", `?${p}`);
 }
 import axios from "axios";
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight, Sparkles } from "lucide-react";
 import { Rail, type Tab } from "./components/Rail";
 import { HistoryDrawer } from "./components/HistoryDrawer";
 import { QuestionInput } from "./components/QuestionInput";
 import { ConversationView } from "./components/ConversationView";
+import { DeepResearchPanel } from "./components/DeepResearchPanel";
 import { ExamplePrompts, NeedsSources } from "./components/EmptyState";
 import { GraphViewer } from "./components/GraphViewer";
 import { SourceManager } from "./components/SourceManager";
@@ -58,6 +59,11 @@ export default function App() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConvo, setActiveConvo] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  // Deep Research mode: when on, a submitted question runs the multi-agent
+  // orchestrator (plan → sub-agents → synthesize → verify) instead of the
+  // single-shot pipeline. `deepQuestion` holds the active run's question.
+  const [deepMode, setDeepMode] = useState(false);
+  const [deepQuestion, setDeepQuestion] = useState<string | null>(null);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   // The standalone question a follow-up was condensed into, shown live while the
   // turn streams so the user sees how their "what about…?" was interpreted.
@@ -110,6 +116,7 @@ export default function App() {
 
   useEffect(() => {
     setActiveConvo(null);
+    setDeepQuestion(null);
     setSourceCount(null);
     setProcessingCount(0);
     setSuggestedQuestions([]);
@@ -155,6 +162,14 @@ export default function App() {
   function handleSubmit(question: string) {
     // Cancel any in-flight stream from a previous question
     cancelStreamRef.current?.();
+
+    // Deep Research is a standalone run (not a conversation turn): hand the
+    // question to the orchestrator panel, which owns its own SSE stream.
+    if (deepMode && !activeConvo) {
+      setError(null);
+      setDeepQuestion(question);
+      return;
+    }
 
     const conversationId = activeConvo?.id ?? null;
     setLoading(true);
@@ -318,6 +333,25 @@ export default function App() {
     </>
   );
 
+  // Mode toggle: flip a question between the single-shot pipeline and the
+  // multi-agent Deep Research orchestrator. Reused in the hero and the deep view.
+  const deepToggle = (
+    <button
+      type="button"
+      onClick={() => setDeepMode((v) => !v)}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors duration-200 ${
+        deepMode
+          ? "border-brass/40 bg-brass-dim text-brass glow-brass-soft"
+          : "border-ink-700 text-faint hover:text-paper-dim"
+      }`}
+      title="Multi-agent: decompose → research in parallel → synthesize → fact-check with a trust score"
+    >
+      <Sparkles size={13} strokeWidth={2.25} />
+      Deep Research
+      <span className={`ml-0.5 h-1.5 w-1.5 rounded-full ${deepMode ? "bg-brass" : "bg-ink-700"}`} />
+    </button>
+  );
+
   return (
     <div className="relative flex h-screen overflow-hidden text-paper">
       <div className="app-aura" />
@@ -337,8 +371,8 @@ export default function App() {
         onClose={() => setHistoryOpen(false)}
         conversations={conversations}
         activeId={activeConvo?.id ?? null}
-        onSelect={(c) => { setTab("ask"); handleSelectConversation(c); }}
-        onNew={() => { setTab("ask"); setActiveConvo(null); }}
+        onSelect={(c) => { setTab("ask"); setDeepQuestion(null); handleSelectConversation(c); }}
+        onNew={() => { setTab("ask"); setDeepQuestion(null); setActiveConvo(null); }}
         onDeleteConversation={handleDeleteConversation}
         workspaces={workspaces}
         workspaceId={workspaceId}
@@ -369,6 +403,34 @@ export default function App() {
                 </div>
               </div>
             </>
+          ) : deepQuestion ? (
+            // ── Deep Research run: input bar on top, the agent trace below ──────
+            <>
+              <div className="border-b border-ink-700/60 px-8 py-3.5">
+                <div className="mx-auto max-w-2xl">
+                  <QuestionInput
+                    onSubmit={handleSubmit}
+                    loading={false}
+                    placeholder="Ask another deep question…"
+                  />
+                  <div className="mt-2.5 flex items-center justify-between">
+                    {deepToggle}
+                    <button
+                      onClick={() => setDeepQuestion(null)}
+                      className="text-[12px] text-faint hover:text-paper-dim"
+                    >
+                      ← New question
+                    </button>
+                  </div>
+                  {error && <p className="mt-2.5 text-[12.5px] text-flag">{error}</p>}
+                </div>
+              </div>
+              <div className="min-w-0 flex-1 overflow-y-auto scrollbar-thin">
+                <div className="mx-auto max-w-2xl px-8 py-9">
+                  <DeepResearchPanel question={deepQuestion} workspaceId={workspaceId} />
+                </div>
+              </div>
+            </>
           ) : (
             // ── Empty: a centred console, the question the centre of gravity ─
             <div className="dot-grid min-w-0 flex-1 overflow-y-auto scrollbar-thin">
@@ -379,6 +441,8 @@ export default function App() {
                   </h1>
                   <QuestionInput onSubmit={handleSubmit} loading={loading} hero autoFocus />
                   {askStatus}
+
+                  <div className="mt-3.5 flex justify-center">{deepToggle}</div>
 
                   {hasSources ? (
                     <ExamplePrompts
