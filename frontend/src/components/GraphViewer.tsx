@@ -111,6 +111,8 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
   const edgeLabelSelRef = useRef<d3.Selection<SVGTextElement, SimLink, SVGGElement, unknown> | null>(null);
   const neighborsRef    = useRef<Map<string, Set<string>>>(new Map());
   const rScaleRef       = useRef<(d: number) => number>(() => 6);
+  // Chosen label offset/anchor per node (graph-space), recomputed each relayout.
+  const labelPlaceRef   = useRef<Map<string, { ox: number; oy: number; anchor: string }>>(new Map());
 
   // Stable handles to the scene's internal callbacks so reactive effects can
   // trigger a re-highlight / label relayout without rebuilding the simulation.
@@ -357,7 +359,10 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
 
       const placed: { x1: number; y1: number; x2: number; y2: number }[] = [];
       const visible = new Set<string>();
+      const place = labelPlaceRef.current;
+      place.clear();
       const FONT = 11;
+      const H = FONT * 1.4;
       // Label budget for the unfocused/unsearched view: keep it modest when zoomed
       // out (the hubs + whatever fits) and let it climb as the user zooms in, so
       // detail is revealed on demand. Focus and search are exempt — those always
@@ -377,20 +382,45 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
         // (the list is degree-sorted), so the canvas never fills with text.
         const discretionary = !isFocus && !isSearch;
         if (discretionary && shown >= budget) continue;
+
         const [sx, sy] = t.apply([n.x, n.y]);
         const w = Math.min(n.name.length, 30) * FONT * 0.56 + 10;
-        const r = rScaleRef.current(n.degree) * t.k + 5;
-        const box = { x1: sx + r, y1: sy - FONT * 0.7, x2: sx + r + w, y2: sy + FONT * 0.7 };
-        const hit = placed.some((p) => box.x1 < p.x2 && box.x2 > p.x1 && box.y1 < p.y2 && box.y2 > p.y1);
-        if (hit && discretionary) continue;
-        placed.push(box);
+        const rs = rScaleRef.current(n.degree) * t.k + 5; // screen-space gap
+        const rg = rScaleRef.current(n.degree) + 5;        // graph-space gap
+
+        // Try four placements around the node and take the first that doesn't
+        // collide — lets labels tuck into the gaps of a radial fan instead of all
+        // stacking on the right and getting dropped.
+        const cands = [
+          { box: { x1: sx + rs, y1: sy - H / 2, x2: sx + rs + w, y2: sy + H / 2 }, ox:  rg, oy: 0, anchor: "start" },
+          { box: { x1: sx - rs - w, y1: sy - H / 2, x2: sx - rs, y2: sy + H / 2 }, ox: -rg, oy: 0, anchor: "end" },
+          { box: { x1: sx - w / 2, y1: sy + rs, x2: sx + w / 2, y2: sy + rs + H }, ox: 0, oy:  rg + 2, anchor: "middle" },
+          { box: { x1: sx - w / 2, y1: sy - rs - H, x2: sx + w / 2, y2: sy - rs }, ox: 0, oy: -(rg + 2), anchor: "middle" },
+        ];
+        let chosen: typeof cands[number] | null = null;
+        for (const c of cands) {
+          const hit = placed.some((p) => c.box.x1 < p.x2 && c.box.x2 > p.x1 && c.box.y1 < p.y2 && c.box.y2 > p.y1);
+          if (!hit) { chosen = c; break; }
+        }
+        // No open slot: drop it if it's just filler; force-place focus/search hits.
+        if (!chosen) {
+          if (discretionary) continue;
+          chosen = cands[0];
+        }
+        placed.push(chosen.box);
         visible.add(n.id);
+        place.set(n.id, { ox: chosen.ox, oy: chosen.oy, anchor: chosen.anchor });
         if (discretionary) shown++;
       }
 
       labelG
         .attr("opacity", (d) => (visible.has(d.id) ? 1 : 0))
-        .attr("transform", (d) => `translate(${(d.x ?? 0) + rScaleRef.current(d.degree) + 5},${d.y ?? 0})`);
+        .attr("transform", (d) => {
+          const p = place.get(d.id);
+          const ox = p ? p.ox : rScaleRef.current(d.degree) + 5;
+          return `translate(${(d.x ?? 0) + ox},${(d.y ?? 0) + (p?.oy ?? 0)})`;
+        });
+      labelG.select<SVGTextElement>("text").attr("text-anchor", (d) => place.get(d.id)?.anchor ?? "start");
     }
     // Expose for the highlight effect.
     relayoutRef.current = relayoutLabels;
@@ -461,8 +491,11 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
 
       node.attr("cx", (d) => d.x!).attr("cy", (d) => d.y!);
 
-      labelG.attr("transform", (d) =>
-        `translate(${(d.x ?? 0) + rScale(d.degree) + 5},${d.y ?? 0})`);
+      labelG.attr("transform", (d) => {
+        const p = labelPlaceRef.current.get(d.id);
+        const ox = p ? p.ox : rScale(d.degree) + 5;
+        return `translate(${(d.x ?? 0) + ox},${(d.y ?? 0) + (p?.oy ?? 0)})`;
+      });
 
       edgeLabel
         .attr("x", (d) => ((d.source as SimNode).x! + (d.target as SimNode).x!) / 2)
