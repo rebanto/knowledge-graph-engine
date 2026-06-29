@@ -165,3 +165,37 @@ def _path_result(nodes, relations, source, target, *, cross_shard, shared_neighb
     return out
 
 
+async def list_conflicts(
+    workspace_id: str, entity: str | None = None, limit: int = 50
+) -> list[dict]:
+    """Pairs of entities the sources disagree about (CONFLICTS_WITH edges).
+    Optionally filtered to conflicts involving one entity. This is the
+    cross-source contradiction signal, exposed for an agent to weigh evidence.
+    Fans out across shards so conflicts on any shard are surfaced."""
+    if entity:
+        cypher = """
+            MATCH (a {workspace_id: $ws})-[r:CONFLICTS_WITH]-(b {workspace_id: $ws})
+            WHERE toLower(a.name) = toLower($entity)
+            RETURN DISTINCT a.name AS source, b.name AS target,
+                   coalesce(r.claim_types, []) AS claim_types,
+                   coalesce(r.documents, []) AS documents
+        """
+        params = {"ws": workspace_id, "entity": entity}
+    else:
+        cypher = """
+            MATCH (a {workspace_id: $ws})-[r:CONFLICTS_WITH]->(b {workspace_id: $ws})
+            RETURN DISTINCT a.name AS source, b.name AS target,
+                   coalesce(r.claim_types, []) AS claim_types,
+                   coalesce(r.documents, []) AS documents
+        """
+        params = {"ws": workspace_id}
+    rows = await _read(cypher, params)
+    return [
+        {
+            "source": r["source"],
+            "target": r["target"],
+            "claim_types": r["claim_types"],
+            "documents": r["documents"],
+        }
+        for r in rows[:limit]
+    ]
