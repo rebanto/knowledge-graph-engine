@@ -364,12 +364,13 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
       const FONT = 11;
       const H = FONT * 1.4;
       // Label budget for the unfocused/unsearched view: keep it modest when zoomed
-      // out (the hubs + whatever fits) and let it climb as the user zooms in, so
-      // detail is revealed on demand. Focus and search are exempt — those always
-      // show what the user is looking at.
-      const budget = focusSet || searchLo
+      // out (just the hubs + whatever clearly fits) and let it climb as the user
+      // zooms in. Past a zoom threshold the cap is lifted entirely — collision
+      // avoidance alone governs, so EVERY label that physically fits is shown and
+      // zooming always reveals more. Focus and search are always exempt.
+      const budget = focusSet || searchLo || t.k >= 1.4
         ? Infinity
-        : Math.max(14, Math.min(80, Math.round(12 + (t.k - 0.3) * 48)));
+        : Math.max(14, Math.round(12 + (t.k - 0.3) * 70));
       let shown = 0;
       for (const n of ordered) {
         if (hiddenT.has(n.type)) continue;
