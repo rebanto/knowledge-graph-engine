@@ -32,7 +32,7 @@ source counts. Three tabs:
 
 | Tab | Component | Purpose |
 |-----|-----------|---------|
-| **Ask** | `QuestionInput` + `AnswerView` | Ask a question, watch streamed progress, read the answer + insight cards. |
+| **Ask** | `QuestionInput` + `WorkspacePulse` + `AnswerView` | Ask a question, choose high-value research moves, watch streamed progress, read the answer + proof/evidence strip. |
 | **Explore** | `GraphViewer` | Interactive D3 force-directed view of the workspace's entity graph. |
 | **Sources** | `SourceManager` / `SourcesPanel` | Add/upload/retry/delete sources, watch ingestion status, see worker/queue health. |
 
@@ -68,7 +68,9 @@ navigates away or asks again).
 |-----------|------|
 | `Sidebar` | Workspace selector + saved-report history; create/delete workspaces. |
 | `QuestionInput` | The question box; submit triggers the stream. |
+| `WorkspacePulse` | Workspace cockpit: source readiness, corpus mix, saved thread count, graph availability, research-mode prompt cards. |
 | `AnswerView` | Renders the markdown answer, the `RoutingBadge`, `EntitySummary`, and `InsightCards`. |
+| `AnswerProofBar` | Evidence strip for each answer: graph/passages/conflicts plus copy and Markdown export. |
 | `RoutingBadge` | Shows whether the question was routed graph / vector / hybrid. |
 | `EntitySummary` | The `key_entities` list with type + role. |
 | `InsightCards` | Renders the typed insight cards (`stat_grid`, `bar_chart` via recharts, `flow_path`, `comparison_table`, `timeline`). |
