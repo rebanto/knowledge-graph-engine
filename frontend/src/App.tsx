@@ -306,7 +306,7 @@ export default function App() {
     setError(null);
     try {
       const sources = await discoverSources(workspaceId);
-      setSourceCount((prev) => (prev ?? 0) + sources.length);
+      await refreshSources();
       if (sources.length > 0) setTab("sources");
     } catch (err) {
       setError(describeError(err));
