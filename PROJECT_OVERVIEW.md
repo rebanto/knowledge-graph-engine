@@ -20,7 +20,8 @@ score** showing how much of it is actually backed by your material.
   so instead of quietly picking one.
 - **Scores its own answers.** A built-in fact-checker reviews each answer and
   reports what share of it is backed by your sources, listing anything it couldn't
-  verify.
+  verify. In the web app this appears as a **claim ledger**: the answer's factual
+  claims are marked supported or unsupported.
 - **Deep Research mode** for hard questions: it works like a small research team —
   splits the question into parts, researches each, combines the findings, and
   fact-checks the result.

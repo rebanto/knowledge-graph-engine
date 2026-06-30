@@ -28,11 +28,11 @@ with `VITE_PROXY_TARGET`, or bypass the proxy with `VITE_API_URL`.
 [`App.tsx`](../frontend/src/App.tsx) is the shell. Top-level state: the list of
 workspaces and the current `workspaceId` (defaults to `arxiv_seed`), the active
 tab, the report list, the active answer, loading/streaming/error flags, and
-source counts. Three tabs:
+source counts. Three user-facing tabs:
 
 | Tab | Component | Purpose |
 |-----|-----------|---------|
-| **Ask** | `QuestionInput` + `WorkspacePulse` + `AnswerView` | Ask a question, choose high-value research moves, watch streamed progress, read the answer + proof/evidence strip. |
+| **Ask** | `QuestionInput` + `WorkspacePulse` + `AnswerView` | Ask a question, choose proof/trace/audit research moves, watch streamed progress, read the answer + proof/evidence strip. |
 | **Explore** | `GraphViewer` | Interactive D3 force-directed view of the workspace's entity graph. |
 | **Sources** | `SourceManager` / `SourcesPanel` | Add/upload/retry/delete sources, watch ingestion status, see worker/queue health. |
 
@@ -68,9 +68,10 @@ navigates away or asks again).
 |-----------|------|
 | `Sidebar` | Workspace selector + saved-report history; create/delete workspaces. |
 | `QuestionInput` | The question box; submit triggers the stream. |
-| `WorkspacePulse` | Workspace cockpit: source readiness, corpus mix, saved thread count, graph availability, research-mode prompt cards. |
-| `AnswerView` | Renders the markdown answer, the `RoutingBadge`, `EntitySummary`, and `InsightCards`. |
-| `AnswerProofBar` | Evidence strip for each answer: graph/passages/conflicts plus copy and Markdown export. |
+| `WorkspacePulse` | Workspace cockpit: source readiness, corpus mix, saved thread count, graph availability, and specialty prompt cards (`Proof Brief`, `Connection Trace`, `Disagreement Audit`, `Agent Context Pack`). |
+| `AnswerView` | Renders the markdown answer, the `RoutingBadge`, `EntitySummary`, `ClaimLedger`, and `InsightCards`. |
+| `AnswerProofBar` | Evidence strip for each answer: trust score, graph/passages/conflicts plus copy and Markdown export. |
+| `ClaimLedger` | Claim-level verifier output: factual claims marked supported/unsupported so the trust score is inspectable. |
 | `RoutingBadge` | Shows whether the question was routed graph / vector / hybrid. |
 | `EntitySummary` | The `key_entities` list with type + role. |
 | `InsightCards` | Renders the typed insight cards (`stat_grid`, `bar_chart` via recharts, `flow_path`, `comparison_table`, `timeline`). |
