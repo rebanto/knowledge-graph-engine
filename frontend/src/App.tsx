@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // ── URL state helpers ────────────────────────────────────────────────────────
-const VALID_TABS = ["ask", "explore", "sources", "cluster"] as const;
+const VALID_TABS = ["ask", "explore", "sources"] as const;
 
 function readUrl() {
   const p = new URLSearchParams(window.location.search);
@@ -31,7 +31,6 @@ import { DeepResearchPanel } from "./components/DeepResearchPanel";
 import { NeedsSources } from "./components/EmptyState";
 import { GraphViewer } from "./components/GraphViewer";
 import { SourceManager } from "./components/SourceManager";
-import { CoordinatorDashboard } from "./components/CoordinatorDashboard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { WorkspacePulse, type SourceStats } from "./components/WorkspacePulse";
 import {
@@ -495,13 +494,7 @@ export default function App() {
               <SourceManager workspaceId={workspaceId} />
             </ErrorBoundary>
           </div>
-        ) : (
-          <div className="min-w-0 flex-1">
-            <ErrorBoundary>
-              <CoordinatorDashboard />
-            </ErrorBoundary>
-          </div>
-        )}
+        ) : null}
       </main>
     </div>
   );

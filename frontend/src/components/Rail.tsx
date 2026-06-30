@@ -1,7 +1,7 @@
-import { MessagesSquare, Network, Database, Server, History } from "lucide-react";
+import { MessagesSquare, Network, Database, History } from "lucide-react";
 import type { Workspace } from "../types";
 
-export type Tab = "ask" | "explore" | "sources" | "cluster";
+export type Tab = "ask" | "explore" | "sources";
 
 // The wordmark: a tiny three-node lattice that echoes the favicon.
 function LatticeMark() {
@@ -25,7 +25,6 @@ const NAV: { id: Tab; label: string; icon: typeof Network }[] = [
   { id: "ask", label: "Ask", icon: MessagesSquare },
   { id: "explore", label: "Graph", icon: Network },
   { id: "sources", label: "Sources", icon: Database },
-  { id: "cluster", label: "Cluster", icon: Server },
 ];
 
 interface RailItemProps {
