@@ -226,7 +226,6 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
     const rScale = d3.scaleSqrt()
       .domain([degExtent[0] || 0, degExtent[1] || 1]).range([5, 22]);
     rScaleRef.current = (d) => rScale(d);
-    const degMax = degExtent[1] || 1;
 
     // ── Zoom ────────────────────────────────────────────────────────────────
     const zoom = d3.zoom<SVGSVGElement, unknown>()
