@@ -452,7 +452,7 @@ export default function App() {
             // ── Empty: a centred console, the question the centre of gravity ─
             <div className="dot-grid min-w-0 flex-1 overflow-y-auto scrollbar-thin">
               <div className="flex min-h-full flex-col items-center justify-center px-6 py-16">
-                <div className="animate-rise-in w-full max-w-xl">
+                <div className="animate-rise-in w-full max-w-4xl">
                   <h1 className="text-glow mb-7 text-center font-display text-[34px] font-medium leading-[1.1] tracking-tight text-paper">
                     What do you want to know?
                   </h1>
