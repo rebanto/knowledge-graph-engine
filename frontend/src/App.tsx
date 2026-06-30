@@ -252,12 +252,14 @@ export default function App() {
     setWorkspaces((prev) => [...prev, workspace]);
     setWorkspaceId(workspace.id);
     setSourceCount(0);
+    setSourceStats(buildSourceStats([]));
 
     if (autoDiscover && description) {
       setDiscovering(true);
       try {
         const sources = await discoverSources(workspace.id);
         setSourceCount(sources.length);
+        setSourceStats(buildSourceStats(sources));
         if (sources.length > 0) setTab("sources");
       } catch {
         // Discovery failed — user can retry from the empty state
