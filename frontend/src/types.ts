@@ -105,6 +105,7 @@ export interface QuestionResponse {
   key_entities: KeyEntity[];
   insights: Insight[];
   conflicts: Conflict[];
+  trust: TrustScore;
   version: number;
   cached: boolean;
   created_at: string;
@@ -132,6 +133,7 @@ export interface TrustScore {
   supported: number;
   total: number;
   unsupported_claims: string[];
+  claims?: { claim: string; supported: boolean }[];
 }
 
 export interface DeepResearchResult {

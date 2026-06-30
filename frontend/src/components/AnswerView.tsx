@@ -7,6 +7,7 @@ import { EntitySummary } from "./EntitySummary";
 import { InsightCards } from "./InsightCards";
 import { ConflictBanner } from "./ConflictBanner";
 import { AnswerProofBar } from "./AnswerProofBar";
+import { ClaimLedger } from "./ClaimLedger";
 
 export function AnswerView({ report }: { report: QuestionResponse }) {
   const hasInsights = report.insights && report.insights.length > 0;
@@ -61,6 +62,8 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
       </div>
 
       <ConflictBanner conflicts={conflicts} />
+
+      <ClaimLedger trust={report.trust} />
 
       {hasInsights && <InsightCards insights={report.insights} />}
 

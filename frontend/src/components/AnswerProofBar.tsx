@@ -4,6 +4,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { QuestionResponse } from "../types";
+import { TrustBadge } from "./TrustBadge";
 
 function pctLabel(report: QuestionResponse) {
   const total = report.graph_records.length + report.vector_chunks.length;
@@ -14,6 +15,12 @@ function pctLabel(report: QuestionResponse) {
 }
 
 function markdownReport(report: QuestionResponse) {
+  const trust = report.trust ?? {
+    score: null,
+    supported: 0,
+    total: 0,
+    unsupported_claims: [],
+  };
   const lines = [
     `# ${report.question}`,
     "",
@@ -26,6 +33,11 @@ function markdownReport(report: QuestionResponse) {
     `- Graph records: ${report.graph_records.length}`,
     `- Passages: ${report.vector_chunks.length}`,
     `- Conflicts: ${report.conflicts?.length ?? 0}`,
+    `- Trust score: ${
+      trust.score === null
+        ? "n/a"
+        : `${Math.round(trust.score * 100)}% (${trust.supported}/${trust.total} claims)`
+    }`,
   ];
 
   if (report.cypher) {
@@ -63,6 +75,12 @@ export function AnswerProofBar({ report }: { report: QuestionResponse }) {
   const [copied, setCopied] = useState(false);
   const evidenceLabel = useMemo(() => pctLabel(report), [report]);
   const hasConflict = (report.conflicts?.length ?? 0) > 0;
+  const trust = report.trust ?? {
+    score: null,
+    supported: 0,
+    total: 0,
+    unsupported_claims: [],
+  };
 
   async function copyMarkdown() {
     await navigator.clipboard.writeText(markdownReport(report));
@@ -73,6 +91,7 @@ export function AnswerProofBar({ report }: { report: QuestionResponse }) {
   return (
     <div className="surface flex flex-wrap items-center justify-between gap-3 rounded-xl px-3.5 py-2.5">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <TrustBadge trust={trust} />
         <span
           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
             hasConflict
