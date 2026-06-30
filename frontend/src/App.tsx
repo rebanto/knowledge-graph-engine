@@ -462,10 +462,14 @@ export default function App() {
                   <div className="mt-3.5 flex justify-center">{deepToggle}</div>
 
                   {hasSources ? (
-                    <ExamplePrompts
+                    <WorkspacePulse
+                      workspace={activeWorkspace}
+                      stats={sourceStats}
+                      conversations={conversations}
+                      suggestedQuestions={suggestedQuestions}
                       onPick={handleSubmit}
-                      questions={suggestedQuestions}
-                      loading={suggestionsLoading}
+                      onGoToSources={() => setTab("sources")}
+                      onGoToGraph={() => setTab("explore")}
                     />
                   ) : (
                     <NeedsSources
