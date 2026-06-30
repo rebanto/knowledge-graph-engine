@@ -50,6 +50,19 @@ function describeError(err: unknown): string {
   return "Something went wrong.";
 }
 
+function buildSourceStats(sources: Source[]): SourceStats {
+  return {
+    total: sources.length,
+    ready: sources.filter((s) => s.status === "success").length,
+    active: sources.filter((s) => s.status === "pending" || s.status === "running").length,
+    error: sources.filter((s) => s.status === "error").length,
+    arxiv: sources.filter((s) => s.type === "arxiv_feed").length,
+    rss: sources.filter((s) => s.type === "rss").length,
+    web: sources.filter((s) => s.type === "web_url").length,
+    pdf: sources.filter((s) => s.type === "pdf_upload").length,
+  };
+}
+
 export default function App() {
   const initialUrl = useRef(readUrl());
 
@@ -71,10 +84,10 @@ export default function App() {
   const [rewriteNote, setRewriteNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sourceCount, setSourceCount] = useState<number | null>(null);
+  const [sourceStats, setSourceStats] = useState<SourceStats | null>(null);
   const [processingCount, setProcessingCount] = useState(0);
   const [discovering, setDiscovering] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const cancelStreamRef = useRef<(() => void) | null>(null);
   const sourcePollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pending conversation ID from the URL — opened once the list arrives.
