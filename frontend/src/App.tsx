@@ -111,11 +111,13 @@ export default function App() {
     try {
       const sources = await listSources(workspaceId);
       setSourceCount(sources.length);
+      setSourceStats(buildSourceStats(sources));
       setProcessingCount(
         sources.filter((s) => s.status === "pending" || s.status === "running").length,
       );
     } catch {
       setSourceCount(0);
+      setSourceStats(null);
       setProcessingCount(0);
     }
   }, [workspaceId]);
