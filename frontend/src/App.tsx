@@ -134,15 +134,14 @@ export default function App() {
     setActiveConvo(null);
     setDeepQuestion(null);
     setSourceCount(null);
+    setSourceStats(null);
     setProcessingCount(0);
     setSuggestedQuestions([]);
     refreshConversations();
     refreshSources();
-    setSuggestionsLoading(true);
     getSuggestedQuestions(workspaceId)
       .then(setSuggestedQuestions)
-      .catch(() => setSuggestedQuestions([]))
-      .finally(() => setSuggestionsLoading(false));
+      .catch(() => setSuggestedQuestions([]));
   }, [workspaceId, refreshConversations, refreshSources]);
 
   // Cancel in-flight stream when component unmounts
