@@ -17,6 +17,7 @@ from backend.models.schemas import (
     ConversationDetail,
     QuestionResponse,
 )
+from backend.core.trust import unavailable_trust
 
 router = APIRouter()
 
@@ -35,6 +36,7 @@ def _report_to_response(report: Report) -> QuestionResponse:
         key_entities=sources.get("key_entities", []),
         insights=sources.get("insights", []),
         conflicts=sources.get("conflicts", []),
+        trust=sources.get("trust", unavailable_trust()),
         version=report.version,
         cached=False,
         created_at=report.created_at,

@@ -33,6 +33,7 @@ import asyncio
 from backend.core.qa_pipeline import answer_question
 from backend.core.llm_client import generate_json, generate_text
 from backend.eval.judge import judge_faithfulness
+from backend.core.trust import trust_from_claims
 
 # Bound fan-out so a 4-way decomposition doesn't fire 4× the LLM calls at once
 # into the free-tier per-minute quota. The pipeline already backs off on 429s;
@@ -181,18 +182,7 @@ def _findings_block(subanswers: list[dict]) -> str:
 
 def _trust(claims: list[dict]) -> dict:
     """Turn the judge's per-claim verdicts into a surfaced trust score."""
-    total = len(claims)
-    supported = sum(1 for c in claims if c.get("supported"))
-    unsupported = [c.get("claim", "") for c in claims if not c.get("supported")]
-    # An answer with no checkable claims is vacuously grounded — report None
-    # rather than a fake 0/0 so the UI can show "n/a" instead of "0% trust".
-    score = round(supported / total, 3) if total else None
-    return {
-        "score": score,
-        "supported": supported,
-        "total": total,
-        "unsupported_claims": unsupported[:10],
-    }
+    return trust_from_claims(claims)
 
 
 async def deep_research(

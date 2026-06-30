@@ -11,6 +11,15 @@ class QuestionRequest(BaseModel):
     conversation_id: str | None = None
 
 
+class TrustScore(BaseModel):
+    # None when the answer had no checkable factual claims (vacuously grounded).
+    score: float | None = None
+    supported: int = 0
+    total: int = 0
+    unsupported_claims: list[str] = []
+    claims: list[dict[str, Any]] = []
+
+
 class QuestionResponse(BaseModel):
     id: str
     question: str
@@ -23,6 +32,7 @@ class QuestionResponse(BaseModel):
     key_entities: list[dict] = []
     insights: list[dict[str, Any]] = []
     conflicts: list[dict[str, Any]] = []
+    trust: TrustScore = TrustScore()
     version: int
     cached: bool
     created_at: datetime
@@ -50,14 +60,6 @@ class SubQuestionResult(BaseModel):
     why: str = ""
     answer: str = ""
     error: str | None = None
-
-
-class TrustScore(BaseModel):
-    # None when the answer had no checkable factual claims (vacuously grounded).
-    score: float | None = None
-    supported: int = 0
-    total: int = 0
-    unsupported_claims: list[str] = []
 
 
 class DeepResearchResponse(BaseModel):

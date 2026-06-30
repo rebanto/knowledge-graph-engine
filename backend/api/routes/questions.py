@@ -18,6 +18,8 @@ from backend.core.vector_retriever import run_vector_query
 from backend.core.synthesizer import synthesize_answer
 from backend.core import conversation as conv
 from backend.core.resilience import CircuitBreakerError
+from backend.core.trust import trust_from_claims, unavailable_trust
+from backend.eval.judge import judge_faithfulness
 import asyncio
 
 router = APIRouter()
@@ -64,6 +66,7 @@ async def ask_question(req: QuestionRequest, db: AsyncSession = Depends(get_asyn
             "key_entities": result.get("key_entities", []),
             "insights": result.get("insights", []),
             "conflicts": result.get("conflicts", []),
+            "trust": result.get("trust", unavailable_trust()),
         },
         version=version,
         created_at=datetime.now(timezone.utc),
@@ -88,6 +91,7 @@ async def ask_question(req: QuestionRequest, db: AsyncSession = Depends(get_asyn
         key_entities=result.get("key_entities", []),
         insights=result.get("insights", []),
         conflicts=result.get("conflicts", []),
+        trust=result.get("trust", unavailable_trust()),
         version=report.version,
         cached=result["cached"],
         created_at=report.created_at,
@@ -189,6 +193,10 @@ async def stream_question(
             synthesis = await synthesize_answer(
                 standalone, results, retrieval_type=qtype, **synth_kwargs
             )
+            try:
+                trust = trust_from_claims(await judge_faithfulness(synthesis["answer"], results))
+            except Exception:
+                trust = unavailable_trust()
 
             standalone_question = standalone if standalone.lower() != question.lower() else None
             result = {
@@ -201,6 +209,7 @@ async def stream_question(
                 "answer": synthesis["answer"],
                 "key_entities": synthesis.get("key_entities", []),
                 "insights": synthesis.get("insights", []),
+                "trust": trust,
                 "cached": False,
             }
 
@@ -231,6 +240,7 @@ async def stream_question(
                     "key_entities": result.get("key_entities", []),
                     "insights": result.get("insights", []),
                     "conflicts": conflicts,
+                    "trust": trust,
                 },
                 version=version,
                 created_at=datetime.now(timezone.utc),
@@ -293,6 +303,7 @@ async def get_report(report_id: str, db: AsyncSession = Depends(get_async_db)):
         key_entities=sources.get("key_entities", []),
         insights=sources.get("insights", []),
         conflicts=sources.get("conflicts", []),
+        trust=sources.get("trust", unavailable_trust()),
         version=report.version,
         cached=False,
         created_at=report.created_at,

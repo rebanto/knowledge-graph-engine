@@ -6,6 +6,8 @@ from backend.core.synthesizer import synthesize_answer
 from backend.core import conversation as conv
 from backend.core.resilience import CircuitBreakerError
 from backend.core.observability import cache_misses_total
+from backend.core.trust import trust_from_claims, unavailable_trust
+from backend.eval.judge import judge_faithfulness
 
 
 async def answer_question(
@@ -125,6 +127,10 @@ async def _compute_answer(
     synthesis = await synthesize_answer(
         standalone, results, retrieval_type=qtype, **synth_kwargs
     )
+    try:
+        trust = trust_from_claims(await judge_faithfulness(synthesis["answer"], results))
+    except Exception:
+        trust = unavailable_trust()
 
     return {
         "type": qtype,
@@ -136,6 +142,7 @@ async def _compute_answer(
         "answer": synthesis["answer"],
         "key_entities": synthesis.get("key_entities", []),
         "insights": synthesis.get("insights", []),
+        "trust": trust,
         "cached": False,
         # Surface the rewrite so the route can persist it and the UI can show it.
         # standalone_question is None when no rewrite happened (first turn or an
