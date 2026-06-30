@@ -28,17 +28,18 @@ import { HistoryDrawer } from "./components/HistoryDrawer";
 import { QuestionInput } from "./components/QuestionInput";
 import { ConversationView } from "./components/ConversationView";
 import { DeepResearchPanel } from "./components/DeepResearchPanel";
-import { ExamplePrompts, NeedsSources } from "./components/EmptyState";
+import { NeedsSources } from "./components/EmptyState";
 import { GraphViewer } from "./components/GraphViewer";
 import { SourceManager } from "./components/SourceManager";
 import { CoordinatorDashboard } from "./components/CoordinatorDashboard";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { WorkspacePulse, type SourceStats } from "./components/WorkspacePulse";
 import {
   streamQuestion, listConversations, getConversation, deleteConversation,
   listWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace,
   listSources, discoverSources, getSuggestedQuestions,
 } from "./api";
-import type { ConversationSummary, ConversationDetail, Workspace } from "./types";
+import type { ConversationSummary, ConversationDetail, Source, Workspace } from "./types";
 
 function describeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
