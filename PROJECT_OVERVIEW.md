@@ -24,6 +24,11 @@ score** showing how much of it is actually backed by your material.
 - **Deep Research mode** for hard questions: it works like a small research team —
   splits the question into parts, researches each, combines the findings, and
   fact-checks the result.
+- **A research cockpit on every workspace.** Users see source readiness, corpus
+  mix, saved threads, graph availability, and high-value research moves before
+  they ask.
+- **Reusable reports.** Answers include an evidence strip, conflict signal,
+  copy-to-clipboard, and Markdown export so findings can leave the app intact.
 - **Works as memory for other AI tools.** Other assistants (like Claude or Cursor)
   can pull verified, connected facts from it instead of guessing.
 - **Plus the basics done well:** a visual map you can explore, natural follow-up
