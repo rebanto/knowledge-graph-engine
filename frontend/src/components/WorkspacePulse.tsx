@@ -17,10 +17,10 @@ export interface SourceStats {
 
 const MODE_CARDS = [
   {
-    label: "Evidence Brief",
-    detail: "frontier, claims, open questions",
+    label: "Proof Brief",
+    detail: "answer + checked claim ledger",
     Icon: ShieldCheck,
-    prompt: "Write an evidence brief: strongest findings, unresolved questions, and cited sources.",
+    prompt: "Write a proof brief: strongest supported claims, weak claims, and the source evidence behind each.",
   },
   {
     label: "Connection Trace",
@@ -35,10 +35,10 @@ const MODE_CARDS = [
     prompt: "Where do the sources disagree, and which claims should be treated cautiously?",
   },
   {
-    label: "Market Scan",
-    detail: "who matters and why",
+    label: "Agent Context Pack",
+    detail: "portable grounded memory",
     Icon: Search,
-    prompt: "Map the major actors, topics, and emerging opportunities in this workspace.",
+    prompt: "Prepare a compact, source-grounded context pack another AI agent could use safely.",
   },
 ];
 
