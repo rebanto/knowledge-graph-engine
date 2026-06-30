@@ -3,6 +3,7 @@ import {
   RadioTower, Search, ShieldCheck, Sparkles,
 } from "lucide-react";
 import type { ConversationSummary, Workspace } from "../types";
+import { Card, SectionLabel } from "./ui";
 
 export interface SourceStats {
   total: number;
@@ -75,14 +76,14 @@ function StatTile({
   tone?: string;
 }) {
   return (
-    <div className="surface rounded-lg px-3.5 py-3">
+    <Card className="px-3.5 py-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="eyebrow text-faint">{label}</p>
+        <SectionLabel>{label}</SectionLabel>
         <Icon size={13} className={tone} />
       </div>
-      <p className="font-display text-[21px] leading-none text-paper">{value}</p>
-      <p className="mt-1 text-[11.5px] leading-snug text-faint">{hint}</p>
-    </div>
+      <p className="font-display text-[20px] leading-none text-paper">{value}</p>
+      <p className="mt-1 text-[12px] leading-snug text-faint">{hint}</p>
+    </Card>
   );
 }
 
@@ -109,10 +110,10 @@ export function WorkspacePulse({
 
   return (
     <div className="mt-7 grid w-full gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-      <section className="surface-raised rounded-xl p-4">
+      <Card variant="raised" as="section" className="p-4">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="eyebrow text-faint">Workspace Pulse</p>
+            <SectionLabel>Workspace Pulse</SectionLabel>
             <h2 className="mt-1 truncate font-display text-[19px] font-medium text-paper">
               {workspace?.name ?? "Untitled workspace"}
             </h2>
@@ -163,43 +164,43 @@ export function WorkspacePulse({
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             onClick={onGoToSources}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-ink-600 px-3 py-1.5 text-[12px] text-muted transition-colors hover:border-brass/35 hover:text-paper-dim"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-1.5 text-[12px] text-muted transition-colors hover:border-brass/35 hover:text-paper-dim"
           >
             <FileText size={12} /> Sources
           </button>
           <button
             onClick={onGoToGraph}
             disabled={!hasGraph}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-ink-600 px-3 py-1.5 text-[12px] text-muted transition-colors hover:border-brass/35 hover:text-paper-dim disabled:opacity-35"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-1.5 text-[12px] text-muted transition-colors hover:border-brass/35 hover:text-paper-dim disabled:opacity-35"
           >
             <Globe size={12} /> Graph
           </button>
         </div>
-      </section>
+      </Card>
 
-      <section className="surface-raised rounded-xl p-4">
-        <p className="eyebrow text-faint">Research Moves</p>
+      <Card variant="raised" as="section" className="p-4">
+        <SectionLabel>Research Moves</SectionLabel>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {MODE_CARDS.map(({ label, detail, Icon, prompt }) => (
             <button
               key={label}
               onClick={() => onPick(prompt)}
               disabled={!hasSources}
-              className="group min-h-[86px] rounded-lg border border-ink-700 bg-ink-800/35 p-3 text-left transition-all hover:border-brass/35 hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-40"
+              className="group min-h-[86px] rounded-lg border border-ink-700 bg-ink-800/35 p-3 text-left transition-colors hover:border-brass/35 hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <div className="mb-2 flex items-center justify-between gap-2">
                 <Icon size={14} className="text-brass/80" />
                 <ArrowUpRight size={13} className="text-ghost transition-colors group-hover:text-brass" />
               </div>
               <p className="text-[13px] font-medium text-paper-dim group-hover:text-paper">{label}</p>
-              <p className="mt-0.5 text-[11.5px] leading-snug text-faint">{detail}</p>
+              <p className="mt-0.5 text-[12px] leading-snug text-faint">{detail}</p>
             </button>
           ))}
         </div>
 
         {suggestedQuestions.length > 0 && (
           <div className="mt-4 border-t border-ink-700 pt-3">
-            <p className="eyebrow mb-2 text-faint">Suggested</p>
+            <SectionLabel className="mb-2">Suggested</SectionLabel>
             <div className="flex flex-col gap-1.5">
               {suggestedQuestions.slice(0, 2).map((q) => (
                 <button
@@ -214,7 +215,7 @@ export function WorkspacePulse({
             </div>
           </div>
         )}
-      </section>
+      </Card>
     </div>
   );
 }

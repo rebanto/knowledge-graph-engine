@@ -16,37 +16,16 @@ import type {
   ComparisonTableInsight,
   TimelineInsight,
 } from "../types";
-
-// ── Entity type colors shared with GraphViewer ────────────────────────────────
-const NODE_COLOR: Record<string, string> = {
-  Person:       "#5fb39a",
-  Paper:        "#d6a44e",
-  Concept:      "#b394e0",
-  Organization: "#6f9fd6",
-  Topic:        "#de7fa0",
-  Event:        "#84c08f",
-};
-
-const EDGE_COLOR: Record<string, string> = {
-  AUTHORED:          "#5fb39a",
-  CITED:             "#d6a44e",
-  FUNDED_BY:         "#6f9fd6",
-  COLLABORATED_WITH: "#7ca8d0",
-  PUBLISHED_IN:      "#de7fa0",
-  SUPPORTS:          "#84c08f",
-  CONTRADICTS:       "#e06a4f",
-  CONFLICTS_WITH:    "#e06a4f",
-};
-
-const BRASS = "#d6a44e";
+import { NODE_COLOR, EDGE_COLOR, BRASS, NODE_FALLBACK, EDGE_FALLBACK } from "../lib/palette";
+import { Card as UICard, SectionLabel } from "./ui";
 
 // ── Card wrapper ──────────────────────────────────────────────────────────────
 function Card({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-ink-700 bg-ink-800/40 p-4">
-      {title && <p className="eyebrow mb-3 text-faint">{title}</p>}
+    <UICard variant="flat" className="p-4">
+      {title && <SectionLabel className="mb-3">{title}</SectionLabel>}
       {children}
-    </div>
+    </UICard>
   );
 }
 
@@ -66,7 +45,7 @@ function StatGridCard({ insight }: { insight: StatGridInsight }) {
               {s.value}
             </span>
             {s.subtitle && (
-              <span className="text-[10.5px] leading-snug text-faint">{s.subtitle}</span>
+              <span className="text-[11px] leading-snug text-faint">{s.subtitle}</span>
             )}
           </div>
         ))}
@@ -161,8 +140,8 @@ function FlowPathCard({ insight }: { insight: FlowPathInsight }) {
     <Card title={insight.title ?? "Connection path"}>
       <div className="flex flex-wrap items-center gap-1.5">
         {insight.steps.map((step, i) => {
-          const nodeColor = NODE_COLOR[step.entity_type] ?? "#9b9082";
-          const relColor  = step.relation ? (EDGE_COLOR[step.relation] ?? "#6d6557") : "#6d6557";
+          const nodeColor = NODE_COLOR[step.entity_type] ?? NODE_FALLBACK;
+          const relColor  = step.relation ? (EDGE_COLOR[step.relation] ?? EDGE_FALLBACK) : EDGE_FALLBACK;
           return (
             <div key={i} className="flex items-center gap-1.5">
               {step.relation && (

@@ -10,6 +10,7 @@ import {
   listSources, createSource, deleteSource, uploadPdf,
   getSourceJobs, retrySource, getQueueStatus, cleanupWorkspace,
 } from "../api";
+import { Button, IconButton, Input } from "./ui";
 
 // ── Type / status metadata ─────────────────────────────────────────────────────
 
@@ -133,11 +134,11 @@ function WorkerBanner({ status }: { status: QueueStatus | null }) {
       <div className="mb-5 flex items-start gap-3 rounded-xl border border-brass/25 bg-brass-dim px-4 py-3">
         <WifiOff size={14} className="mt-0.5 flex-shrink-0 text-brass" />
         <div className="min-w-0">
-          <p className="text-[12.5px] font-medium text-brass">
+          <p className="text-[12px] font-medium text-brass">
             Nobody's reading right now
             {queued > 0 && ` — ${queued} job${queued !== 1 ? "s" : ""} waiting`}
           </p>
-          <p className="mt-0.5 text-[11.5px] text-brass/70">
+          <p className="mt-0.5 text-[12px] text-brass/70">
             Sources sit in "Waiting" until the ingestion worker is up. Run{" "}
             <code className="rounded bg-ink-900 px-1 py-0.5 text-[11px] text-paper-dim">
               .\dev.ps1
@@ -182,10 +183,10 @@ function JobRow({ job }: { job: SourceJobsResponse["jobs"][number] }) {
           {job.document_url ? shortenUrl(job.document_url) : "—"}
         </p>
         {failed && job.error && (
-          <p className="mt-0.5 line-clamp-1 text-[10.5px] text-flag/80">{job.error}</p>
+          <p className="mt-0.5 line-clamp-1 text-[11px] text-flag/80">{job.error}</p>
         )}
       </div>
-      <span className="flex-shrink-0 text-[10.5px] text-faint">
+      <span className="flex-shrink-0 text-[11px] text-faint">
         {fmtDuration(job.created_at, job.completed_at)}
       </span>
     </div>
@@ -233,11 +234,11 @@ function SourceCard({
         <div className="min-w-0 flex-1">
           {/* Type label + status badge */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11.5px] font-medium text-muted">
+            <span className="text-[12px] font-medium text-muted">
               {tm?.label ?? src.type}
             </span>
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-medium ${statusBg} ${statusColor}`}
+              className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${statusBg} ${statusColor}`}
             >
               <StatusIcon size={9} className={src.status === "running" ? "animate-spin" : ""} />
               {statusLabel}
@@ -255,7 +256,7 @@ function SourceCard({
           {/* Stats + timestamps */}
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
             {jobData && (
-              <span className="text-[10.5px] text-muted">
+              <span className="text-[11px] text-muted">
                 <span className="text-ok/90">{jobData.success} docs</span>
                 {jobData.failed > 0 && (
                   <>
@@ -272,16 +273,16 @@ function SourceCard({
               </span>
             )}
             {src.last_fetched ? (
-              <span className="text-[10.5px] text-faint">
+              <span className="text-[11px] text-faint">
                 Read {fmtRelative(src.last_fetched)}
               </span>
             ) : (
-              <span className="text-[10.5px] text-faint">
+              <span className="text-[11px] text-faint">
                 Added {fmtRelative(src.created_at)}
               </span>
             )}
             {src.error_count > 0 && (
-              <span className="text-[10.5px] text-flag/70">
+              <span className="text-[11px] text-flag/70">
                 {src.error_count} error{src.error_count !== 1 ? "s" : ""}
               </span>
             )}
@@ -356,7 +357,7 @@ function SourceCard({
                 <JobRow key={job.id} job={job} />
               ))}
               {jobData.total > jobData.jobs.length && (
-                <p className="px-3 pt-1 text-[10.5px] text-faint">
+                <p className="px-3 pt-1 text-[11px] text-faint">
                   Latest {jobData.jobs.length} of {jobData.total} jobs
                 </p>
               )}
@@ -588,13 +589,9 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
                     .join(" · ")}
             </p>
           </div>
-          <button
-            onClick={() => { refresh(); syncQuietly(); }}
-            title="Refresh"
-            className="rounded-md p-1.5 text-muted transition-colors hover:bg-ink-750 hover:text-paper-dim"
-          >
+          <IconButton onClick={() => { refresh(); syncQuietly(); }} title="Refresh" tone="brass">
             <RefreshCw size={14} />
-          </button>
+          </IconButton>
         </div>
 
         {/* Add source — collapsed trigger or expanded form */}
@@ -627,7 +624,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
                     key={t}
                     type="button"
                     onClick={() => { setAddType(t); setAddUrl(""); setFormError(null); }}
-                    className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11.5px] font-medium transition-colors ${
+                    className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
                       addType === t
                         ? "border-brass/40 bg-brass-dim text-brass"
                         : "border-ink-700 text-muted hover:border-ink-600 hover:text-paper-dim"
@@ -663,7 +660,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
               </div>
             ) : (
               <form onSubmit={handleAdd} className="flex gap-2">
-                <input
+                <Input
                   value={addUrl}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -681,16 +678,12 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
                     setFormError(null);
                   }}
                   placeholder={TYPE_META[addType].placeholder}
-                  className="min-w-0 flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-[13px] text-paper outline-none placeholder:text-faint focus:border-brass/50"
+                  className="min-w-0 flex-1"
                 />
-                <button
-                  type="submit"
-                  disabled={adding || !addUrl.trim()}
-                  className="flex items-center gap-1.5 rounded-lg bg-brass px-3 py-2 text-[13px] font-medium text-ink-900 transition-colors hover:bg-brass-bright disabled:opacity-40"
-                >
-                  {adding ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                <Button type="submit" variant="primary" loading={adding} disabled={!addUrl.trim()}>
+                  {!adding && <Plus size={13} />}
                   Add
-                </button>
+                </Button>
               </form>
             )}
 
@@ -705,7 +698,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
               <button
                 key={tab.id}
                 onClick={() => setFilter(tab.id)}
-                className={`rounded-lg px-3 py-1.5 text-[11.5px] font-medium transition-colors ${
+                className={`rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors ${
                   filter === tab.id
                     ? "bg-ink-700 text-paper"
                     : "text-muted hover:text-paper-dim"

@@ -7,6 +7,7 @@ import type {
 } from "../types";
 import { TrustBadge } from "./TrustBadge";
 import { ConflictBanner } from "./ConflictBanner";
+import { Badge, Card } from "./ui";
 
 const ROUTE_ICON: Record<RetrievalType, typeof GitBranch> = {
   graph: GitBranch, vector: Search, hybrid: Layers,
@@ -69,9 +70,9 @@ export function DeepResearchPanel({
     <div className="animate-fade-in flex flex-col gap-6">
       {/* Header */}
       <div>
-        <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-brass/30 bg-brass-dim px-2.5 py-1 text-[11px] font-medium text-brass">
+        <Badge tone="brass" className="mb-2">
           <Sparkles size={12} strokeWidth={2.25} /> Deep Research · multi-agent
-        </div>
+        </Badge>
         <h1 className="font-display text-[26px] font-medium leading-[1.25] tracking-tight text-paper">
           {question}
         </h1>
@@ -100,12 +101,12 @@ export function DeepResearchPanel({
       </div>
 
       {phase !== "done" && phase !== "error" && (
-        <p className="flex items-center gap-1.5 text-[12.5px] text-brass/80">
+        <p className="flex items-center gap-1.5 text-[12px] text-brass/80">
           <Loader2 size={11} className="animate-spin" /> {statusMsg}
         </p>
       )}
       {error && (
-        <p className="flex items-center gap-1.5 text-[12.5px] text-flag">
+        <p className="flex items-center gap-1.5 text-[12px] text-flag">
           <AlertTriangle size={12} /> {error}
         </p>
       )}
@@ -121,13 +122,13 @@ export function DeepResearchPanel({
             const done = live?.status === "done";
             const RouteIcon = ROUTE_ICON[sub.route] ?? Layers;
             return (
-              <div key={i} className="rounded-xl border border-ink-700 bg-ink-800/50 p-3.5">
+              <Card key={i} variant="flat" className="p-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-2">
                     <RouteIcon size={14} className={`mt-0.5 flex-shrink-0 ${ROUTE_TONE[sub.route]}`} strokeWidth={2.25} />
                     <div>
-                      <p className="text-[13.5px] font-medium leading-snug text-paper">{sub.question}</p>
-                      {sub.why && <p className="mt-0.5 text-[11.5px] italic text-faint">{sub.why}</p>}
+                      <p className="text-[13px] font-medium leading-snug text-paper">{sub.question}</p>
+                      {sub.why && <p className="mt-0.5 text-[12px] italic text-faint">{sub.why}</p>}
                     </div>
                   </div>
                   <span className="flex-shrink-0">
@@ -137,17 +138,17 @@ export function DeepResearchPanel({
                   </span>
                 </div>
                 {done && live?.answer && (
-                  <div className="prose-answer mt-2.5 border-t border-ink-700/60 pt-2.5 text-[12.5px] leading-[1.7] text-paper-dim">
+                  <div className="prose-answer mt-2.5 border-t border-ink-700/60 pt-2.5 text-[13px] leading-[1.7] text-paper-dim">
                     <ReactMarkdown>{live.answer}</ReactMarkdown>
                   </div>
                 )}
                 {done && live?.evidence && (
-                  <p className="mt-2 font-mono text-[10.5px] text-faint">
+                  <p className="mt-2 font-mono text-[11px] text-faint">
                     {live.evidence.graph_records} graph records · {live.evidence.passages} passages
                     {live.evidence.conflicts > 0 && ` · ${live.evidence.conflicts} conflicts`}
                   </p>
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>
@@ -160,7 +161,7 @@ export function DeepResearchPanel({
             <h2 className="font-display text-[17px] font-medium text-paper">Synthesized answer</h2>
             <TrustBadge trust={result.trust} />
           </div>
-          <div className="prose-answer text-[14.5px] leading-[1.78] text-paper-dim">
+          <div className="prose-answer text-[15px] leading-[1.78] text-paper-dim">
             <ReactMarkdown>{result.answer}</ReactMarkdown>
           </div>
 

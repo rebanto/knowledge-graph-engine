@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import type { QuestionResponse } from "../types";
 import { TrustBadge } from "./TrustBadge";
+import { Badge, Button, Card } from "./ui";
 
 function pctLabel(report: QuestionResponse) {
   const total = report.graph_records.length + report.vector_chunks.length;
@@ -89,48 +90,38 @@ export function AnswerProofBar({ report }: { report: QuestionResponse }) {
   }
 
   return (
-    <div className="surface flex flex-wrap items-center justify-between gap-3 rounded-xl px-3.5 py-2.5">
+    <Card className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <TrustBadge trust={trust} />
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
-            hasConflict
-              ? "border-flag/30 bg-flag/10 text-flag"
-              : "border-ok/25 bg-ok-dim text-ok"
-          }`}
+        <Badge
+          tone={hasConflict ? "flag" : "ok"}
           title="Evidence pulled from graph records and source passages."
         >
           {hasConflict ? <AlertTriangle size={12} /> : <ShieldCheck size={12} />}
           {evidenceLabel}
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-graph/25 bg-graph-dim px-2.5 py-1 text-[11px] font-medium text-graph">
+        </Badge>
+        <Badge tone="graph">
           <GitBranch size={12} /> {report.graph_records.length} graph
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-vector/25 bg-vector-dim px-2.5 py-1 text-[11px] font-medium text-vector">
+        </Badge>
+        <Badge tone="vector">
           <FileSearch size={12} /> {report.vector_chunks.length} passages
-        </span>
+        </Badge>
         {report.retrieval_type === "hybrid" && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-hybrid/25 bg-hybrid-dim px-2.5 py-1 text-[11px] font-medium text-hybrid">
+          <Badge tone="hybrid">
             <Layers size={12} /> merged
-          </span>
+          </Badge>
         )}
       </div>
 
       <div className="flex items-center gap-1">
-        <button
-          onClick={copyMarkdown}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] text-muted transition-colors hover:bg-ink-750 hover:text-paper-dim"
-        >
+        <Button variant="ghost" size="sm" onClick={copyMarkdown}>
           {copied ? <Check size={13} className="text-ok" /> : <Clipboard size={13} />}
           {copied ? "Copied" : "Copy"}
-        </button>
-        <button
-          onClick={() => downloadMarkdown(report)}
-          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] text-muted transition-colors hover:bg-ink-750 hover:text-paper-dim"
-        >
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => downloadMarkdown(report)}>
           <Download size={13} /> Export
-        </button>
+        </Button>
       </div>
-    </div>
+    </Card>
   );
 }

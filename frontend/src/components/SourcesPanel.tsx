@@ -87,7 +87,7 @@ function GraphTable({ records }: { records: GraphRecord[] }) {
   const columns = Object.keys(records[0] ?? {});
   return (
     <div className="overflow-x-auto rounded-lg border border-ink-700">
-      <table className="w-full text-left text-[12.5px]">
+      <table className="w-full text-left text-[12px]">
         <thead>
           <tr className="border-b border-ink-700 bg-ink-800">
             {columns.map((col) => (
@@ -134,21 +134,21 @@ function ChunkCard({ chunk }: { chunk: VectorChunk }) {
             href={chunk.source_url}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1.5 text-[12.5px] font-medium text-paper-dim hover:text-brass hover:underline"
+            className="flex items-center gap-1.5 text-[12px] font-medium text-paper-dim hover:text-brass hover:underline"
           >
             <FileText size={12} className="flex-shrink-0 text-muted" />
             {chunk.source_title ?? "Untitled source"}
             <ExternalLink size={10} className="flex-shrink-0" />
           </a>
         ) : (
-          <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-paper-dim">
+          <div className="flex items-center gap-1.5 text-[12px] font-medium text-paper-dim">
             <FileText size={12} className="text-muted" />
             {chunk.source_title ?? "Untitled source"}
           </div>
         )}
         <span className="flex-shrink-0 font-mono text-[11px] text-faint">{relevance}% match</span>
       </div>
-      <p className="text-[12.5px] leading-relaxed text-muted">{chunk.text}</p>
+      <p className="text-[12px] leading-relaxed text-muted">{chunk.text}</p>
     </div>
   );
 }

@@ -1,32 +1,19 @@
 import { GitBranch, Search, Layers } from "lucide-react";
 import type { RetrievalType } from "../types";
+import { Badge } from "./ui";
 
-const CONFIG: Record<RetrievalType, { label: string; icon: typeof GitBranch; className: string }> = {
-  graph: {
-    label: "Traced the graph",
-    icon: GitBranch,
-    className: "text-graph bg-graph-dim border-graph/30",
-  },
-  vector: {
-    label: "Read the sources",
-    icon: Search,
-    className: "text-vector bg-vector-dim border-vector/30",
-  },
-  hybrid: {
-    label: "Graph + sources",
-    icon: Layers,
-    className: "text-hybrid bg-hybrid-dim border-hybrid/30",
-  },
+const CONFIG: Record<RetrievalType, { label: string; icon: typeof GitBranch; tone: "graph" | "vector" | "hybrid" }> = {
+  graph: { label: "Traced the graph", icon: GitBranch, tone: "graph" },
+  vector: { label: "Read the sources", icon: Search, tone: "vector" },
+  hybrid: { label: "Graph + sources", icon: Layers, tone: "hybrid" },
 };
 
 export function RoutingBadge({ type }: { type: RetrievalType }) {
-  const { label, icon: Icon, className } = CONFIG[type];
+  const { label, icon: Icon, tone } = CONFIG[type];
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${className}`}
-    >
+    <Badge tone={tone}>
       <Icon size={12} strokeWidth={2.25} />
       {label}
-    </span>
+    </Badge>
   );
 }

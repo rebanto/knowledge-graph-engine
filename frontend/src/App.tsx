@@ -22,8 +22,9 @@ function writeUrl(workspaceId: string, tab: string, conversationId: string | nul
   history.replaceState(null, "", `?${p}`);
 }
 import axios from "axios";
-import { Loader2, ArrowRight, Sparkles } from "lucide-react";
+import { Loader2, ArrowRight, Sparkles, Plus } from "lucide-react";
 import { Rail, type Tab } from "./components/Rail";
+import { Button } from "./components/ui";
 import { HistoryDrawer } from "./components/HistoryDrawer";
 import { QuestionInput } from "./components/QuestionInput";
 import { ConversationView } from "./components/ConversationView";
@@ -172,6 +173,18 @@ export default function App() {
 
   const activeWorkspace = workspaces.find((w) => w.id === workspaceId) ?? null;
   const hasSources = sourceCount === null ? true : sourceCount > 0;
+
+  // The single "back to a blank question" action, reused by the rail's New
+  // button and the inline new-thread buttons. Always lands on a fresh Ask view.
+  function handleNewThread() {
+    cancelStreamRef.current?.();
+    setTab("ask");
+    setDeepQuestion(null);
+    setActiveConvo(null);
+    setError(null);
+    setStreamStatus(null);
+    setRewriteNote(null);
+  }
 
   function handleSubmit(question: string) {
     // Cancel any in-flight stream from a previous question
@@ -376,6 +389,7 @@ export default function App() {
       <Rail
         tab={tab}
         onTab={(t) => setTab(t)}
+        onNewThread={handleNewThread}
         historyOpen={historyOpen}
         onToggleHistory={() => setHistoryOpen((o) => !o)}
         historyCount={conversations.length}
@@ -388,7 +402,7 @@ export default function App() {
         conversations={conversations}
         activeId={activeConvo?.id ?? null}
         onSelect={(c) => { setTab("ask"); setDeepQuestion(null); handleSelectConversation(c); }}
-        onNew={() => { setTab("ask"); setDeepQuestion(null); setActiveConvo(null); }}
+        onNew={handleNewThread}
         onDeleteConversation={handleDeleteConversation}
         workspaces={workspaces}
         workspaceId={workspaceId}
@@ -405,6 +419,15 @@ export default function App() {
             <>
               <div className="border-b border-ink-700/60 px-8 py-3.5">
                 <div className="mx-auto max-w-2xl">
+                  <div className="mb-2.5 flex items-center justify-between gap-3">
+                    <p className="min-w-0 truncate font-display text-[14px] text-paper-dim" title={activeConvo.title}>
+                      {activeConvo.title}
+                    </p>
+                    <Button variant="outline" size="sm" onClick={handleNewThread} className="flex-shrink-0">
+                      <Plus size={13} />
+                      New thread
+                    </Button>
+                  </div>
                   <QuestionInput
                     onSubmit={handleSubmit}
                     loading={loading}
@@ -431,12 +454,10 @@ export default function App() {
                   />
                   <div className="mt-2.5 flex items-center justify-between">
                     {deepToggle}
-                    <button
-                      onClick={() => setDeepQuestion(null)}
-                      className="text-[12px] text-faint hover:text-paper-dim"
-                    >
-                      ← New question
-                    </button>
+                    <Button variant="outline" size="sm" onClick={handleNewThread}>
+                      <Plus size={13} />
+                      New question
+                    </Button>
                   </div>
                   {error && <p className="mt-2.5 text-[12.5px] text-flag">{error}</p>}
                 </div>

@@ -2,6 +2,7 @@ import ReactMarkdown from "react-markdown";
 import { Database } from "lucide-react";
 import type { QuestionResponse } from "../types";
 import { RoutingBadge } from "./RoutingBadge";
+import { Badge } from "./ui";
 import { SourcesPanel } from "./SourcesPanel";
 import { EntitySummary } from "./EntitySummary";
 import { InsightCards } from "./InsightCards";
@@ -22,7 +23,7 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
         </h1>
         {report.standalone_question && (
           <p
-            className="mt-2 text-[12.5px] italic text-faint"
+            className="mt-2 text-[12px] italic text-faint"
             title="Your follow-up was resolved into this self-contained question before searching"
           >
             interpreted as: "{report.standalone_question}"
@@ -31,13 +32,10 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
         <div className="mt-3 flex items-center gap-2">
           <RoutingBadge type={report.retrieval_type} />
           {report.cached && (
-            <span
-              className="inline-flex items-center gap-1 rounded-full border border-ink-700 px-2 py-1 text-[11px] text-faint"
-              title="Answered from cache"
-            >
+            <Badge tone="neutral" title="Answered from cache">
               <Database size={11} />
               from cache
-            </span>
+            </Badge>
           )}
           {report.version > 1 && (
             <span className="font-mono text-[11px] text-faint" title="Re-run this many times">
@@ -57,7 +55,7 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
         />
       )}
 
-      <div className="prose-answer text-[14.5px] leading-[1.78] text-paper-dim">
+      <div className="prose-answer text-[15px] leading-[1.78] text-paper-dim">
         <ReactMarkdown>{report.answer}</ReactMarkdown>
       </div>
 

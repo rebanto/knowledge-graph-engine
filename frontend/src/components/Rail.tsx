@@ -1,4 +1,4 @@
-import { MessagesSquare, Network, Database, History } from "lucide-react";
+import { MessagesSquare, Network, Database, History, SquarePen } from "lucide-react";
 import type { Workspace } from "../types";
 
 export type Tab = "ask" | "explore" | "sources";
@@ -35,12 +35,13 @@ interface RailItemProps {
   onClick: () => void;
 }
 
+// A rail item carries its label inline (always visible) so the navigation
+// is self-explanatory — no hover-to-discover guessing.
 function RailItem({ label, icon: Icon, active, badge, onClick }: RailItemProps) {
   return (
     <button
       onClick={onClick}
-      className="group relative flex h-11 w-11 items-center justify-center rounded-xl transition-colors duration-200 ease-spring"
-      aria-label={label}
+      className="group relative flex h-14 w-[60px] flex-col items-center justify-center gap-1 rounded-xl transition-colors duration-200 ease-spring"
       aria-current={active ? "page" : undefined}
     >
       {/* active backdrop + left signal bar */}
@@ -52,7 +53,7 @@ function RailItem({ label, icon: Icon, active, badge, onClick }: RailItemProps) 
         }`}
       />
       <span
-        className={`absolute -left-[10px] top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-brass transition-all duration-200 ease-spring ${
+        className={`absolute -left-[10px] top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-full bg-brass transition-all duration-200 ease-spring ${
           active ? "opacity-100 glow-brass-soft" : "opacity-0"
         }`}
       />
@@ -63,16 +64,18 @@ function RailItem({ label, icon: Icon, active, badge, onClick }: RailItemProps) 
           active ? "text-brass" : "text-muted group-hover:text-paper-dim"
         }`}
       />
+      <span
+        className={`relative text-[10px] font-medium leading-none transition-colors duration-200 ${
+          active ? "text-brass" : "text-muted group-hover:text-paper-dim"
+        }`}
+      >
+        {label}
+      </span>
       {badge ? (
-        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brass px-1 font-mono text-[9px] font-semibold text-ink-950">
+        <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brass px-1 font-mono text-[9px] font-semibold text-ink-950">
           {badge > 99 ? "99" : badge}
         </span>
       ) : null}
-
-      {/* hover label */}
-      <span className="pointer-events-none absolute left-full z-50 ml-3 hidden whitespace-nowrap rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[11.5px] text-paper-dim shadow-xl shadow-black/50 group-hover:block">
-        {label}
-      </span>
     </button>
   );
 }
@@ -80,13 +83,22 @@ function RailItem({ label, icon: Icon, active, badge, onClick }: RailItemProps) 
 interface RailProps {
   tab: Tab;
   onTab: (tab: Tab) => void;
+  onNewThread: () => void;
   historyOpen: boolean;
   onToggleHistory: () => void;
   historyCount: number;
   workspace: Workspace | null;
 }
 
-export function Rail({ tab, onTab, historyOpen, onToggleHistory, historyCount, workspace }: RailProps) {
+export function Rail({
+  tab,
+  onTab,
+  onNewThread,
+  historyOpen,
+  onToggleHistory,
+  historyCount,
+  workspace,
+}: RailProps) {
   const initials = (workspace?.name ?? "?")
     .split(/\s+/)
     .slice(0, 2)
@@ -94,10 +106,21 @@ export function Rail({ tab, onTab, historyOpen, onToggleHistory, historyCount, w
     .join("");
 
   return (
-    <aside className="relative z-30 flex h-full w-[68px] flex-shrink-0 flex-col items-center border-r border-ink-700/70 bg-ink-950/40 py-4 backdrop-blur-sm">
-      <div className="mb-5 flex h-10 w-10 items-center justify-center" title="Lattice">
+    <aside className="relative z-30 flex h-full w-[76px] flex-shrink-0 flex-col items-center border-r border-ink-700/70 bg-ink-950/40 py-4 backdrop-blur-sm">
+      <div className="mb-4 flex h-10 w-10 items-center justify-center" title="Lattice">
         <LatticeMark />
       </div>
+
+      {/* Always-available "new question" — the universal escape hatch back to a
+          fresh ask, no matter how deep in a thread or which page you're on. */}
+      <button
+        onClick={onNewThread}
+        className="group mb-3 flex h-14 w-[60px] flex-col items-center justify-center gap-1 rounded-xl border border-brass/30 bg-brass-dim text-brass transition-colors duration-200 ease-spring hover:border-brass/50 hover:bg-brass/15 hover:glow-brass-soft"
+        title="Start a new question"
+      >
+        <SquarePen size={18} strokeWidth={2} />
+        <span className="text-[10px] font-medium leading-none">New</span>
+      </button>
 
       <nav className="flex flex-col items-center gap-1.5">
         {NAV.map((n) => (
@@ -114,22 +137,27 @@ export function Rail({ tab, onTab, historyOpen, onToggleHistory, historyCount, w
       <div className="my-3 h-px w-7 bg-ink-700/80" />
 
       <RailItem
-        label={historyOpen ? "Hide history" : "History"}
+        label="History"
         icon={History}
         active={historyOpen}
         badge={historyCount}
         onClick={onToggleHistory}
       />
 
+      {/* Workspace switcher — opens the drawer where the active workspace can be
+          changed. Distinct from the page nav above so it reads as "where am I"
+          rather than "which page". */}
       <div className="mt-auto">
         <button
           onClick={onToggleHistory}
-          title={workspace ? `${workspace.name} — ${workspace.domain}` : "Workspace"}
-          className="group relative flex h-11 w-11 items-center justify-center rounded-xl border border-ink-700 bg-gradient-to-b from-ink-750 to-ink-800 font-display text-[13px] font-medium text-brass transition-colors hover:border-brass/35"
+          title={workspace ? `Workspace: ${workspace.name} — ${workspace.domain}` : "Pick a workspace"}
+          className="group relative flex flex-col items-center gap-1.5"
         >
-          {initials || "·"}
-          <span className="pointer-events-none absolute bottom-0 left-full z-50 ml-3 hidden max-w-[200px] truncate whitespace-nowrap rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-[11.5px] text-paper-dim shadow-xl shadow-black/50 group-hover:block">
-            {workspace?.name ?? "Pick a workspace"}
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-ink-700 bg-gradient-to-b from-ink-750 to-ink-800 font-display text-[13px] font-medium text-brass transition-colors group-hover:border-brass/35">
+            {initials || "·"}
+          </span>
+          <span className="max-w-[68px] truncate text-[10px] text-faint transition-colors group-hover:text-paper-dim">
+            {workspace?.name ?? "Workspace"}
           </span>
         </button>
       </div>

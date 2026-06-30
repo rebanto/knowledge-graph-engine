@@ -51,7 +51,7 @@ export function ConflictBanner({ conflicts }: { conflicts: Conflict[] }) {
             key={`${c.source}-${c.target}-${i}`}
             className="rounded-lg border border-flag/15 bg-ink-850 px-3 py-2"
           >
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px]">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
               <span className="font-medium text-paper">{c.source}</span>
               <span className="text-flag/70">⟷</span>
               <span className="font-medium text-paper">{c.target}</span>

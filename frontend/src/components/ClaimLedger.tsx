@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle, ClipboardCheck, ShieldQuestion } from "lucide-react";
 import type { TrustScore } from "../types";
+import { Card } from "./ui";
 
 function fallbackClaims(trust: TrustScore) {
   if (trust.claims && trust.claims.length > 0) return trust.claims;
@@ -12,22 +13,22 @@ export function ClaimLedger({ trust }: { trust: TrustScore }) {
 
   if (!hasClaims && trust.score === null) {
     return (
-      <section className="surface rounded-xl p-4">
+      <Card as="section" className="p-4">
         <div className="flex items-start gap-3">
           <ShieldQuestion size={16} className="mt-0.5 flex-shrink-0 text-faint" />
           <div>
             <p className="font-display text-[15px] font-medium text-paper">Claim ledger</p>
-            <p className="mt-1 text-[12.5px] leading-relaxed text-muted">
+            <p className="mt-1 text-[12px] leading-relaxed text-muted">
               The verifier found no checkable factual claims in this answer, or the verification service was unavailable.
             </p>
           </div>
         </div>
-      </section>
+      </Card>
     );
   }
 
   return (
-    <section className="surface rounded-xl p-4">
+    <Card as="section" className="p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <ClipboardCheck size={15} className="text-brass" />
@@ -54,11 +55,11 @@ export function ClaimLedger({ trust }: { trust: TrustScore }) {
               ) : (
                 <AlertTriangle size={13} className="mt-0.5 flex-shrink-0 text-flag" />
               )}
-              <p className="text-[12.5px] leading-relaxed text-paper-dim">{item.claim}</p>
+              <p className="text-[12px] leading-relaxed text-paper-dim">{item.claim}</p>
             </div>
           </div>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }

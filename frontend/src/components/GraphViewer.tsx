@@ -5,17 +5,13 @@ import {
 } from "lucide-react";
 import type { GraphData, GraphNode, NodeType } from "../types";
 import { getGraph } from "../api";
+import {
+  NODE_COLOR as NODE_COLOR_MAP, EDGE_GROUP_COLOR, EDGE_FALLBACK as EDGE_FALLBACK_HEX, INK, PAPER,
+} from "../lib/palette";
 
 // ── Visual vocabulary ────────────────────────────────────────────────────────
 
-const NODE_COLOR: Record<NodeType, string> = {
-  Paper:        "#d6a44e",
-  Person:       "#5fb39a",
-  Concept:      "#b394e0",
-  Organization: "#6f9fd6",
-  Topic:        "#de7fa0",
-  Event:        "#84c08f",
-};
+const NODE_COLOR = NODE_COLOR_MAP as Record<NodeType, string>;
 
 // Edges are colored by semantic GROUP rather than by exact type — a dozen
 // distinct edge colors reads as rainbow noise. The exact type still shows on the
@@ -34,15 +30,7 @@ const EDGE_GROUP_OF: Record<string, EdgeGroup> = {
   CONTRADICTS: "conflict", CONFLICTS_WITH: "conflict",
 };
 
-const GROUP_COLOR: Record<EdgeGroup, string> = {
-  authorship: "#5fb39a",
-  content:    "#b394e0",
-  concept:    "#6f9fd6",
-  citation:   "#d6a44e",
-  funding:    "#c2873a",
-  support:    "#84c08f",
-  conflict:   "#e06a4f",
-};
+const GROUP_COLOR = EDGE_GROUP_COLOR as Record<EdgeGroup, string>;
 
 const GROUP_LABEL: Record<EdgeGroup, string> = {
   authorship: "Authorship",
@@ -54,7 +42,7 @@ const GROUP_LABEL: Record<EdgeGroup, string> = {
   conflict:   "Conflict",
 };
 
-const EDGE_FALLBACK = "#6d6557";
+const EDGE_FALLBACK = EDGE_FALLBACK_HEX;
 
 function edgeGroup(type: string): EdgeGroup | null {
   return EDGE_GROUP_OF[type] ?? null;
@@ -281,7 +269,7 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
       .attr("font-size", 8).attr("font-family", "ui-monospace, monospace")
       .attr("fill", (d) => edgeColor(d.type, d.conflict))
       .attr("text-anchor", "middle").attr("dominant-baseline", "middle")
-      .attr("paint-order", "stroke").attr("stroke", "#0c0b09").attr("stroke-width", 3)
+      .attr("paint-order", "stroke").attr("stroke", INK[900]).attr("stroke-width", 3)
       .attr("pointer-events", "none").attr("opacity", 0);
 
     // ── Nodes ─────────────────────────────────────────────────────────────
@@ -289,8 +277,8 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
       .selectAll<SVGCircleElement, SimNode>("circle")
       .data(nodes).join("circle")
       .attr("r", (d) => rScale(d.degree))
-      .attr("fill", (d) => NODE_COLOR[d.type] ?? "#888")
-      .attr("stroke", "#0c0b09").attr("stroke-width", 1.5)
+      .attr("fill", (d) => NODE_COLOR[d.type] ?? PAPER.muted)
+      .attr("stroke", INK[900]).attr("stroke-width", 1.5)
       .style("cursor", "pointer")
       .on("click", (e, d) => {
         e.stopPropagation();
@@ -322,8 +310,8 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
     labelG.append("text")
       .text((d) => (d.name.length > 30 ? d.name.slice(0, 30) + "…" : d.name))
       .attr("font-size", 11).attr("font-family", "Inter, system-ui, sans-serif")
-      .attr("font-weight", 500).attr("fill", "#ece4d6")
-      .attr("paint-order", "stroke").attr("stroke", "#0c0b09").attr("stroke-width", 3.5)
+      .attr("font-weight", 500).attr("fill", PAPER.DEFAULT)
+      .attr("paint-order", "stroke").attr("stroke", INK[900]).attr("stroke-width", 3.5)
       .attr("stroke-linejoin", "round")
       .attr("dy", "0.34em");
 
@@ -441,7 +429,7 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
           if (focusSet && !focusSet.has(d.id)) return 0.14;
           return 1;
         })
-        .attr("stroke", (d) => (selId === d.id ? "#fff" : "#0c0b09"))
+        .attr("stroke", (d) => (selId === d.id ? PAPER.DEFAULT : INK[900]))
         .attr("stroke-width", (d) => (selId === d.id ? 3 : 1.5));
 
       link.attr("opacity", (d) => {
@@ -712,7 +700,9 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
       {selected && (
         <div className="flex w-72 flex-shrink-0 flex-col border-l border-ink-700 bg-ink-850/70 p-4">
           <button onClick={() => setSelected(null)}
-            className="mb-3 self-start text-[11px] text-muted hover:text-paper-dim">✕ close</button>
+            className="mb-3 inline-flex items-center gap-1 self-start text-[11px] text-muted hover:text-paper-dim">
+            <X size={12} /> close
+          </button>
 
           <div className="flex items-start gap-2">
             <span className="mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full"
@@ -742,10 +732,10 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
               return (
                 <button key={i} onClick={() => jumpTo(c.otherName)}
                   className="flex flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-ink-750">
-                  <span className="truncate text-[11.5px] text-paper-dim">{c.otherName}</span>
+                  <span className="truncate text-[12px] text-paper-dim">{c.otherName}</span>
                   <span className="flex items-center gap-1 font-mono text-[10px] text-faint">
                     {c.direction === "out" ? "→" : "←"}
-                    <span className="rounded px-1 py-0.5 text-[9.5px]"
+                    <span className="rounded px-1 py-0.5 text-[10px]"
                       style={{ backgroundColor: `${col}20`, color: col }}>{c.type}</span>
                     {c.conflict && <span className="text-flag">conflict</span>}
                   </span>
