@@ -6,6 +6,7 @@ import { SourcesPanel } from "./SourcesPanel";
 import { EntitySummary } from "./EntitySummary";
 import { InsightCards } from "./InsightCards";
 import { ConflictBanner } from "./ConflictBanner";
+import { AnswerProofBar } from "./AnswerProofBar";
 
 export function AnswerView({ report }: { report: QuestionResponse }) {
   const hasInsights = report.insights && report.insights.length > 0;
@@ -14,8 +15,6 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
 
   return (
     <div className="animate-fade-in flex flex-col gap-6">
-
-      {/* Header */}
       <div>
         <h1 className="font-display text-[26px] font-medium leading-[1.25] tracking-tight text-paper">
           {report.question}
@@ -25,24 +24,30 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
             className="mt-2 text-[12.5px] italic text-faint"
             title="Your follow-up was resolved into this self-contained question before searching"
           >
-            interpreted as: “{report.standalone_question}”
+            interpreted as: "{report.standalone_question}"
           </p>
         )}
         <div className="mt-3 flex items-center gap-2">
           <RoutingBadge type={report.retrieval_type} />
           {report.cached && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-ink-700 px-2 py-1 text-[11px] text-faint" title="Answered from cache">
+            <span
+              className="inline-flex items-center gap-1 rounded-full border border-ink-700 px-2 py-1 text-[11px] text-faint"
+              title="Answered from cache"
+            >
               <Database size={11} />
               from cache
             </span>
           )}
           {report.version > 1 && (
-            <span className="font-mono text-[11px] text-faint" title="Re-run this many times">v{report.version}</span>
+            <span className="font-mono text-[11px] text-faint" title="Re-run this many times">
+              v{report.version}
+            </span>
           )}
         </div>
       </div>
 
-      {/* Key entities row — shown when backend returns structured entities */}
+      <AnswerProofBar report={report} />
+
       {hasEntities && (
         <EntitySummary
           records={report.graph_records}
@@ -51,26 +56,18 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
         />
       )}
 
-      {/* Prose answer — opens with an illuminated brass drop cap (see index.css) */}
       <div className="prose-answer text-[14.5px] leading-[1.78] text-paper-dim">
         <ReactMarkdown>{report.answer}</ReactMarkdown>
       </div>
 
-      {/* Disputed claims flagged by the graph retriever */}
       <ConflictBanner conflicts={conflicts} />
 
-      {/* Visual insights — charts, flows, timelines */}
       {hasInsights && <InsightCards insights={report.insights} />}
 
-      {/* Fallback entity summary when no structured entities */}
       {!hasEntities && (
-        <EntitySummary
-          records={report.graph_records}
-          retrieval_type={report.retrieval_type}
-        />
+        <EntitySummary records={report.graph_records} retrieval_type={report.retrieval_type} />
       )}
 
-      {/* Collapsible source details */}
       <SourcesPanel
         cypher={report.cypher}
         graphRecords={report.graph_records}
