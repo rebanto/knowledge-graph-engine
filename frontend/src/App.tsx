@@ -31,6 +31,7 @@ import { ConversationView } from "./components/ConversationView";
 import { DeepResearchPanel } from "./components/DeepResearchPanel";
 import { NeedsSources } from "./components/EmptyState";
 import { GraphViewer } from "./components/GraphViewer";
+import { ResearchGaps } from "./components/ResearchGaps";
 import { SourceManager } from "./components/SourceManager";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { WorkspacePulse, type SourceStats } from "./components/WorkspacePulse";
@@ -39,7 +40,7 @@ import {
   listWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace,
   listSources, discoverSources, getSuggestedQuestions,
 } from "./api";
-import type { ConversationSummary, ConversationDetail, Source, Workspace } from "./types";
+import type { ConversationSummary, ConversationDetail, ResearchGap, Source, Workspace } from "./types";
 
 function describeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
@@ -88,6 +89,7 @@ export default function App() {
   const [processingCount, setProcessingCount] = useState(0);
   const [discovering, setDiscovering] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
+  const [selectedGap, setSelectedGap] = useState<ResearchGap | null>(null);
   const cancelStreamRef = useRef<(() => void) | null>(null);
   const sourcePollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pending conversation ID from the URL — opened once the list arrives.
@@ -137,6 +139,7 @@ export default function App() {
     setSourceStats(null);
     setProcessingCount(0);
     setSuggestedQuestions([]);
+    setSelectedGap(null);
     refreshConversations();
     refreshSources();
     getSuggestedQuestions(workspaceId)
@@ -253,6 +256,20 @@ export default function App() {
       setError("Couldn't load that conversation.");
     }
   }
+
+  const handleDeepSaved = useCallback(async (conversationId: string) => {
+    try {
+      const full = await getConversation(conversationId);
+      setActiveConvo(full);
+      setDeepQuestion(null);
+      setTab("ask");
+      setError(null);
+      await refreshConversations();
+    } catch {
+      setError("Deep Research finished, but the saved conversation couldn't be opened.");
+      await refreshConversations();
+    }
+  }, [refreshConversations]);
 
   async function handleCreateWorkspace(
     name: string,
@@ -464,7 +481,11 @@ export default function App() {
               </div>
               <div className="min-w-0 flex-1 overflow-y-auto scrollbar-thin">
                 <div className="mx-auto max-w-2xl px-8 py-9">
-                  <DeepResearchPanel question={deepQuestion} workspaceId={workspaceId} />
+                  <DeepResearchPanel
+                    question={deepQuestion}
+                    workspaceId={workspaceId}
+                    onSaved={handleDeepSaved}
+                  />
                 </div>
               </div>
             </>
@@ -504,9 +525,15 @@ export default function App() {
             </div>
           )
         ) : tab === "explore" ? (
-          <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1">
             <ErrorBoundary>
-              <GraphViewer workspaceId={workspaceId} />
+              <ResearchGaps
+                key={workspaceId}
+                workspaceId={workspaceId}
+                selectedGap={selectedGap}
+                onSelectGap={setSelectedGap}
+              />
+              <GraphViewer workspaceId={workspaceId} gapFocus={selectedGap} />
             </ErrorBoundary>
           </div>
         ) : tab === "sources" ? (

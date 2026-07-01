@@ -3,16 +3,16 @@ import ReactMarkdown from "react-markdown";
 import { Loader2, CircleDot, Check, GitBranch, Search, Layers, Sparkles, AlertTriangle } from "lucide-react";
 import { streamDeepResearch } from "../api";
 import type {
-  SubQuestionResult, SubAgentProgress, TrustScore, DeepResearchResult, RetrievalType,
+  SubQuestionResult, SubAgentProgress, TrustScore, DeepResearchResult, RetrievalRoute,
 } from "../types";
 import { TrustBadge } from "./TrustBadge";
 import { ConflictBanner } from "./ConflictBanner";
 import { Badge, Card } from "./ui";
 
-const ROUTE_ICON: Record<RetrievalType, typeof GitBranch> = {
+const ROUTE_ICON: Record<RetrievalRoute, typeof GitBranch> = {
   graph: GitBranch, vector: Search, hybrid: Layers,
 };
-const ROUTE_TONE: Record<RetrievalType, string> = {
+const ROUTE_TONE: Record<RetrievalRoute, string> = {
   graph: "text-graph", vector: "text-vector", hybrid: "text-hybrid",
 };
 
@@ -31,8 +31,12 @@ const PHASES: { key: Phase; label: string }[] = [
  * trust score. Self-contained — it owns the SSE stream so App stays thin.
  */
 export function DeepResearchPanel({
-  question, workspaceId,
-}: { question: string; workspaceId: string }) {
+  question, workspaceId, onSaved,
+}: {
+  question: string;
+  workspaceId: string;
+  onSaved?: (conversationId: string) => void | Promise<void>;
+}) {
   const [phase, setPhase] = useState<Phase>("planning");
   const [statusMsg, setStatusMsg] = useState("Decomposing the question…");
   const [plan, setPlan] = useState<SubQuestionResult[]>([]);
@@ -57,12 +61,16 @@ export function DeepResearchPanel({
       onPlan: (subs) => { setPlan(subs); setPhase("researching"); },
       onSubagent: (p) => setAgents((prev) => ({ ...prev, [p.index]: p })),
       onTrust: (t) => setLiveTrust(t),
-      onDone: (r) => { setResult(r); setPhase("done"); },
+      onDone: (r) => {
+        setResult(r);
+        setPhase("done");
+        if (r.conversation_id) void onSaved?.(r.conversation_id);
+      },
       onError: (detail) => { setError(detail); setPhase("error"); },
     });
     cancelRef.current = cancel;
     return () => cancel();
-  }, [question, workspaceId]);
+  }, [question, workspaceId, onSaved]);
 
   const activeIdx = PHASES.findIndex((p) => p.key === phase);
 

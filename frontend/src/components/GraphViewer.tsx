@@ -3,10 +3,10 @@ import * as d3 from "d3";
 import {
   Loader2, Search, X, Maximize2, Plus, Minus, Eye, EyeOff, Crosshair,
 } from "lucide-react";
-import type { GraphData, GraphNode, NodeType } from "../types";
+import type { GraphData, GraphNode, NodeType, ResearchGap } from "../types";
 import { getGraph } from "../api";
 import {
-  NODE_COLOR as NODE_COLOR_MAP, EDGE_GROUP_COLOR, EDGE_FALLBACK as EDGE_FALLBACK_HEX, INK, PAPER,
+  NODE_COLOR as NODE_COLOR_MAP, EDGE_GROUP_COLOR, EDGE_FALLBACK as EDGE_FALLBACK_HEX, INK, PAPER, BRASS,
 } from "../lib/palette";
 
 // ── Visual vocabulary ────────────────────────────────────────────────────────
@@ -68,9 +68,25 @@ interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   type: string;
   confidence: number | null;
   conflict: boolean;
+  missing?: boolean;
 }
 
-export function GraphViewer({ workspaceId }: { workspaceId: string }) {
+function namesForGap(gap: ResearchGap | null) {
+  if (!gap) return null;
+  return new Set([
+    gap.source.name,
+    gap.target.name,
+    ...gap.shared_intermediaries.map((e) => e.intermediary.name),
+  ]);
+}
+
+export function GraphViewer({
+  workspaceId,
+  gapFocus = null,
+}: {
+  workspaceId: string;
+  gapFocus?: ResearchGap | null;
+}) {
   const svgRef       = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const zoomRef      = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -92,6 +108,7 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
   const hiddenTypesRef  = useRef(hiddenTypes);
   const hiddenGroupsRef = useRef(hiddenGroups);
   const searchRef       = useRef(search);
+  const gapFocusRef     = useRef<ResearchGap | null>(gapFocus);
 
   const nodeSelRef      = useRef<d3.Selection<SVGCircleElement, SimNode, SVGGElement, unknown> | null>(null);
   const linkSelRef      = useRef<d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown> | null>(null);
@@ -120,6 +137,7 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
   useEffect(() => { hiddenGroupsRef.current = hiddenGroups; }, [hiddenGroups]);
   useEffect(() => { searchRef.current = search; }, [search]);
   useEffect(() => { selectedIdRef.current = selected?.id ?? null; }, [selected]);
+  useEffect(() => { gapFocusRef.current = gapFocus; }, [gapFocus]);
 
   // ── Counts for the legend ──────────────────────────────────────────────────
   const typeCounts = useMemo(() => {
@@ -196,10 +214,25 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
 
     // ── Data prep ──────────────────────────────────────────────────────────
     const nodes: SimNode[] = data.nodes.map((n) => ({ ...n, id: n.name }));
+    const nodeNames = new Set(nodes.map((n) => n.id));
     const links: SimLink[] = data.edges.map((e) => ({
       source: e.source, target: e.target,
       type: e.type, confidence: e.confidence, conflict: e.conflict,
     }));
+    if (
+      gapFocus
+      && nodeNames.has(gapFocus.source.name)
+      && nodeNames.has(gapFocus.target.name)
+    ) {
+      links.push({
+        source: gapFocus.source.name,
+        target: gapFocus.target.name,
+        type: "MISSING_GAP",
+        confidence: null,
+        conflict: false,
+        missing: true,
+      });
+    }
 
     const neighbors = new Map<string, Set<string>>();
     for (const e of data.edges) {
@@ -255,19 +288,21 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
     const link = root.append("g").attr("class", "links")
       .selectAll<SVGLineElement, SimLink>("line")
       .data(links).join("line")
-      .attr("stroke", (d) => edgeColor(d.type, d.conflict))
-      .attr("stroke-width", (d) => (d.conflict ? 2 : 1))
-      .attr("stroke-dasharray", (d) => (d.conflict ? "5,4" : "none"))
-      .attr("opacity", 0.22)
-      .attr("marker-end", (d) => `url(#arw-${d.conflict ? "conflict" : edgeGroup(d.type) ?? "concept"})`);
+      .attr("stroke", (d) => (d.missing ? BRASS : edgeColor(d.type, d.conflict)))
+      .attr("stroke-width", (d) => (d.missing ? 2 : d.conflict ? 2 : 1))
+      .attr("stroke-dasharray", (d) => (d.missing ? "7,5" : d.conflict ? "5,4" : "none"))
+      .attr("opacity", (d) => (d.missing ? 0.85 : 0.22))
+      .attr("marker-end", (d) => (
+        d.missing ? null : `url(#arw-${d.conflict ? "conflict" : edgeGroup(d.type) ?? "concept"})`
+      ));
 
     // ── Edge labels (revealed on focus) ──────────────────────────────────────
     const edgeLabel = root.append("g").attr("class", "edge-labels")
       .selectAll<SVGTextElement, SimLink>("text")
       .data(links).join("text")
-      .text((d) => d.type)
+      .text((d) => (d.missing ? "CONJECTURE" : d.type))
       .attr("font-size", 8).attr("font-family", "ui-monospace, monospace")
-      .attr("fill", (d) => edgeColor(d.type, d.conflict))
+      .attr("fill", (d) => (d.missing ? BRASS : edgeColor(d.type, d.conflict)))
       .attr("text-anchor", "middle").attr("dominant-baseline", "middle")
       .attr("paint-order", "stroke").attr("stroke", INK[900]).attr("stroke-width", 3)
       .attr("pointer-events", "none").attr("opacity", 0);
@@ -331,9 +366,10 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
     function relayoutLabels() {
       const t = d3.zoomTransform(svg.node()!);
       const focusId = hoveredIdRef.current ?? selectedIdRef.current;
+      const gapSet = namesForGap(gapFocusRef.current);
       const focusSet = focusId
         ? new Set([focusId, ...(neighbors.get(focusId) ?? [])])
-        : null;
+        : gapSet;
       const searchLo = searchRef.current.trim().toLowerCase();
       const hiddenT = hiddenTypesRef.current;
 
@@ -416,11 +452,17 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
     // ── Reactive highlight (dim non-focused) ─────────────────────────────────
     function applyHighlight() {
       const focusId = hoveredIdRef.current ?? selectedIdRef.current;
-      const focusSet = focusId ? new Set([focusId, ...(neighbors.get(focusId) ?? [])]) : null;
+      const gapSet = namesForGap(gapFocusRef.current);
+      const focusSet = focusId ? new Set([focusId, ...(neighbors.get(focusId) ?? [])]) : gapSet;
       const searchLo = searchRef.current.trim().toLowerCase();
       const hiddenT = hiddenTypesRef.current;
       const hiddenG = hiddenGroupsRef.current;
       const selId = selectedIdRef.current;
+      const gap = gapFocusRef.current;
+      const gapEndpoints = gap ? new Set([gap.source.name, gap.target.name]) : new Set<string>();
+      const gapBridgeSet = gap
+        ? new Set(gap.shared_intermediaries.map((e) => e.intermediary.name))
+        : new Set<string>();
 
       node
         .attr("opacity", (d) => {
@@ -429,10 +471,20 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
           if (focusSet && !focusSet.has(d.id)) return 0.14;
           return 1;
         })
-        .attr("stroke", (d) => (selId === d.id ? PAPER.DEFAULT : INK[900]))
-        .attr("stroke-width", (d) => (selId === d.id ? 3 : 1.5));
+        .attr("stroke", (d) => {
+          if (selId === d.id) return PAPER.DEFAULT;
+          if (gapEndpoints.has(d.id)) return BRASS;
+          if (gapBridgeSet.has(d.id)) return PAPER.dim;
+          return INK[900];
+        })
+        .attr("stroke-width", (d) => {
+          if (selId === d.id || gapEndpoints.has(d.id)) return 3;
+          if (gapBridgeSet.has(d.id)) return 2.25;
+          return 1.5;
+        });
 
       link.attr("opacity", (d) => {
+        if (d.missing) return gapSet ? 0.95 : 0;
         const s = (d.source as SimNode), tt = (d.target as SimNode);
         const g = d.conflict ? "conflict" : edgeGroup(d.type);
         if (g && hiddenG.has(g)) return 0;
@@ -442,6 +494,7 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
       });
 
       edgeLabel.attr("opacity", (d) => {
+        if (d.missing) return gapSet ? 1 : 0;
         if (!focusSet) return 0;
         const s = (d.source as SimNode), tt = (d.target as SimNode);
         const g = d.conflict ? "conflict" : edgeGroup(d.type);
@@ -503,27 +556,28 @@ export function GraphViewer({ workspaceId }: { workspaceId: string }) {
     relayoutLabels();
 
     return () => { sim.stop(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+  }, [data, gapFocus, zoomToFit, centerOn]);
 
   // Re-run highlight when reactive filter/selection state changes. Hover is
   // handled imperatively in the mouse handlers, so it isn't a dependency here.
   useEffect(() => {
     applyHighlightRef.current();
-  }, [selected, hiddenTypes, hiddenGroups, search, data]);
+  }, [selected, hiddenTypes, hiddenGroups, search, data, gapFocus]);
 
   // ── Filter toggles ──────────────────────────────────────────────────────
   function toggleType(t: NodeType) {
     setHiddenTypes((prev) => {
       const next = new Set(prev);
-      next.has(t) ? next.delete(t) : next.add(t);
+      if (next.has(t)) next.delete(t);
+      else next.add(t);
       return next;
     });
   }
   function toggleGroup(g: EdgeGroup) {
     setHiddenGroups((prev) => {
       const next = new Set(prev);
-      next.has(g) ? next.delete(g) : next.add(g);
+      if (next.has(g)) next.delete(g);
+      else next.add(g);
       return next;
     });
   }

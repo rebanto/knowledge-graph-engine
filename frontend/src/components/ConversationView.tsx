@@ -1,5 +1,6 @@
 import type { ConversationDetail } from "../types";
 import { AnswerView } from "./AnswerView";
+import { DeepResearchReport } from "./DeepResearchReport";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 /**
@@ -23,7 +24,11 @@ export function ConversationView({ conversation }: { conversation: ConversationD
             </div>
           )}
           <ErrorBoundary>
-            <AnswerView report={turn} />
+            {turn.retrieval_type === "deep_research" ? (
+              <DeepResearchReport report={turn} />
+            ) : (
+              <AnswerView report={turn} />
+            )}
           </ErrorBoundary>
         </div>
       ))}

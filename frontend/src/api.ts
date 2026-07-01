@@ -2,7 +2,7 @@ import axios from "axios";
 import axiosRetry from "axios-retry";
 import type {
   GraphData, QuestionResponse, ReportSummary, Workspace, Source,
-  ConversationSummary, ConversationDetail,
+  ConversationSummary, ConversationDetail, ResearchGap, Hypothesis,
 } from "./types";
 
 // Default to same-origin ("") so requests go through Vite's /api proxy in dev
@@ -197,6 +197,26 @@ export async function deleteConversation(conversationId: string) {
 export async function getGraph(workspaceId = "arxiv_seed", limit = 150) {
   const { data } = await client.get<GraphData>("/api/graph", {
     params: { workspace_id: workspaceId, limit },
+  });
+  return data;
+}
+
+export async function fetchGaps(workspaceId = "arxiv_seed", limit = 10) {
+  const { data } = await client.get<{ gaps: ResearchGap[] }>("/api/graph/gaps", {
+    params: { workspace_id: workspaceId, limit },
+  });
+  return data.gaps ?? [];
+}
+
+export async function generateHypothesis(
+  workspaceId: string,
+  source: string,
+  target: string,
+) {
+  const { data } = await client.post<Hypothesis>("/api/graph/hypothesis", {
+    workspace_id: workspaceId,
+    source,
+    target,
   });
   return data;
 }

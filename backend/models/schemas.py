@@ -1,6 +1,9 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from pydantic import BaseModel
+
+RetrievalRoute = Literal["graph", "vector", "hybrid"]
+RetrievalType = Literal["graph", "vector", "hybrid", "deep_research"]
 
 
 class QuestionRequest(BaseModel):
@@ -24,7 +27,7 @@ class QuestionResponse(BaseModel):
     id: str
     question: str
     answer: str
-    retrieval_type: str
+    retrieval_type: RetrievalType
     reasoning: str
     cypher: str | None = None
     graph_records: list[dict] = []
@@ -33,6 +36,7 @@ class QuestionResponse(BaseModel):
     insights: list[dict[str, Any]] = []
     conflicts: list[dict[str, Any]] = []
     trust: TrustScore = TrustScore()
+    subquestions: list["SubQuestionResult"] = []
     version: int
     cached: bool
     created_at: datetime
@@ -56,7 +60,7 @@ class DeepResearchRequest(BaseModel):
 
 class SubQuestionResult(BaseModel):
     question: str
-    route: str
+    route: RetrievalRoute
     why: str = ""
     answer: str = ""
     error: str | None = None
@@ -66,6 +70,7 @@ class DeepResearchResponse(BaseModel):
     id: str
     question: str
     answer: str
+    retrieval_type: Literal["deep_research"] = "deep_research"
     subquestions: list[SubQuestionResult] = []
     key_entities: list[dict[str, Any]] = []
     conflicts: list[dict[str, Any]] = []
@@ -84,7 +89,7 @@ class ConversationSummary(BaseModel):
     id: str
     title: str
     turn_count: int
-    retrieval_type: str | None = None  # routing of the most recent turn, for the dot
+    retrieval_type: RetrievalType | None = None  # routing of the most recent turn, for the dot
     created_at: datetime
     updated_at: datetime
 
@@ -105,7 +110,7 @@ class ReportSummary(BaseModel):
     id: str
     question: str
     answer: str
-    retrieval_type: str
+    retrieval_type: RetrievalType
     version: int
     created_at: datetime
 
@@ -130,6 +135,49 @@ class GraphEdge(BaseModel):
 class GraphResponse(BaseModel):
     nodes: list[GraphNode]
     edges: list[GraphEdge]
+
+
+class GapEntity(BaseModel):
+    name: str
+    type: str | None = None
+
+
+class GapEvidence(BaseModel):
+    intermediary: GapEntity
+    source_relation_types: list[str] = []
+    target_relation_types: list[str] = []
+
+
+class Gap(BaseModel):
+    source: GapEntity
+    target: GapEntity
+    shared_intermediaries: list[GapEvidence] = []
+    score: float
+    common_neighbor_count: int
+    same_community: bool
+    interdisciplinary: bool = False
+    community_ids: dict[str, int | None] = {}
+    why_notable: str | None = None
+
+
+class HypothesisRequest(BaseModel):
+    workspace_id: str = "arxiv_seed"
+    source: str
+    target: str
+
+
+class Hypothesis(BaseModel):
+    source: GapEntity
+    target: GapEntity
+    statement: str
+    predicted_relationship_type: str
+    evidence: list[GapEvidence] = []
+    common_neighbor_count: int
+    same_community: bool
+    interdisciplinary: bool = False
+    confidence: str
+    reasoning: str
+    caveat: str
 
 
 class WorkspaceCreate(BaseModel):

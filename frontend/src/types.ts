@@ -1,4 +1,5 @@
-export type RetrievalType = "graph" | "vector" | "hybrid";
+export type RetrievalRoute = "graph" | "vector" | "hybrid";
+export type RetrievalType = RetrievalRoute | "deep_research";
 
 export interface GraphRecord {
   [key: string]: string | number | boolean | null;
@@ -106,6 +107,7 @@ export interface QuestionResponse {
   insights: Insight[];
   conflicts: Conflict[];
   trust: TrustScore;
+  subquestions: SubQuestionResult[];
   version: number;
   cached: boolean;
   created_at: string;
@@ -121,7 +123,7 @@ export interface QuestionResponse {
 
 export interface SubQuestionResult {
   question: string;
-  route: RetrievalType;
+  route: RetrievalRoute;
   why?: string;
   answer?: string;
   error?: string | null;
@@ -140,6 +142,7 @@ export interface DeepResearchResult {
   id: string;
   question: string;
   answer: string;
+  retrieval_type: "deep_research";
   subquestions: SubQuestionResult[];
   key_entities: KeyEntity[];
   conflicts: Conflict[];
@@ -154,7 +157,7 @@ export interface SubAgentProgress {
   index: number;
   status: "running" | "done";
   question: string;
-  route: RetrievalType;
+  route: RetrievalRoute;
   answer?: string;
   evidence?: { graph_records: number; passages: number; conflicts: number };
 }
@@ -209,6 +212,44 @@ export interface GraphEdge {
 export interface GraphData {
   nodes: GraphNode[];
   edges: GraphEdge[];
+}
+
+// Discovery: structural research gaps and generated conjectures.
+export interface GapEntity {
+  name: string;
+  type: NodeType | string | null;
+}
+
+export interface GapEvidence {
+  intermediary: GapEntity;
+  source_relation_types: string[];
+  target_relation_types: string[];
+}
+
+export interface ResearchGap {
+  source: GapEntity;
+  target: GapEntity;
+  shared_intermediaries: GapEvidence[];
+  score: number;
+  common_neighbor_count: number;
+  same_community: boolean;
+  interdisciplinary: boolean;
+  community_ids: { source: number | null; target: number | null };
+  why_notable?: string | null;
+}
+
+export interface Hypothesis {
+  source: GapEntity;
+  target: GapEntity;
+  statement: string;
+  predicted_relationship_type: string;
+  evidence: GapEvidence[];
+  common_neighbor_count: number;
+  same_community: boolean;
+  interdisciplinary: boolean;
+  confidence: "low" | "medium" | "high" | string;
+  reasoning: string;
+  caveat: string;
 }
 
 // ── Workspace / source types ─────────────────────────────────────────────────

@@ -210,6 +210,7 @@ async def stream_question(
                 "key_entities": synthesis.get("key_entities", []),
                 "insights": synthesis.get("insights", []),
                 "trust": trust,
+                "subquestions": [],
                 "cached": False,
             }
 
@@ -304,9 +305,13 @@ async def get_report(report_id: str, db: AsyncSession = Depends(get_async_db)):
         insights=sources.get("insights", []),
         conflicts=sources.get("conflicts", []),
         trust=sources.get("trust", unavailable_trust()),
+        subquestions=sources.get("subquestions", []),
         version=report.version,
         cached=False,
         created_at=report.created_at,
+        conversation_id=report.conversation_id,
+        turn_index=report.turn_index,
+        standalone_question=report.standalone_question,
     )
 
 

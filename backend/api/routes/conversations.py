@@ -37,6 +37,7 @@ def _report_to_response(report: Report) -> QuestionResponse:
         insights=sources.get("insights", []),
         conflicts=sources.get("conflicts", []),
         trust=sources.get("trust", unavailable_trust()),
+        subquestions=sources.get("subquestions", []),
         version=report.version,
         cached=False,
         created_at=report.created_at,

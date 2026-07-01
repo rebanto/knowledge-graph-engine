@@ -3,11 +3,20 @@ from backend.core.graph_algorithms import (
     build_digraph,
     compute_pagerank,
     compute_communities,
+    compute_research_gaps,
+    phrase_hypothesis,
 )
 
 
 def _edge(s, t, st="Concept", tt="Concept", conf=1.0):
-    return {"source": s, "target": t, "source_type": st, "target_type": tt, "confidence": conf}
+    return {
+        "source": s,
+        "target": t,
+        "source_type": st,
+        "target_type": tt,
+        "relation_type": "RELATED_TO",
+        "confidence": conf,
+    }
 
 
 def test_build_digraph_accumulates_parallel_edge_weight():
@@ -64,3 +73,54 @@ def test_communities_drops_singletons():
 
 def test_communities_empty_graph_returns_empty():
     assert compute_communities([]) == []
+
+
+def test_research_gaps_rank_open_triangles_and_exclude_direct_edges():
+    edges = [
+        _edge("A", "B"),
+        _edge("B", "C"),
+        _edge("A", "D"),
+        _edge("D", "C"),
+        _edge("A", "E"),
+        _edge("E", "F"),
+        _edge("A", "F"),  # direct edge: must exclude the A-F open triangle
+    ]
+
+    gaps = compute_research_gaps(edges, top_n=5)
+    pairs = {(g["source"]["name"], g["target"]["name"]) for g in gaps}
+
+    assert ("A", "C") in pairs
+    assert ("A", "F") not in pairs
+    assert gaps[0]["source"]["name"] == "A"
+    assert gaps[0]["target"]["name"] == "C"
+    assert gaps[0]["common_neighbor_count"] == 2
+    assert {e["intermediary"]["name"] for e in gaps[0]["shared_intermediaries"]} == {"B", "D"}
+
+
+async def test_phrase_hypothesis_uses_mocked_llm(monkeypatch):
+    import backend.core.graph_algorithms as ga
+
+    async def fake_generate_json(prompt: str):
+        assert "unproven_missing_edge" in prompt
+        return {
+            "statement": "CONJECTURE: A may SUPPORTS C under testable conditions.",
+            "predicted_relationship_type": "SUPPORTS",
+            "confidence": "medium",
+            "reasoning": "A and C share two intermediaries and no direct edge.",
+            "caveat": "The direct A-C relationship is unproven in the graph.",
+        }
+
+    monkeypatch.setattr(ga, "generate_json", fake_generate_json)
+    gap = compute_research_gaps([
+        _edge("A", "B"),
+        _edge("B", "C"),
+        _edge("A", "D"),
+        _edge("D", "C"),
+    ])[0]
+
+    hypothesis = await phrase_hypothesis(gap)
+
+    assert hypothesis["statement"].startswith("CONJECTURE:")
+    assert hypothesis["predicted_relationship_type"] == "SUPPORTS"
+    assert hypothesis["confidence"] == "medium"
+    assert "unproven" in hypothesis["caveat"]
