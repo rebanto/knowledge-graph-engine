@@ -1,8 +1,9 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy import select, func, delete as sql_delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +12,11 @@ from backend.db.models import Source, IngestionJob
 from backend.db.queue import get_queue
 from backend.ingestion.jobs import run_ingestion_job
 from backend.models.schemas import SourceCreate, SourceResponse, SourceJobsResponse
+from backend.core.ratelimit import limiter, SOURCE_MUTATION_LIMIT
+from backend.core.security import (
+    InvalidUploadError, UnsafeURLError,
+    validate_pdf_upload, validate_public_http_url,
+)
 from backend.db import chroma as chroma_db
 from backend.db import neo4j as neo4j_db
 from backend.db import redis as redis_db
@@ -57,9 +63,22 @@ async def list_sources(workspace_id: str, db: AsyncSession = Depends(get_async_d
 
 
 @router.post("/workspaces/{workspace_id}/sources", response_model=SourceResponse)
+@limiter.limit(SOURCE_MUTATION_LIMIT)
 async def create_source(
-    workspace_id: str, req: SourceCreate, db: AsyncSession = Depends(get_async_db)
+    request: Request,
+    workspace_id: str,
+    req: SourceCreate,
+    db: AsyncSession = Depends(get_async_db),
 ):
+    # The worker will fetch whatever URL is saved here, so rss/web_url sources
+    # must point at a public HTTP(S) endpoint (SSRF guard). arxiv_feed "urls"
+    # are categories/IDs/queries sent only to the arXiv API — nothing to check.
+    if req.type in ("rss", "web_url"):
+        try:
+            await asyncio.to_thread(validate_public_http_url, req.url)
+        except UnsafeURLError as exc:
+            raise HTTPException(422, str(exc))
+
     source = Source(
         id=str(uuid.uuid4()),
         workspace_id=workspace_id,
@@ -78,11 +97,21 @@ async def create_source(
 
 
 @router.post("/workspaces/{workspace_id}/sources/upload", response_model=SourceResponse)
+@limiter.limit(SOURCE_MUTATION_LIMIT)
 async def upload_pdf_source(
-    workspace_id: str, file: UploadFile = File(...), db: AsyncSession = Depends(get_async_db)
+    request: Request,
+    workspace_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    dest = UPLOAD_DIR / f"{uuid.uuid4()}_{file.filename}"
     contents = await file.read()
+    # Size cap + magic-byte check + filename sanitization (the raw filename is
+    # attacker-controlled and previously allowed .. path components).
+    try:
+        safe_name = validate_pdf_upload(contents, file.filename)
+    except InvalidUploadError as exc:
+        raise HTTPException(422, str(exc))
+    dest = UPLOAD_DIR / f"{uuid.uuid4()}_{safe_name}"
     dest.write_bytes(contents)
 
     source = Source(
@@ -190,7 +219,9 @@ async def reingest_source(
 
 
 @router.post("/workspaces/{workspace_id}/sources/reingest")
+@limiter.limit(SOURCE_MUTATION_LIMIT)
 async def reingest_workspace(
+    request: Request,
     workspace_id: str,
     db: AsyncSession = Depends(get_async_db),
 ):
