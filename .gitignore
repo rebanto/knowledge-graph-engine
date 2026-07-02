@@ -12,3 +12,7 @@ uploads/
 .pytest_cache/
 node_modules/
 .dev-cache/
+dist/
+# Local server output logs (dev.ps1 redirects)
+uvicorn_*.txt
+vite_*.txt
