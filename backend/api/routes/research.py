@@ -15,7 +15,7 @@ import json
 import asyncio
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
@@ -27,6 +27,7 @@ from backend.models.schemas import (
     DeepResearchRequest, DeepResearchResponse,
 )
 from backend.core.orchestrator import deep_research
+from backend.core.ratelimit import limiter, DEEP_RESEARCH_LIMIT
 
 router = APIRouter()
 
@@ -74,8 +75,9 @@ async def _persist(db: AsyncSession, workspace_id: str, question: str, result: d
 
 
 @router.post("/research/deep", response_model=DeepResearchResponse)
+@limiter.limit(DEEP_RESEARCH_LIMIT)
 async def run_deep_research(
-    req: DeepResearchRequest, db: AsyncSession = Depends(get_async_db)
+    request: Request, req: DeepResearchRequest, db: AsyncSession = Depends(get_async_db)
 ):
     result = await deep_research(req.question, req.workspace_id)
     report, conversation, version = await _persist(
@@ -97,7 +99,9 @@ async def run_deep_research(
 
 
 @router.get("/research/deep/stream")
+@limiter.limit(DEEP_RESEARCH_LIMIT)
 async def stream_deep_research(
+    request: Request,
     question: str = Query(...),
     workspace_id: str = Query(default="arxiv_seed"),
     db: AsyncSession = Depends(get_async_db),

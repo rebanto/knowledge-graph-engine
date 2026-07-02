@@ -5,21 +5,17 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text, select, update
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from backend.db.postgres import async_engine, AsyncSessionLocal, Base
 from backend.db.models import Workspace, Source
 from backend.api.routes import questions, graph, workspaces, sources, system, conversations, research
 from backend.core.llm_client import DailyQuotaExhausted
+from backend.core.ratelimit import limiter
 from backend.core.observability import (
     RequestIDMiddleware, generate_latest, CONTENT_TYPE_LATEST, log,
 )
-
-
-# ── Rate limiter (slowapi) ─────────────────────────────────────────────────────
-limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager

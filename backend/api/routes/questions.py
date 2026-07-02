@@ -2,7 +2,7 @@ import uuid
 import json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
@@ -18,6 +18,7 @@ from backend.core.vector_retriever import run_vector_query
 from backend.core.synthesizer import synthesize_answer
 from backend.core import conversation as conv
 from backend.core.resilience import CircuitBreakerError
+from backend.core.ratelimit import limiter, QUESTION_LIMIT
 from backend.core.trust import trust_from_claims, unavailable_trust
 from backend.eval.judge import judge_faithfulness
 import asyncio
@@ -26,7 +27,10 @@ router = APIRouter()
 
 
 @router.post("/question", response_model=QuestionResponse)
-async def ask_question(req: QuestionRequest, db: AsyncSession = Depends(get_async_db)):
+@limiter.limit(QUESTION_LIMIT)
+async def ask_question(
+    request: Request, req: QuestionRequest, db: AsyncSession = Depends(get_async_db)
+):
     # Load prior context when this is a follow-up turn in an existing thread.
     ctx = (
         await conv_store.load_thread_context(db, req.conversation_id)
@@ -102,7 +106,9 @@ async def ask_question(req: QuestionRequest, db: AsyncSession = Depends(get_asyn
 
 
 @router.get("/question/stream")
+@limiter.limit(QUESTION_LIMIT)
 async def stream_question(
+    request: Request,
     question: str = Query(...),
     workspace_id: str = Query(default="arxiv_seed"),
     conversation_id: str | None = Query(default=None),
@@ -145,6 +151,7 @@ async def stream_question(
             # Retrieve
             graph_records, entity_stats, vector_chunks, cypher = [], [], [], None
             conflicts: list = []
+            influence: list = []
             results: dict = {}
 
             if qtype in ("graph", "hybrid"):
@@ -161,6 +168,7 @@ async def stream_question(
                     graph_records[:] = gr["records"]
                     entity_stats[:] = gr.get("entity_stats", [])
                     conflicts[:] = gr.get("conflicts", [])
+                    influence[:] = gr.get("influence", [])
                 except (UnsafeQueryError, CircuitBreakerError):
                     pass
 
@@ -172,12 +180,20 @@ async def stream_question(
                 except Exception:
                     pass
 
+            # Same cross-retriever fallback as the POST /question path
+            # (qa_pipeline): a misrouted question or an empty retriever result
+            # gets a second chance on the other system instead of answering
+            # "no information" while the answer sits in the other store.
             if qtype == "hybrid":
                 await asyncio.gather(_graph(), _vector())
             elif qtype == "graph":
                 await _graph()
+                if not graph_records and not entity_stats:
+                    await _vector()
             else:
                 await _vector()
+                if not vector_chunks:
+                    await _graph()
 
             if graph_records:
                 results["graph_records"] = graph_records
@@ -185,6 +201,8 @@ async def stream_question(
                 results["entity_degree_context"] = entity_stats
             if conflicts:
                 results["conflicts"] = conflicts
+            if influence:
+                results["entity_influence"] = influence
             if vector_chunks:
                 results["vector_passages"] = vector_chunks
 
@@ -290,7 +308,9 @@ async def list_reports(
 @router.get("/reports/{report_id}", response_model=QuestionResponse)
 async def get_report(report_id: str, db: AsyncSession = Depends(get_async_db)):
     result = await db.execute(select(Report).where(Report.id == report_id))
-    report = result.scalar_one()
+    report = result.scalar_one_or_none()
+    if not report:
+        raise HTTPException(404, "Report not found")
     sources = report.sources_used or {}
     return QuestionResponse(
         id=report.id,
