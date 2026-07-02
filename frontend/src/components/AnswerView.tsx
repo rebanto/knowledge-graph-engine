@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import ReactMarkdown from "react-markdown";
 import { Database } from "lucide-react";
 import type { QuestionResponse } from "../types";
@@ -5,8 +6,13 @@ import { RoutingBadge } from "./RoutingBadge";
 import { Badge } from "./ui";
 import { SourcesPanel } from "./SourcesPanel";
 import { EntitySummary } from "./EntitySummary";
-import { InsightCards } from "./InsightCards";
 import { ConflictBanner } from "./ConflictBanner";
+
+// Code-split the recharts-based insight cards — recharts is a heavy dependency
+// and the answer text should never wait on it.
+const InsightCards = lazy(() =>
+  import("./InsightCards").then((m) => ({ default: m.InsightCards })),
+);
 import { AnswerProofBar } from "./AnswerProofBar";
 import { ClaimLedger } from "./ClaimLedger";
 
@@ -63,7 +69,11 @@ export function AnswerView({ report }: { report: QuestionResponse }) {
 
       <ClaimLedger trust={report.trust} />
 
-      {hasInsights && <InsightCards insights={report.insights} />}
+      {hasInsights && (
+        <Suspense fallback={null}>
+          <InsightCards insights={report.insights} />
+        </Suspense>
+      )}
 
       {!hasEntities && (
         <EntitySummary records={report.graph_records} retrieval_type={report.retrieval_type} />
