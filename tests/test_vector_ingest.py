@@ -23,9 +23,11 @@ def chroma(tmp_path, monkeypatch):
     """Fresh in-process ChromaDB rooted in a tmp dir."""
     # Force embedded mode: .env may set CHROMA_HOST (server mode) for the real
     # stack, but these tests must stay single-process in a throwaway tmp dir and
-    # never touch the shared Chroma server.
-    monkeypatch.delenv("CHROMA_HOST", raising=False)
-    monkeypatch.delenv("CHROMA_PORT", raising=False)
+    # never touch the shared Chroma server. Set to "" rather than delenv: the
+    # module's load_dotenv() would re-populate a DELETED var from .env on
+    # reload, but load_dotenv never overrides one that exists (even empty).
+    monkeypatch.setenv("CHROMA_HOST", "")
+    monkeypatch.setenv("CHROMA_PORT", "")
     monkeypatch.setenv("CHROMA_PERSIST_DIR", str(tmp_path / "chroma"))
     import backend.db.chroma as chroma_mod
     importlib.reload(chroma_mod)  # re-read env, fresh client/global state

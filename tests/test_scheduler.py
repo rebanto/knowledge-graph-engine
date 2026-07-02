@@ -20,6 +20,11 @@ pytestmark = pytest.mark.asyncio
 async def pg_source():
     from backend.db.postgres import AsyncSessionLocal, async_engine
     from backend.db.models import Source, IngestionJob
+    # Rebind the module-global engine pool to this test's event loop. Without
+    # this, when a prior test's loop has closed, the fixture's write and
+    # pull_pending_once's read run against a pool bound to the dead loop and the
+    # just-created 'pending' source isn't seen (enqueued comes back 0). Same
+    # rationale as test_job_tracker's pg fixture.
     await async_engine.dispose(close=False)
     try:
         async with AsyncSessionLocal() as db:
