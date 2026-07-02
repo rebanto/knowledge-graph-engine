@@ -31,7 +31,7 @@ export interface StatItem {
   subtitle?: string | null;
 }
 
-export interface ComparisonRow extends Array<string> {}
+export type ComparisonRow = string[];
 
 export interface TimelineEvent {
   year: string;

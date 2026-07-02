@@ -18,5 +18,10 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // `try { JSON.parse(...) } catch {}` around SSE frames is intentional:
+      // a malformed frame is dropped, the stream keeps going.
+      'no-empty': ['error', { allowEmptyCatch: true }],
+    },
   },
 ])

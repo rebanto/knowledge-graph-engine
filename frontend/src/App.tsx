@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 
 // ── URL state helpers ────────────────────────────────────────────────────────
 const VALID_TABS = ["ask", "explore", "sources"] as const;
@@ -30,7 +30,6 @@ import { QuestionInput } from "./components/QuestionInput";
 import { ConversationView } from "./components/ConversationView";
 import { DeepResearchPanel } from "./components/DeepResearchPanel";
 import { NeedsSources } from "./components/EmptyState";
-import { GraphViewer } from "./components/GraphViewer";
 import { ResearchGaps } from "./components/ResearchGaps";
 import { SourceManager } from "./components/SourceManager";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -41,6 +40,12 @@ import {
   listSources, discoverSources, getSuggestedQuestions,
 } from "./api";
 import type { ConversationSummary, ConversationDetail, ResearchGap, Source, Workspace } from "./types";
+
+// Code-split the D3 graph view: it's the heaviest dependency in the bundle and
+// only needed when the user opens the Explore tab.
+const GraphViewer = lazy(() =>
+  import("./components/GraphViewer").then((m) => ({ default: m.GraphViewer })),
+);
 
 function describeError(err: unknown): string {
   if (axios.isAxiosError(err)) {
@@ -65,11 +70,12 @@ function buildSourceStats(sources: Source[]): SourceStats {
 }
 
 export default function App() {
-  const initialUrl = useRef(readUrl());
+  // Read once on mount; lazy useState (not a ref) so render never reads a ref.
+  const [initialUrl] = useState(readUrl);
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [workspaceId, setWorkspaceId] = useState(initialUrl.current.w);
-  const [tab, setTab] = useState<Tab>(initialUrl.current.t);
+  const [workspaceId, setWorkspaceId] = useState(initialUrl.w);
+  const [tab, setTab] = useState<Tab>(initialUrl.t);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConvo, setActiveConvo] = useState<ConversationDetail | null>(null);
@@ -93,7 +99,7 @@ export default function App() {
   const cancelStreamRef = useRef<(() => void) | null>(null);
   const sourcePollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pending conversation ID from the URL — opened once the list arrives.
-  const pendingConvoId = useRef<string | null>(initialUrl.current.c);
+  const pendingConvoId = useRef<string | null>(initialUrl.c);
 
   useEffect(() => {
     listWorkspaces()
@@ -132,7 +138,12 @@ export default function App() {
     return () => { if (sourcePollRef.current) clearTimeout(sourcePollRef.current); };
   }, [processingCount, refreshSources]);
 
-  useEffect(() => {
+  // Reset per-workspace view state the moment the workspace switches — done
+  // during render (the documented "adjusting state when props change" pattern)
+  // so the old workspace's data never paints against the new one.
+  const [prevWorkspaceId, setPrevWorkspaceId] = useState(workspaceId);
+  if (prevWorkspaceId !== workspaceId) {
+    setPrevWorkspaceId(workspaceId);
     setActiveConvo(null);
     setDeepQuestion(null);
     setSourceCount(null);
@@ -140,6 +151,12 @@ export default function App() {
     setProcessingCount(0);
     setSuggestedQuestions([]);
     setSelectedGap(null);
+  }
+
+  useEffect(() => {
+    // False positive: these async helpers only set state after their awaits
+    // resolve (network round-trip), never synchronously in the effect body.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshConversations();
     refreshSources();
     getSuggestedQuestions(workspaceId)
@@ -166,13 +183,11 @@ export default function App() {
       .catch(() => {});
   }, [conversations]);
 
-  // If the URL named a workspace that doesn't exist, fall back to the first one.
-  useEffect(() => {
-    if (workspaces.length === 0) return;
-    if (!workspaces.find((w) => w.id === workspaceId)) {
-      setWorkspaceId(workspaces[0].id);
-    }
-  }, [workspaces, workspaceId]);
+  // If the URL named a workspace that doesn't exist, fall back to the first one
+  // (render-time state adjustment — no effect round-trip).
+  if (workspaces.length > 0 && !workspaces.some((w) => w.id === workspaceId)) {
+    setWorkspaceId(workspaces[0].id);
+  }
 
   const activeWorkspace = workspaces.find((w) => w.id === workspaceId) ?? null;
   const hasSources = sourceCount === null ? true : sourceCount > 0;
@@ -533,7 +548,9 @@ export default function App() {
                 selectedGap={selectedGap}
                 onSelectGap={setSelectedGap}
               />
-              <GraphViewer workspaceId={workspaceId} gapFocus={selectedGap} />
+              <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[12px] text-muted">Loading graph view…</div>}>
+                <GraphViewer workspaceId={workspaceId} gapFocus={selectedGap} />
+              </Suspense>
             </ErrorBoundary>
           </div>
         ) : tab === "sources" ? (

@@ -95,7 +95,9 @@ export function GraphViewer({
   const [data, setData]           = useState<GraphData | null>(null);
   const [loading, setLoading]     = useState(true);
   const [selected, setSelected]   = useState<SimNode | null>(null);
-  const [hovered, setHovered]     = useState<{ node: SimNode; x: number; y: number } | null>(null);
+  // containerWidth is captured at hover time (in the d3 handler, where reading
+  // the ref is allowed) so render can clamp the tooltip without touching refs.
+  const [hovered, setHovered]     = useState<{ node: SimNode; x: number; y: number; containerWidth: number } | null>(null);
   const [hiddenTypes, setHiddenTypes]   = useState<Set<NodeType>>(new Set());
   const [hiddenGroups, setHiddenGroups] = useState<Set<EdgeGroup>>(new Set());
   const [search, setSearch]       = useState("");
@@ -124,10 +126,17 @@ export function GraphViewer({
   const relayoutRef       = useRef<() => void>(() => {});
   const applyHighlightRef = useRef<() => void>(() => {});
 
-  useEffect(() => {
+  // Reset view state the moment the workspace switches (render-time adjustment);
+  // the fetch itself stays in the effect below.
+  const [prevWorkspaceId, setPrevWorkspaceId] = useState(workspaceId);
+  if (prevWorkspaceId !== workspaceId) {
+    setPrevWorkspaceId(workspaceId);
     setLoading(true);
     setSelected(null);
     setHovered(null);
+  }
+
+  useEffect(() => {
     getGraph(workspaceId, 250)
       .then(setData)
       .finally(() => setLoading(false));
@@ -323,12 +332,12 @@ export function GraphViewer({
       .on("mouseenter", (e, d) => {
         hoveredIdRef.current = d.id;
         const rect = containerRef.current!.getBoundingClientRect();
-        setHovered({ node: d, x: e.clientX - rect.left, y: e.clientY - rect.top });
+        setHovered({ node: d, x: e.clientX - rect.left, y: e.clientY - rect.top, containerWidth: rect.width });
         applyHighlight();
       })
       .on("mousemove", (e, d) => {
         const rect = containerRef.current!.getBoundingClientRect();
-        setHovered({ node: d, x: e.clientX - rect.left, y: e.clientY - rect.top });
+        setHovered({ node: d, x: e.clientX - rect.left, y: e.clientY - rect.top, containerWidth: rect.width });
       })
       .on("mouseleave", () => { hoveredIdRef.current = null; setHovered(null); applyHighlight(); })
       .call(
@@ -651,7 +660,7 @@ export function GraphViewer({
           <div
             className="pointer-events-none absolute z-30 max-w-[240px] rounded-lg border border-ink-600 bg-ink-850/95 px-3 py-2 shadow-xl shadow-black/40 backdrop-blur-sm"
             style={{
-              left: Math.min(hovered.x + 14, (containerRef.current?.clientWidth ?? 9999) - 250),
+              left: Math.min(hovered.x + 14, hovered.containerWidth - 250),
               top: hovered.y + 14,
             }}
           >

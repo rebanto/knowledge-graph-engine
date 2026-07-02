@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import axios from "axios";
 import {
   Rss, Globe, FileText, BookOpen, Plus, Trash2,
   RefreshCw, Upload, CheckCircle, AlertCircle, Clock,
@@ -11,6 +12,16 @@ import {
   getSourceJobs, retrySource, getQueueStatus, cleanupWorkspace,
 } from "../api";
 import { Button, IconButton, Input } from "./ui";
+
+// Pull the backend's human-readable validation message out of an API error
+// (e.g. "Host resolves to a private address", "File is 62 MB — the limit is 50 MB").
+function apiErrorDetail(err: unknown): string | null {
+  if (axios.isAxiosError(err)) {
+    const detail = err.response?.data?.detail;
+    if (typeof detail === "string" && detail) return detail;
+  }
+  return null;
+}
 
 // ── Type / status metadata ─────────────────────────────────────────────────────
 
@@ -419,15 +430,25 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
     try { await cleanupWorkspace(workspaceId); } catch { /* ignore */ }
   }, [workspaceId]);
 
-  useEffect(() => {
+  // Reset list state the moment the workspace switches (render-time adjustment,
+  // per react.dev "adjusting state when props change") so stale sources never
+  // paint against the new workspace; the fetch stays in the effect below.
+  const [prevWorkspaceId, setPrevWorkspaceId] = useState(workspaceId);
+  if (prevWorkspaceId !== workspaceId) {
+    setPrevWorkspaceId(workspaceId);
     setLoading(true);
     setSources([]);
     setJobs({});
     setExpandedId(null);
     setFilter("all");
+  }
+
+  useEffect(() => {
     pollIntervalRef.current = 3000;
     unchangedCountRef.current = 0;
     prevStatusKeyRef.current = "";
+    // False positive: refresh() sets state only after its awaited API calls.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
     syncQuietly();
   }, [workspaceId, refresh, syncQuietly]);
@@ -517,8 +538,10 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
       setSources((prev) => [src, ...prev]);
       setAddUrl("");
       setAddOpen(false);
-    } catch {
-      setFormError("Failed to add source. Check the value and try again.");
+    } catch (err) {
+      setFormError(
+        apiErrorDetail(err) ?? "Failed to add source. Check the value and try again.",
+      );
     } finally {
       setAdding(false);
     }
@@ -532,8 +555,8 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
       setSources((prev) => [src, ...prev]);
       if (fileRef.current) fileRef.current.value = "";
       setAddOpen(false);
-    } catch {
-      setFormError("Upload failed. Make sure the file is a valid PDF.");
+    } catch (err) {
+      setFormError(apiErrorDetail(err) ?? "Upload failed. Make sure the file is a valid PDF.");
     } finally {
       setAdding(false);
     }

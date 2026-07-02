@@ -46,10 +46,16 @@ export function DeepResearchPanel({
   const [error, setError] = useState<string | null>(null);
   const cancelRef = useRef<(() => void) | null>(null);
 
-  useEffect(() => {
+  // Reset the run's view state the moment the question/workspace changes
+  // (render-time adjustment); starting the SSE stream stays in the effect.
+  const [prevRun, setPrevRun] = useState({ question, workspaceId });
+  if (prevRun.question !== question || prevRun.workspaceId !== workspaceId) {
+    setPrevRun({ question, workspaceId });
     setPhase("planning"); setStatusMsg("Decomposing the question…");
     setPlan([]); setAgents({}); setLiveTrust(null); setResult(null); setError(null);
+  }
 
+  useEffect(() => {
     cancelRef.current?.();
     const cancel = streamDeepResearch(question, workspaceId, {
       onStatus: (p, message) => {

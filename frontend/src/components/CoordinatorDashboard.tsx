@@ -88,6 +88,8 @@ export function CoordinatorDashboard() {
 
   // Poll continuously while the pool is live so progress/heartbeats stay fresh.
   useEffect(() => {
+    // False positive: refresh() sets state only after its awaited API call.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
     return () => { if (pollRef.current) clearTimeout(pollRef.current); };
   }, [refresh]);
