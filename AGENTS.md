@@ -961,6 +961,14 @@ CHROMA_PERSIST_DIR=./chroma_data
   latency data. Use it to decide whether multi-cluster Neptune is worth the
   cost in Phase 7. Do not assume sharding is necessary at production scale
   until the numbers say so.
+- **Inputs are hardened at the API boundary** (`backend/core/security.py` +
+  `backend/core/ratelimit.py`). rss/web source URLs must be http(s) and resolve
+  to a public address (SSRF guard; `ALLOW_PRIVATE_SOURCE_URLS=true` opts out in
+  local dev). `pdf_upload` sources can only be created through the upload
+  endpoint — never via `POST /sources` with a server path (that allowed
+  arbitrary-file reads). Uploads are size-capped, magic-byte checked, and
+  filename-sanitized. The LLM-backed endpoints are per-IP rate-limited
+  (slowapi; `RATE_LIMIT_*` env vars). Keep new endpoints consistent with this.
 
 ---
 
