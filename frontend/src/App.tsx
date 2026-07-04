@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 
 // ── URL state helpers ────────────────────────────────────────────────────────
-const VALID_TABS = ["ask", "explore", "sources"] as const;
+const VALID_TABS = ["ask", "explore", "sources", "connect"] as const;
 
 function readUrl() {
   const p = new URLSearchParams(window.location.search);
@@ -32,6 +32,7 @@ import { DeepResearchPanel } from "./components/DeepResearchPanel";
 import { NeedsSources } from "./components/EmptyState";
 import { ResearchGaps } from "./components/ResearchGaps";
 import { SourceManager } from "./components/SourceManager";
+import { ConnectPanel } from "./components/ConnectPanel";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { WorkspacePulse, type SourceStats } from "./components/WorkspacePulse";
 import {
@@ -554,9 +555,15 @@ export default function App() {
             </ErrorBoundary>
           </div>
         ) : tab === "sources" ? (
-          <div className="min-w-0 flex-1">
+          <div className="min-h-0 min-w-0 flex-1">
             <ErrorBoundary>
               <SourceManager workspaceId={workspaceId} />
+            </ErrorBoundary>
+          </div>
+        ) : tab === "connect" ? (
+          <div className="min-h-0 min-w-0 flex-1">
+            <ErrorBoundary>
+              <ConnectPanel workspaceId={workspaceId} workspaceName={activeWorkspace?.name ?? null} />
             </ErrorBoundary>
           </div>
         ) : null}

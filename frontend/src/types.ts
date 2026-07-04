@@ -335,3 +335,29 @@ export interface CoordinatorStatus {
   live_worker_count?: number;
   workers?: CoordinatorWorker[];
 }
+
+// MCP "memory for other AI tools" setup config.
+
+export interface McpClientInfo {
+  key: string;
+  label: string;
+  config_path: string | null;
+  path_scope: "global" | "workspace" | "project" | "";
+  filename: string;
+  docs: string;
+  format: "mcpServers" | "vscode";
+  config: Record<string, unknown>;
+}
+
+export interface McpConfig {
+  workspace_id: string;
+  workspace_name: string;
+  server_name: string;
+  mcp_installed: boolean;
+  python: string;
+  project_root: string;
+  platform: string;
+  docker_hosts: boolean;
+  gemini_key_present: boolean;
+  clients: McpClientInfo[];
+}

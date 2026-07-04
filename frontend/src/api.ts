@@ -303,6 +303,14 @@ export async function getCoordinatorStatus() {
   return data;
 }
 
+export async function getMcpConfig(workspaceId: string) {
+  const { data } = await client.get<import("./types").McpConfig>(
+    "/api/system/mcp-config",
+    { params: { workspace_id: workspaceId } },
+  );
+  return data;
+}
+
 export async function getSuggestedQuestions(workspaceId: string): Promise<string[]> {
   const { data } = await client.get<{ questions: string[] }>(
     `/api/workspaces/${workspaceId}/suggested-questions`,
