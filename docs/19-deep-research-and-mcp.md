@@ -105,8 +105,32 @@ Requires the engine's databases (Neo4j, ChromaDB) reachable, same as the API.
 
 ### Register with an MCP client
 
-Claude Desktop / Cursor / any MCP client — point the server config at the
-command (adjust the path and env to your setup):
+**Easiest path — the in-app Connect page.** The web UI has a **Connect** tab
+(`frontend/src/components/ConnectPanel.tsx`) that does this for the user: it calls
+`GET /api/system/mcp-config?workspace_id=…` (`backend/api/routes/system.py`) and
+renders a machine-specific, copy-paste config plus per-client, step-by-step
+instructions (where the config file lives, what to paste, restart).
+
+It supports the major MCP clients — **Claude Desktop, Claude Code, Cursor,
+Windsurf, VS Code**, and a generic "any other client" fallback — and emits each in
+that client's *correct* schema: the `mcpServers` object for Claude Desktop / Claude
+Code / Cursor / Windsurf, and VS Code's top-level `servers` map with
+`"type": "stdio"`. Every file path is derived at request time from the current
+user's home / app-data dirs (`Path.home()`, `%APPDATA%`, `$XDG_CONFIG_HOME`) and
+the running interpreter's `sys.executable`, so it's correct for **any user on any
+OS** — nothing is hard-coded to one machine. `command`/`args` stay as separate
+array elements so paths with spaces (`C:\Users\John Doe\…`) need no quoting.
+
+The generated block is **self-contained** — it pins the API's own Python
+interpreter, sets `PYTHONPATH`/`cwd` to the project root, selects the current
+workspace via `MCP_DEFAULT_WORKSPACE`, and copies the database/LLM env the API is
+already using — so a non-technical user copies one block, restarts their AI tool,
+and it works. The page also warns if the `mcp` package is missing, if the databases
+look Docker-internal (hostnames need to be `localhost`), or if `GEMINI_API_KEY` is
+unset.
+
+**Manual equivalent.** Point any MCP client's server config at the command
+(adjust the path and env to your setup):
 
 ```json
 {
@@ -122,9 +146,9 @@ command (adjust the path and env to your setup):
 }
 ```
 
-Now an external agent can ask *its own* questions against your private,
-relationship-aware corpus — and get back paths, neighbourhoods, conflicts, and
-faithfulness-scored research instead of a wall of chunks.
+Either way, an external agent can then ask *its own* questions against your
+private, relationship-aware corpus — and get back paths, neighbourhoods,
+conflicts, and faithfulness-scored research instead of a wall of chunks.
 
 ---
 

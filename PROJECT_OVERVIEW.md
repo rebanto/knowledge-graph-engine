@@ -31,7 +31,9 @@ score** showing how much of it is actually backed by your material.
 - **Reusable reports.** Answers include an evidence strip, conflict signal,
   copy-to-clipboard, and Markdown export so findings can leave the app intact.
 - **Works as memory for other AI tools.** Other assistants (like Claude or Cursor)
-  can pull verified, connected facts from it instead of guessing.
+  can pull verified, connected facts from it instead of guessing. A guided
+  **Connect** page walks any user through the one-time setup — copy one
+  auto-generated block, restart your assistant, done.
 - **Plus the basics done well:** a visual map you can explore, natural follow-up
   questions, saved answers, separate projects for different topics, and it works on
   any subject.
