@@ -15,10 +15,14 @@ const client = axios.create({
   timeout: 45_000,
 });
 
-// Retry on network errors and 5xx responses, exponential backoff
+// Retry on network errors and 5xx responses. The budget is deliberately long
+// (~18s across 6 tries) so a GET can outlast a full backend restart: this
+// backend loads ML models on startup, so `uvicorn --reload` leaves the Vite
+// proxy returning 502 (ECONNREFUSED upstream) for several seconds. A short
+// budget would exhaust mid-reload and surface that 502 to the UI.
 axiosRetry(client, {
-  retries: 3,
-  retryDelay: axiosRetry.exponentialDelay,
+  retries: 6,
+  retryDelay: (count) => Math.min(1000 * count, 4000),
   retryCondition: (err) =>
     axiosRetry.isNetworkOrIdempotentRequestError(err) ||
     (err.response?.status ?? 0) >= 500,
