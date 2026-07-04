@@ -81,11 +81,13 @@ export default function App() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConvo, setActiveConvo] = useState<ConversationDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [submittedQuestion, setSubmittedQuestion] = useState<string | null>(null);
   // Deep Research mode: when on, a submitted question runs the multi-agent
   // orchestrator (plan → sub-agents → synthesize → verify) instead of the
   // single-shot pipeline. `deepQuestion` holds the active run's question.
   const [deepMode, setDeepMode] = useState(false);
   const [deepQuestion, setDeepQuestion] = useState<string | null>(null);
+  const [deepLoading, setDeepLoading] = useState(false);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   // The standalone question a follow-up was condensed into, shown live while the
   // turn streams so the user sees how their "what about...?" was interpreted.
@@ -147,6 +149,9 @@ export default function App() {
     setPrevWorkspaceId(workspaceId);
     setActiveConvo(null);
     setDeepQuestion(null);
+    setLoading(false);
+    setSubmittedQuestion(null);
+    setDeepLoading(false);
     setSourceCount(null);
     setSourceStats(null);
     setProcessingCount(0);
@@ -199,6 +204,9 @@ export default function App() {
     cancelStreamRef.current?.();
     setTab("ask");
     setDeepQuestion(null);
+    setLoading(false);
+    setSubmittedQuestion(null);
+    setDeepLoading(false);
     setActiveConvo(null);
     setError(null);
     setStreamStatus(null);
@@ -208,12 +216,14 @@ export default function App() {
   function handleSubmit(question: string) {
     // Cancel any in-flight stream from a previous question
     cancelStreamRef.current?.();
+    setSubmittedQuestion(question);
 
     // Deep Research is a standalone run (not a conversation turn): hand the
     // question to the orchestrator panel, which owns its own SSE stream.
     if (deepMode && !activeConvo) {
       setError(null);
       setDeepQuestion(question);
+      setDeepLoading(true);
       return;
     }
 
@@ -234,6 +244,7 @@ export default function App() {
           setStreamStatus(null);
           setRewriteNote(null);
           setLoading(false);
+          setSubmittedQuestion(null);
           setActiveConvo((prev) => {
             // Append to the open thread when the turn belongs to it...
             if (prev && result.conversation_id && result.conversation_id === prev.id) {
@@ -256,6 +267,7 @@ export default function App() {
           setStreamStatus(null);
           setRewriteNote(null);
           setLoading(false);
+          setSubmittedQuestion(null);
         },
       },
       conversationId,
@@ -278,14 +290,23 @@ export default function App() {
       const full = await getConversation(conversationId);
       setActiveConvo(full);
       setDeepQuestion(null);
+      setSubmittedQuestion(null);
+      setDeepLoading(false);
       setTab("ask");
       setError(null);
       await refreshConversations();
     } catch {
       setError("Deep Research finished, but the saved conversation couldn't be opened.");
+      setSubmittedQuestion(null);
+      setDeepLoading(false);
       await refreshConversations();
     }
   }, [refreshConversations]);
+
+  const handleDeepSettled = useCallback(() => {
+    setSubmittedQuestion(null);
+    setDeepLoading(false);
+  }, []);
 
   async function handleCreateWorkspace(
     name: string,
@@ -464,6 +485,7 @@ export default function App() {
                   <QuestionInput
                     onSubmit={handleSubmit}
                     loading={loading}
+                    submittedQuestion={submittedQuestion}
                     placeholder="Ask a follow-up..."
                   />
                   {askStatus}
@@ -482,7 +504,8 @@ export default function App() {
                 <div className="mx-auto max-w-2xl">
                   <QuestionInput
                     onSubmit={handleSubmit}
-                    loading={false}
+                    loading={deepLoading}
+                    submittedQuestion={submittedQuestion ?? deepQuestion}
                     placeholder="Ask another deep question..."
                   />
                   <div className="mt-2.5 flex items-center justify-between">
@@ -501,6 +524,7 @@ export default function App() {
                     question={deepQuestion}
                     workspaceId={workspaceId}
                     onSaved={handleDeepSaved}
+                    onSettled={handleDeepSettled}
                   />
                 </div>
               </div>
@@ -513,7 +537,13 @@ export default function App() {
                   <h1 className="text-glow mb-7 text-center font-display text-[34px] font-medium leading-[1.1] tracking-tight text-paper">
                     What do you want to know?
                   </h1>
-                  <QuestionInput onSubmit={handleSubmit} loading={loading} hero autoFocus />
+                  <QuestionInput
+                    onSubmit={handleSubmit}
+                    loading={loading}
+                    submittedQuestion={submittedQuestion}
+                    hero
+                    autoFocus
+                  />
                   {askStatus}
 
                   <div className="mt-3.5 flex justify-center">{deepToggle}</div>

@@ -31,11 +31,12 @@ const PHASES: { key: Phase; label: string }[] = [
  * trust score. Self-contained - it owns the SSE stream so App stays thin.
  */
 export function DeepResearchPanel({
-  question, workspaceId, onSaved,
+  question, workspaceId, onSaved, onSettled,
 }: {
   question: string;
   workspaceId: string;
   onSaved?: (conversationId: string) => void | Promise<void>;
+  onSettled?: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>("planning");
   const [statusMsg, setStatusMsg] = useState("Planning...");
@@ -70,13 +71,14 @@ export function DeepResearchPanel({
       onDone: (r) => {
         setResult(r);
         setPhase("done");
+        onSettled?.();
         if (r.conversation_id) void onSaved?.(r.conversation_id);
       },
-      onError: (detail) => { setError(detail); setPhase("error"); },
+      onError: (detail) => { setError(detail); setPhase("error"); onSettled?.(); },
     });
     cancelRef.current = cancel;
     return () => cancel();
-  }, [question, workspaceId, onSaved]);
+  }, [question, workspaceId, onSaved, onSettled]);
 
   const activeIdx = PHASES.findIndex((p) => p.key === phase);
 

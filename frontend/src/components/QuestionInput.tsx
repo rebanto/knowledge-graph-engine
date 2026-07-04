@@ -4,6 +4,7 @@ import { ArrowUp, Loader2 } from "lucide-react";
 interface QuestionInputProps {
   onSubmit: (question: string) => void;
   loading: boolean;
+  submittedQuestion?: string | null;
   hero?: boolean;
   autoFocus?: boolean;
   placeholder?: string;
@@ -12,11 +13,13 @@ interface QuestionInputProps {
 export function QuestionInput({
   onSubmit,
   loading,
+  submittedQuestion = null,
   hero = false,
   autoFocus = false,
   placeholder = "Ask a question...",
 }: QuestionInputProps) {
   const [value, setValue] = useState("");
+  const displayValue = loading && submittedQuestion ? submittedQuestion : value;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,7 +34,7 @@ export function QuestionInput({
       {/* illuminated focus halo - driven by CSS :focus-within, not state */}
       <div className="pointer-events-none absolute -inset-px rounded-xl opacity-0 transition-opacity duration-300 group-focus-within:opacity-100 glow-brass" />
       <input
-        value={value}
+        value={displayValue}
         autoFocus={autoFocus}
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}
