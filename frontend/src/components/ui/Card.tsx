@@ -1,7 +1,7 @@
 type Variant = "default" | "raised" | "flat";
 
 const VARIANT: Record<Variant, string> = {
-  // Lit panel — faint top highlight + gradient (see index.css .surface).
+  // Lit panel - faint top highlight + gradient (see index.css .surface).
   default: "surface",
   // More elevated panel for primary content blocks.
   raised: "surface-raised",

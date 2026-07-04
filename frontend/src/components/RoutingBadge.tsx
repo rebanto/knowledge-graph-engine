@@ -7,8 +7,8 @@ const CONFIG: Record<RetrievalType, {
   icon: typeof GitBranch;
   tone: "graph" | "vector" | "hybrid" | "brass";
 }> = {
-  graph: { label: "Traced the graph", icon: GitBranch, tone: "graph" },
-  vector: { label: "Read the sources", icon: Search, tone: "vector" },
+  graph: { label: "Graph", icon: GitBranch, tone: "graph" },
+  vector: { label: "Sources", icon: Search, tone: "vector" },
   hybrid: { label: "Graph + sources", icon: Layers, tone: "hybrid" },
   deep_research: { label: "Deep Research", icon: Sparkles, tone: "brass" },
 };

@@ -37,7 +37,7 @@ interface RailItemProps {
 }
 
 // A rail item carries its label inline (always visible) so the navigation
-// is self-explanatory — no hover-to-discover guessing.
+// is self-explanatory - no hover-to-discover guessing.
 function RailItem({ label, icon: Icon, active, badge, onClick }: RailItemProps) {
   return (
     <button
@@ -112,7 +112,7 @@ export function Rail({
         <LatticeMark />
       </div>
 
-      {/* Always-available "new question" — the universal escape hatch back to a
+      {/* Always-available "new question" - the universal escape hatch back to a
           fresh ask, no matter how deep in a thread or which page you're on. */}
       <button
         onClick={onNewThread}
@@ -145,17 +145,17 @@ export function Rail({
         onClick={onToggleHistory}
       />
 
-      {/* Workspace switcher — opens the drawer where the active workspace can be
+      {/* Workspace switcher - opens the drawer where the active workspace can be
           changed. Distinct from the page nav above so it reads as "where am I"
           rather than "which page". */}
       <div className="mt-auto">
         <button
           onClick={onToggleHistory}
-          title={workspace ? `Workspace: ${workspace.name} — ${workspace.domain}` : "Pick a workspace"}
+          title={workspace ? `Workspace: ${workspace.name} - ${workspace.domain}` : "Pick a workspace"}
           className="group relative flex flex-col items-center gap-1.5"
         >
           <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-ink-700 bg-gradient-to-b from-ink-750 to-ink-800 font-display text-[13px] font-medium text-brass transition-colors group-hover:border-brass/35">
-            {initials || "·"}
+            {initials || "?"}
           </span>
           <span className="max-w-[68px] truncate text-[10px] text-faint transition-colors group-hover:text-paper-dim">
             {workspace?.name ?? "Workspace"}

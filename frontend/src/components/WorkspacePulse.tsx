@@ -18,26 +18,26 @@ export interface SourceStats {
 
 const MODE_CARDS = [
   {
-    label: "Proof Brief",
-    detail: "answer + checked claim ledger",
+    label: "Check Claims",
+    detail: "answer and claim ledger",
     Icon: ShieldCheck,
     prompt: "Write a proof brief: strongest supported claims, weak claims, and the source evidence behind each.",
   },
   {
-    label: "Connection Trace",
-    detail: "multi-hop graph reasoning",
+    label: "Trace Links",
+    detail: "multi-hop graph path",
     Icon: Network,
     prompt: "Trace the most important relationships between the central people, papers, and concepts.",
   },
   {
-    label: "Disagreement Audit",
-    detail: "conflicts and weak claims",
+    label: "Find Conflicts",
+    detail: "disagreements and weak claims",
     Icon: AlertTriangle,
     prompt: "Where do the sources disagree, and which claims should be treated cautiously?",
   },
   {
-    label: "Agent Context Pack",
-    detail: "portable grounded memory",
+    label: "Context Pack",
+    detail: "source-backed summary",
     Icon: Search,
     prompt: "Prepare a compact, source-grounded context pack another AI agent could use safely.",
   },
@@ -113,7 +113,7 @@ export function WorkspacePulse({
       <Card variant="raised" as="section" className="p-4">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <SectionLabel>Workspace Pulse</SectionLabel>
+            <SectionLabel>Workspace</SectionLabel>
             <h2 className="mt-1 truncate font-display text-[19px] font-medium text-paper">
               {workspace?.name ?? "Untitled workspace"}
             </h2>
@@ -179,7 +179,7 @@ export function WorkspacePulse({
       </Card>
 
       <Card variant="raised" as="section" className="p-4">
-        <SectionLabel>Research Moves</SectionLabel>
+        <SectionLabel>Prompts</SectionLabel>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {MODE_CARDS.map(({ label, detail, Icon, prompt }) => (
             <button

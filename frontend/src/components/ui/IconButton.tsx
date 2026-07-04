@@ -19,7 +19,7 @@ export interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonEl
   tone?: Tone;
 }
 
-// Square, icon-only action — close, refresh, delete, expand, etc. Keeps every
+// Square, icon-only action - close, refresh, delete, expand, etc. Keeps every
 // such control identically sized and spaced across the app.
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
   { size = "md", tone = "default", className = "", children, ...rest },

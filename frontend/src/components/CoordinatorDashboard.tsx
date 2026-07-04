@@ -47,7 +47,7 @@ function WorkerCard({ w, timeout }: { w: CoordinatorWorker; timeout: number }) {
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted">
             <span className="inline-flex items-center gap-1">
-              <Server size={10} /> {w.host || "—"}
+              <Server size={10} /> {w.host || "-"}
             </span>
             <span className={`inline-flex items-center gap-1 ${stale ? "text-brass/90" : ""}`}>
               <Clock size={10} /> {w.seconds_since_heartbeat.toFixed(1)}s {contactLabel}
@@ -57,8 +57,8 @@ function WorkerCard({ w, timeout }: { w: CoordinatorWorker; timeout: number }) {
           {w.state === "processing" && w.total > 0 && (
             <div className="mt-2">
               <div className="mb-1 flex items-center justify-between text-[10.5px] text-muted">
-                <span className="font-mono text-muted">batch {w.batch_id?.slice(0, 8) ?? "—"}</span>
-                <span>{w.completed}/{w.total} docs · {pct}%</span>
+                <span className="font-mono text-muted">batch {w.batch_id?.slice(0, 8) ?? "-"}</span>
+                <span>{w.completed}/{w.total} docs, {pct}%</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-ink-700">
                 <div className="h-full rounded-full bg-brass transition-all" style={{ width: `${pct}%` }} />
@@ -114,7 +114,7 @@ export function CoordinatorDashboard() {
               Worker pool
             </h2>
             <p className="mt-0.5 text-[13px] text-muted">
-              The distributed coordinator — who's reading what, and how far along.
+              Distributed ingestion status.
             </p>
           </div>
           <button
@@ -133,7 +133,7 @@ export function CoordinatorDashboard() {
         ) : !status?.available ? (
           <div className="dot-grid rounded-xl border border-ink-700 bg-ink-800/20 p-10 text-center">
             <Activity size={20} className="mx-auto mb-3 text-ghost" />
-            <p className="font-display text-[15px] text-paper-dim">The pool is asleep</p>
+            <p className="font-display text-[15px] text-paper-dim">Pool offline</p>
             <p className="mx-auto mt-1.5 max-w-md text-[12px] leading-relaxed text-muted">
               By default, ingestion runs on a single RQ worker. To bring up the
               coordinator and its gRPC worker pool, start it with{" "}
@@ -160,7 +160,7 @@ export function CoordinatorDashboard() {
 
             <div className="mb-3 flex items-center gap-2 text-[11.5px] text-muted">
               <Wifi size={12} className="text-ok" />
-              Connected · heartbeat timeout {timeout}s
+              Connected, heartbeat timeout {timeout}s
             </div>
 
             {workers.length === 0 ? (
@@ -187,8 +187,7 @@ export function CoordinatorDashboard() {
             {(status.reassignments ?? 0) > 0 && (
               <p className="mt-4 flex items-center gap-1.5 text-[11.5px] text-faint">
                 <RotateCcw size={11} />
-                {status.reassignments} document(s) were handed to another worker after one
-                went quiet — idempotent writes make the re-read harmless.
+                {status.reassignments} document(s) moved after a worker went quiet.
               </p>
             )}
           </>

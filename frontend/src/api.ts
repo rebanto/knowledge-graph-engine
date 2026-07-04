@@ -96,10 +96,10 @@ export function streamQuestion(
       }
       es.close();
     } else {
-      // Connection-level failure — fall back to regular POST so the user
+      // Connection-level failure - fall back to regular POST so the user
       // still gets an answer even if streaming isn't available.
       es.close();
-      callbacks.onProgress?.("Falling back to direct request…");
+      callbacks.onProgress?.("Retrying without streaming...");
       askQuestion(question, workspaceId, conversationId)
         .then((result) => callbacks.onDone?.(result))
         .catch(() =>

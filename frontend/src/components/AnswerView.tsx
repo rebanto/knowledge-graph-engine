@@ -8,7 +8,7 @@ import { SourcesPanel } from "./SourcesPanel";
 import { EntitySummary } from "./EntitySummary";
 import { ConflictBanner } from "./ConflictBanner";
 
-// Code-split the recharts-based insight cards — recharts is a heavy dependency
+// Code-split the recharts-based insight cards - recharts is a heavy dependency
 // and the answer text should never wait on it.
 const InsightCards = lazy(() =>
   import("./InsightCards").then((m) => ({ default: m.InsightCards })),

@@ -14,7 +14,7 @@ import {
 import { Button, IconButton, Input } from "./ui";
 
 // Pull the backend's human-readable validation message out of an API error
-// (e.g. "Host resolves to a private address", "File is 62 MB — the limit is 50 MB").
+// (e.g. "Host resolves to a private address", "File is 62 MB - the limit is 50 MB").
 function apiErrorDetail(err: unknown): string | null {
   if (axios.isAxiosError(err)) {
     const detail = err.response?.data?.detail;
@@ -34,7 +34,7 @@ const TYPE_META: Record<SourceType, {
   arxiv_feed: {
     label: "ArXiv",
     Icon: BookOpen,
-    placeholder: "cs.AI, cs.LG · 2401.12345 · graph neural networks",
+    placeholder: "cs.AI, cs.LG, 2401.12345, graph neural networks",
     hint: "Category (cs.AI, stat.ML), paper ID or arxiv.org link, or search keywords. Comma-separate multiple categories.",
   },
   rss: {
@@ -47,13 +47,13 @@ const TYPE_META: Record<SourceType, {
     label: "Web URL",
     Icon: Globe,
     placeholder: "https://example.com/article",
-    hint: "Any web page — the text will be scraped and ingested",
+    hint: "Any public web page",
   },
   pdf_upload: {
     label: "PDF",
     Icon: FileText,
     placeholder: "",
-    hint: "Upload a PDF directly — up to ~50 MB",
+    hint: "Upload a PDF, up to 50 MB",
   },
 };
 
@@ -120,9 +120,9 @@ function shortenUrl(url: string): string {
   try {
     const u = new URL(url);
     const path = u.pathname.slice(0, 45);
-    return u.hostname + path + (u.pathname.length > 45 ? "…" : "");
+    return u.hostname + path + (u.pathname.length > 45 ? "..." : "");
   } catch {
-    return url.slice(0, 60) + (url.length > 60 ? "…" : "");
+    return url.slice(0, 60) + (url.length > 60 ? "..." : "");
   }
 }
 
@@ -146,11 +146,11 @@ function WorkerBanner({ status }: { status: QueueStatus | null }) {
         <WifiOff size={14} className="mt-0.5 flex-shrink-0 text-brass" />
         <div className="min-w-0">
           <p className="text-[12px] font-medium text-brass">
-            Nobody's reading right now
-            {queued > 0 && ` — ${queued} job${queued !== 1 ? "s" : ""} waiting`}
+            No worker online
+            {queued > 0 && ` (${queued} job${queued !== 1 ? "s" : ""} waiting)`}
           </p>
           <p className="mt-0.5 text-[12px] text-brass/70">
-            Sources sit in "Waiting" until the ingestion worker is up. Run{" "}
+            Sources stay in "Waiting" until the worker starts. Run{" "}
             <code className="rounded bg-ink-900 px-1 py-0.5 text-[11px] text-paper-dim">
               .\dev.ps1
             </code>{" "}
@@ -168,7 +168,7 @@ function WorkerBanner({ status }: { status: QueueStatus | null }) {
         <span className="font-medium text-ok">
           {status.worker_count} worker{status.worker_count !== 1 ? "s" : ""} online
         </span>
-        {queued > 0 && ` · ${queued} job${queued !== 1 ? "s" : ""} in the queue`}
+        {queued > 0 && `, ${queued} job${queued !== 1 ? "s" : ""} in the queue`}
       </p>
     </div>
   );
@@ -191,7 +191,7 @@ function JobRow({ job }: { job: SourceJobsResponse["jobs"][number] }) {
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate font-mono text-[11px] text-muted">
-          {job.document_url ? shortenUrl(job.document_url) : "—"}
+          {job.document_url ? shortenUrl(job.document_url) : "-"}
         </p>
         {failed && job.error && (
           <p className="mt-0.5 line-clamp-1 text-[11px] text-flag/80">{job.error}</p>
@@ -271,13 +271,13 @@ function SourceCard({
                 <span className="text-ok/90">{jobData.success} docs</span>
                 {jobData.failed > 0 && (
                   <>
-                    {" · "}
+                    {", "}
                     <span className="text-flag/90">{jobData.failed} failed</span>
                   </>
                 )}
                 {jobData.running > 0 && (
                   <>
-                    {" · "}
+                    {", "}
                     <span className="text-brass/90">{jobData.running} reading</span>
                   </>
                 )}
@@ -342,12 +342,12 @@ function SourceCard({
         {loadingJobs ? (
           <span className="flex items-center gap-1.5">
             <Loader2 size={10} className="animate-spin" />
-            Loading jobs…
+            Loading...
           </span>
         ) : jobData ? (
           expanded
             ? `Hide the run log`
-            : `Run log — ${jobData.total} jobs · ${jobData.success} ok · ${jobData.failed} failed`
+            : `Run log: ${jobData.total} jobs, ${jobData.success} ok, ${jobData.failed} failed`
         ) : (
           "Run log"
         )}
@@ -600,16 +600,16 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
             <h2 className="font-display text-[22px] font-medium text-paper">Sources</h2>
             <p className="mt-0.5 text-[13px] text-muted">
               {loading
-                ? "Loading…"
+                ? "Loading..."
                 : sources.length === 0
-                ? "Nothing here yet — add a source and the graph starts to fill in."
+                ? "No sources yet."
                 : [
                     `${sources.length} source${sources.length !== 1 ? "s" : ""}`,
                     counts.active > 0 && `${counts.active} reading`,
                     counts.error > 0 && `${counts.error} failed`,
                   ]
                     .filter(Boolean)
-                    .join(" · ")}
+                    .join(", ")}
             </p>
           </div>
           <IconButton onClick={() => { refresh(); syncQuietly(); }} title="Refresh" tone="brass">
@@ -617,14 +617,14 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
           </IconButton>
         </div>
 
-        {/* Add source — collapsed trigger or expanded form */}
+        {/* Add source - collapsed trigger or expanded form */}
         {!addOpen ? (
           <button
             onClick={() => setAddOpen(true)}
             className="mb-5 flex w-full items-center gap-2 rounded-xl border border-dashed border-ink-600 px-4 py-3 text-[13px] text-muted transition-colors hover:border-brass/40 hover:text-paper-dim"
           >
             <Plus size={14} />
-            Add a source…
+            Add a source
           </button>
         ) : (
           <div className="mb-5 rounded-xl border border-ink-700 bg-ink-800/40 p-4">
@@ -678,7 +678,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
                   className="flex items-center gap-2 rounded-lg border border-dashed border-ink-600 px-4 py-3 text-[13px] text-muted transition-colors hover:border-brass/40 hover:text-paper-dim disabled:opacity-50"
                 >
                   {adding ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                  {adding ? "Uploading…" : "Choose a PDF file…"}
+                  {adding ? "Uploading..." : "Choose a PDF"}
                 </button>
               </div>
             ) : (
@@ -689,7 +689,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
                     const val = e.target.value;
                     setAddUrl(val);
                     // Auto-switch to Web URL when a non-arxiv https:// address is
-                    // typed into the ArXiv field — prevents the silent wrong-type bug
+                    // typed into the ArXiv field - prevents the silent wrong-type bug
                     // where a Wikipedia URL gets submitted as an arxiv_feed and finds 0 docs.
                     if (
                       addType === "arxiv_feed" &&

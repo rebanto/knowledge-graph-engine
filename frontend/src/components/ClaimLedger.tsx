@@ -19,7 +19,7 @@ export function ClaimLedger({ trust }: { trust: TrustScore }) {
           <div>
             <p className="font-display text-[15px] font-medium text-paper">Claim ledger</p>
             <p className="mt-1 text-[12px] leading-relaxed text-muted">
-              The verifier found no checkable factual claims in this answer, or the verification service was unavailable.
+              No checkable claims were found, or verification was unavailable.
             </p>
           </div>
         </div>

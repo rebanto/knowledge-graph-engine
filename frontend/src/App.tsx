@@ -88,7 +88,7 @@ export default function App() {
   const [deepQuestion, setDeepQuestion] = useState<string | null>(null);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   // The standalone question a follow-up was condensed into, shown live while the
-  // turn streams so the user sees how their "what about…?" was interpreted.
+  // turn streams so the user sees how their "what about...?" was interpreted.
   const [rewriteNote, setRewriteNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sourceCount, setSourceCount] = useState<number | null>(null);
@@ -99,7 +99,7 @@ export default function App() {
   const [selectedGap, setSelectedGap] = useState<ResearchGap | null>(null);
   const cancelStreamRef = useRef<(() => void) | null>(null);
   const sourcePollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Pending conversation ID from the URL — opened once the list arrives.
+  // Pending conversation ID from the URL - opened once the list arrives.
   const pendingConvoId = useRef<string | null>(initialUrl.c);
 
   useEffect(() => {
@@ -139,7 +139,7 @@ export default function App() {
     return () => { if (sourcePollRef.current) clearTimeout(sourcePollRef.current); };
   }, [processingCount, refreshSources]);
 
-  // Reset per-workspace view state the moment the workspace switches — done
+  // Reset per-workspace view state the moment the workspace switches - done
   // during render (the documented "adjusting state when props change" pattern)
   // so the old workspace's data never paints against the new one.
   const [prevWorkspaceId, setPrevWorkspaceId] = useState(workspaceId);
@@ -185,7 +185,7 @@ export default function App() {
   }, [conversations]);
 
   // If the URL named a workspace that doesn't exist, fall back to the first one
-  // (render-time state adjustment — no effect round-trip).
+  // (render-time state adjustment - no effect round-trip).
   if (workspaces.length > 0 && !workspaces.some((w) => w.id === workspaceId)) {
     setWorkspaceId(workspaces[0].id);
   }
@@ -221,7 +221,7 @@ export default function App() {
     setLoading(true);
     setError(null);
     setRewriteNote(null);
-    setStreamStatus(conversationId ? "Threading your follow-up…" : "Working out where to look…");
+    setStreamStatus(conversationId ? "Reading the thread..." : "Choosing where to look...");
 
     const cancel = streamQuestion(
       question,
@@ -235,11 +235,11 @@ export default function App() {
           setRewriteNote(null);
           setLoading(false);
           setActiveConvo((prev) => {
-            // Append to the open thread when the turn belongs to it…
+            // Append to the open thread when the turn belongs to it...
             if (prev && result.conversation_id && result.conversation_id === prev.id) {
               return { ...prev, turns: [...prev.turns, result], updated_at: result.created_at };
             }
-            // …otherwise this opened a brand-new conversation.
+            // ...otherwise this opened a brand-new conversation.
             return {
               id: result.conversation_id ?? result.id,
               workspace_id: workspaceId,
@@ -307,7 +307,7 @@ export default function App() {
         setSourceStats(buildSourceStats(sources));
         if (sources.length > 0) setTab("sources");
       } catch {
-        // Discovery failed — user can retry from the empty state
+        // Discovery failed - user can retry from the empty state
       } finally {
         setDiscovering(false);
       }
@@ -381,7 +381,7 @@ export default function App() {
               {processingCount === 1
                 ? "1 source is still being read in"
                 : `${processingCount} sources are still being read in`}
-              {" — their content isn't searchable yet"}
+              {" Content is still indexing."}
             </span>
           </div>
           <button
@@ -406,7 +406,7 @@ export default function App() {
           ? "border-brass/40 bg-brass-dim text-brass glow-brass-soft"
           : "border-ink-700 text-faint hover:text-paper-dim"
       }`}
-      title="Multi-agent: decompose → research in parallel → synthesize → fact-check with a trust score"
+      title="Break the question into subquestions, research them, then verify the answer."
     >
       <Sparkles size={13} strokeWidth={2.25} />
       Deep Research
@@ -464,7 +464,7 @@ export default function App() {
                   <QuestionInput
                     onSubmit={handleSubmit}
                     loading={loading}
-                    placeholder="Ask a follow-up — it remembers the thread…"
+                    placeholder="Ask a follow-up..."
                   />
                   {askStatus}
                 </div>
@@ -483,7 +483,7 @@ export default function App() {
                   <QuestionInput
                     onSubmit={handleSubmit}
                     loading={false}
-                    placeholder="Ask another deep question…"
+                    placeholder="Ask another deep question..."
                   />
                   <div className="mt-2.5 flex items-center justify-between">
                     {deepToggle}
@@ -549,7 +549,7 @@ export default function App() {
                 selectedGap={selectedGap}
                 onSelectGap={setSelectedGap}
               />
-              <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[12px] text-muted">Loading graph view…</div>}>
+              <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[12px] text-muted">Loading graph view...</div>}>
                 <GraphViewer workspaceId={workspaceId} gapFocus={selectedGap} />
               </Suspense>
             </ErrorBoundary>

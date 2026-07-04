@@ -14,7 +14,7 @@ export function QuestionInput({
   loading,
   hero = false,
   autoFocus = false,
-  placeholder = "Ask the graph a hard question…",
+  placeholder = "Ask a question...",
 }: QuestionInputProps) {
   const [value, setValue] = useState("");
 
@@ -28,7 +28,7 @@ export function QuestionInput({
 
   return (
     <form onSubmit={handleSubmit} className="group relative w-full">
-      {/* illuminated focus halo — driven by CSS :focus-within, not state */}
+      {/* illuminated focus halo - driven by CSS :focus-within, not state */}
       <div className="pointer-events-none absolute -inset-px rounded-xl opacity-0 transition-opacity duration-300 group-focus-within:opacity-100 glow-brass" />
       <input
         value={value}

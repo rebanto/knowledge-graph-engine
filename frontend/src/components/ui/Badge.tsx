@@ -21,7 +21,7 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   size?: Size;
 }
 
-// The one pill shape — routing labels, trust scores, status tags, counts.
+// The one pill shape - routing labels, trust scores, status tags, counts.
 export function Badge({ tone = "neutral", size = "md", className = "", children, ...rest }: BadgeProps) {
   return (
     <span

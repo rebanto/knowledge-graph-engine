@@ -28,7 +28,7 @@ const PHASES: { key: Phase; label: string }[] = [
 /**
  * Drives one multi-agent deep-research run and renders it live: the plan, each
  * sub-agent filling in as it finishes, then the fused answer with a faithfulness
- * trust score. Self-contained — it owns the SSE stream so App stays thin.
+ * trust score. Self-contained - it owns the SSE stream so App stays thin.
  */
 export function DeepResearchPanel({
   question, workspaceId, onSaved,
@@ -38,7 +38,7 @@ export function DeepResearchPanel({
   onSaved?: (conversationId: string) => void | Promise<void>;
 }) {
   const [phase, setPhase] = useState<Phase>("planning");
-  const [statusMsg, setStatusMsg] = useState("Decomposing the question…");
+  const [statusMsg, setStatusMsg] = useState("Planning...");
   const [plan, setPlan] = useState<SubQuestionResult[]>([]);
   const [agents, setAgents] = useState<Record<number, SubAgentProgress>>({});
   const [liveTrust, setLiveTrust] = useState<TrustScore | null>(null);
@@ -51,7 +51,7 @@ export function DeepResearchPanel({
   const [prevRun, setPrevRun] = useState({ question, workspaceId });
   if (prevRun.question !== question || prevRun.workspaceId !== workspaceId) {
     setPrevRun({ question, workspaceId });
-    setPhase("planning"); setStatusMsg("Decomposing the question…");
+    setPhase("planning"); setStatusMsg("Planning...");
     setPlan([]); setAgents({}); setLiveTrust(null); setResult(null); setError(null);
   }
 
@@ -85,7 +85,7 @@ export function DeepResearchPanel({
       {/* Header */}
       <div>
         <Badge tone="brass" className="mb-2">
-          <Sparkles size={12} strokeWidth={2.25} /> Deep Research · multi-agent
+          <Sparkles size={12} strokeWidth={2.25} /> Deep Research
         </Badge>
         <h1 className="font-display text-[26px] font-medium leading-[1.25] tracking-tight text-paper">
           {question}
@@ -158,8 +158,8 @@ export function DeepResearchPanel({
                 )}
                 {done && live?.evidence && (
                   <p className="mt-2 font-mono text-[11px] text-faint">
-                    {live.evidence.graph_records} graph records · {live.evidence.passages} passages
-                    {live.evidence.conflicts > 0 && ` · ${live.evidence.conflicts} conflicts`}
+                    {live.evidence.graph_records} graph records, {live.evidence.passages} passages
+                    {live.evidence.conflicts > 0 && `, ${live.evidence.conflicts} conflicts`}
                   </p>
                 )}
               </Card>
@@ -181,11 +181,11 @@ export function DeepResearchPanel({
 
           <ConflictBanner conflicts={result.conflicts ?? []} />
 
-          {/* Unsupported claims — radical honesty: show what the judge flagged */}
-          {result.trust.unsupported_claims.length > 0 && (
+          {/* Unsupported claims from verification */}
+                {result.trust.unsupported_claims.length > 0 && (
             <div className="rounded-xl border border-flag/30 bg-flag/5 p-3.5">
               <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-flag">
-                <AlertTriangle size={12} /> Claims the judge could not trace to retrieved data
+                <AlertTriangle size={12} /> Unsupported claims
               </p>
               <ul className="list-disc space-y-1 pl-5 text-[12px] text-paper-dim">
                 {result.trust.unsupported_claims.map((c, i) => <li key={i}>{c}</li>)}

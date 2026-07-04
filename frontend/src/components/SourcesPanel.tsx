@@ -9,7 +9,7 @@ function arxivUrl(id: string): string {
 }
 
 function CellValue({ column, value }: { column: string; value: GraphRecord[string] }) {
-  const str = String(value ?? "—");
+  const str = String(value ?? "-");
 
   if (column.toLowerCase().includes("url") && typeof value === "string" && value.startsWith("http")) {
     return (
@@ -165,7 +165,7 @@ export function SourcesPanel({ cypher, graphRecords, vectorChunks }: SourcesPane
   return (
     <div className="mt-2">
       {cypher && (
-        <Disclosure title="The Cypher it ran" count={1}>
+      <Disclosure title="Cypher" count={1}>
           <pre className="overflow-x-auto rounded-lg border border-ink-700 bg-ink-850 p-3 font-mono text-[12px] leading-relaxed text-paper-dim">
             {cypher}
           </pre>
@@ -174,7 +174,7 @@ export function SourcesPanel({ cypher, graphRecords, vectorChunks }: SourcesPane
       <Disclosure title="Graph records" count={graphRecords.length}>
         <GraphTable records={graphRecords} />
       </Disclosure>
-      <Disclosure title="Passages it read" count={vectorChunks.length}>
+      <Disclosure title="Passages" count={vectorChunks.length}>
         <div className="flex flex-col gap-2">
           {vectorChunks.map((chunk, i) => (
             <ChunkCard key={i} chunk={chunk} />

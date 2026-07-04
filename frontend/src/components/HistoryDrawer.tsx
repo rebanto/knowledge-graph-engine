@@ -61,7 +61,6 @@ export function HistoryDrawer({
       <div className="flex items-center justify-between px-4 pt-5 pb-3">
         <div className="leading-none">
           <p className="font-display text-[17px] font-medium tracking-tight text-paper">Lattice</p>
-          <p className="mt-1 font-display text-[11px] italic text-faint">a research instrument</p>
         </div>
         <IconButton onClick={onClose} title="Collapse">
           <X size={15} />
@@ -83,7 +82,7 @@ export function HistoryDrawer({
           className="flex w-full items-center gap-2 rounded-lg border border-brass/30 bg-brass-dim px-3 py-2 text-[13px] font-medium text-brass transition-colors hover:border-brass/50 hover:bg-brass/15"
         >
           <Plus size={15} />
-          Start a new thread
+          New thread
         </button>
       </div>
 

@@ -3,12 +3,12 @@
  *
  * CSS components should use the Tailwind tokens in index.css (text-node-person,
  * etc.). But d3 (GraphViewer), recharts (InsightCards) and inline `style`
- * colours (EntitySummary) need literal hex strings — those all import from here
+ * colours (EntitySummary) need literal hex strings - those all import from here
  * instead of re-declaring their own copies, so the colours stay in lockstep with
  * the `--color-node-*` / `--color-*` tokens in index.css.
  */
 
-// Warm ink + paper — surfaces and text (mirror of the index.css tokens).
+// Warm ink + paper - surfaces and text (mirror of the index.css tokens).
 export const INK = {
   950: "#090807",
   900: "#0c0b09",

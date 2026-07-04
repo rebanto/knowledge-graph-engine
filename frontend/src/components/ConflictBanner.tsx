@@ -18,7 +18,7 @@ function DocumentRef({ id }: { id: string }) {
   }
   return (
     <span className="inline-flex items-center gap-1 font-mono text-[11px] text-flag/80">
-      <FileText size={9} /> {id.length > 32 ? `${id.slice(0, 32)}…` : id}
+      <FileText size={9} /> {id.length > 32 ? `${id.slice(0, 32)}...` : id}
     </span>
   );
 }
@@ -42,8 +42,7 @@ export function ConflictBanner({ conflicts }: { conflicts: Conflict[] }) {
         </h3>
       </div>
       <p className="mb-3 text-[12px] leading-relaxed text-flag/70">
-        Two sources make opposite claims about the pairs below. The answer flags
-        them where they come up — treat them as contested, not settled.
+        Opposite claims were found for the pairs below. Treat them as contested.
       </p>
       <ul className="flex flex-col gap-2">
         {conflicts.map((c, i) => (
@@ -53,7 +52,7 @@ export function ConflictBanner({ conflicts }: { conflicts: Conflict[] }) {
           >
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
               <span className="font-medium text-paper">{c.source}</span>
-              <span className="text-flag/70">⟷</span>
+              <span className="text-flag/70">vs</span>
               <span className="font-medium text-paper">{c.target}</span>
               {c.claim_types.length > 0 && (
                 <span className="flex flex-wrap gap-1">

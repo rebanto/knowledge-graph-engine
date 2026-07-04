@@ -13,7 +13,7 @@ import {
 
 const NODE_COLOR = NODE_COLOR_MAP as Record<NodeType, string>;
 
-// Edges are colored by semantic GROUP rather than by exact type — a dozen
+// Edges are colored by semantic GROUP rather than by exact type - a dozen
 // distinct edge colors reads as rainbow noise. The exact type still shows on the
 // edge label when a node is focused, and in the detail panel.
 type EdgeGroup = "authorship" | "content" | "concept" | "citation" | "funding" | "support" | "conflict";
@@ -34,7 +34,7 @@ const GROUP_COLOR = EDGE_GROUP_COLOR as Record<EdgeGroup, string>;
 
 const GROUP_LABEL: Record<EdgeGroup, string> = {
   authorship: "Authorship",
-  content:    "Paper → content",
+  content:    "Paper content",
   concept:    "Concept links",
   citation:   "Citations",
   funding:    "Funding",
@@ -180,7 +180,7 @@ export function GraphViewer({
     const t = d3.zoomIdentity.translate(tx, ty).scale(scale);
     const sel = d3.select(svgRef.current);
     // duration 0 applies instantly (transitions rely on rAF, which embedded /
-    // backgrounded contexts can throttle — the initial fit must not depend on it).
+    // backgrounded contexts can throttle - the initial fit must not depend on it).
     if (duration > 0) sel.transition().duration(duration).call(zoomRef.current.transform, t);
     else sel.call(zoomRef.current.transform, t);
   }, []);
@@ -352,7 +352,7 @@ export function GraphViewer({
       .data(nodes).join("g")
       .attr("pointer-events", "none").attr("opacity", 0);
     labelG.append("text")
-      .text((d) => (d.name.length > 30 ? d.name.slice(0, 30) + "…" : d.name))
+      .text((d) => (d.name.length > 30 ? d.name.slice(0, 30) + "..." : d.name))
       .attr("font-size", 11).attr("font-family", "Inter, system-ui, sans-serif")
       .attr("font-weight", 500).attr("fill", PAPER.DEFAULT)
       .attr("paint-order", "stroke").attr("stroke", INK[900]).attr("stroke-width", 3.5)
@@ -397,7 +397,7 @@ export function GraphViewer({
       const H = FONT * 1.4;
       // Label budget for the unfocused/unsearched view: keep it modest when zoomed
       // out (just the hubs + whatever clearly fits) and let it climb as the user
-      // zooms in. Past a zoom threshold the cap is lifted entirely — collision
+      // zooms in. Past a zoom threshold the cap is lifted entirely - collision
       // avoidance alone governs, so EVERY label that physically fits is shown and
       // zooming always reveals more. Focus and search are always exempt.
       const budget = focusSet || searchLo || t.k >= 1.4
@@ -422,7 +422,7 @@ export function GraphViewer({
         const rg = rScaleRef.current(n.degree) + 5;        // graph-space gap
 
         // Try four placements around the node and take the first that doesn't
-        // collide — lets labels tuck into the gaps of a radial fan instead of all
+        // collide - lets labels tuck into the gaps of a radial fan instead of all
         // stacking on the right and getting dropped.
         const cands = [
           { box: { x1: sx + rs, y1: sy - H / 2, x2: sx + rs + w, y2: sy + H / 2 }, ox:  rg, oy: 0, anchor: "start" },
@@ -554,7 +554,7 @@ export function GraphViewer({
     sim.on("tick", ticked);
 
     // Pre-warm the layout synchronously so the graph is correctly positioned on
-    // the FIRST paint — no "explode from the center" animation, and it works
+    // the FIRST paint - no "explode from the center" animation, and it works
     // even where rAF (and therefore d3's force timer) is throttled. After this
     // we stop the timer; dragging a node restarts it on demand.
     sim.alpha(1);
@@ -637,7 +637,7 @@ export function GraphViewer({
           <div className="absolute inset-0 z-20 flex items-center justify-center">
             <div className="flex items-center gap-2 text-muted">
               <Loader2 size={16} className="animate-spin text-brass" />
-              <span className="text-[12px]">Laying out the graph…</span>
+              <span className="text-[12px]">Loading graph...</span>
             </div>
           </div>
         )}
@@ -647,8 +647,7 @@ export function GraphViewer({
             <Crosshair size={22} className="text-ghost" />
             <p className="font-display text-[16px] font-medium text-paper-dim">Nothing connected yet</p>
             <p className="max-w-xs text-[12px] text-muted">
-              Add sources and let them finish reading — the entities they mention,
-              and the lines between them, show up here.
+              Add sources to populate the graph.
             </p>
           </div>
         )}
@@ -672,10 +671,10 @@ export function GraphViewer({
               </span>
             </div>
             <p className="mt-1 pl-[18px] text-[11px] text-muted">
-              {hovered.node.type} · {hovered.node.degree} connection
+              {hovered.node.type}, {hovered.node.degree} connection
               {hovered.node.degree !== 1 ? "s" : ""}
             </p>
-            <p className="mt-0.5 pl-[18px] text-[10.5px] text-faint">click to inspect · double-click to focus</p>
+            <p className="mt-0.5 pl-[18px] text-[10.5px] text-faint">click to inspect, double-click to focus</p>
           </div>
         )}
 
@@ -685,7 +684,7 @@ export function GraphViewer({
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Find a node…"
+            placeholder="Find node"
             className="w-40 bg-transparent text-[12px] text-paper outline-none placeholder:text-faint"
           />
           {search && (
@@ -714,7 +713,7 @@ export function GraphViewer({
         <div className="absolute bottom-4 left-4 z-10 flex max-h-[68vh] w-[188px] flex-col gap-1 overflow-y-auto rounded-lg border border-ink-700 bg-ink-900/85 px-3 py-2.5 backdrop-blur-sm scrollbar-thin">
           {data && (
             <p className="mb-1 text-[10.5px] text-muted">
-              <span className="font-medium text-paper-dim">{data.nodes.length}</span> nodes ·{" "}
+              <span className="font-medium text-paper-dim">{data.nodes.length}</span> nodes,{" "}
               <span className="font-medium text-paper-dim">{data.edges.length}</span> edges
             </p>
           )}

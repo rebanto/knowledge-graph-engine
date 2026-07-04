@@ -15,7 +15,7 @@ export function TrustBadge({ trust, size = "md" }: { trust: TrustScore; size?: "
   // No checkable claims → vacuously grounded; don't fake a percentage.
   if (score === null) {
     return (
-      <Badge tone="neutral" size={size} title="The answer made no checkable factual claims to verify.">
+      <Badge tone="neutral" size={size} title="No checkable factual claims were found.">
         <ShieldQuestion size={iconSize} strokeWidth={2.25} />
         grounding n/a
       </Badge>
@@ -30,7 +30,7 @@ export function TrustBadge({ trust, size = "md" }: { trust: TrustScore; size?: "
     <Badge
       tone={tone}
       size={size}
-      title={`An independent judge found ${supported} of ${total} claims supported by the retrieved data.`}
+      title={`${supported} of ${total} claims were supported by retrieved data.`}
     >
       <Icon size={iconSize} strokeWidth={2.25} />
       {pct}% grounded

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
-  Lattice — design tokens.
+  Lattice - design tokens.
   One source of truth for the whole interface. The visual language is
   "warm ink + brass": brown-shifted near-blacks (not cold zinc), a warm
   paper-white for text, and a single illuminated-brass accent that stands
@@ -13,7 +13,7 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --font-serif: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
 
-  /* Warm ink — surfaces, from deepest to raised */
+  /* Warm ink - surfaces, from deepest to raised */
   --color-ink-950: #090807;
   --color-ink-900: #0c0b09;
   --color-ink-850: #100e0b;
@@ -24,19 +24,19 @@
   --color-ink-600: #392f25;
   --color-ink-500: #4d4233;
 
-  /* Paper — text, from brightest to faintest */
+  /* Paper - text, from brightest to faintest */
   --color-paper: #ece4d6;
   --color-paper-dim: #cdc3b2;
   --color-muted: #9b9082;
   --color-faint: #6d6557;
   --color-ghost: #4a4438;
 
-  /* Brass — the signature accent (also the graph signal colour) */
+  /* Brass - the signature accent (also the graph signal colour) */
   --color-brass: #d6a44e;
   --color-brass-bright: #e8bb66;
   --color-brass-dim: #d6a44e1f;
 
-  /* Retrieval signals — graph reuses brass; vector/hybrid stay distinct */
+  /* Retrieval signals - graph reuses brass; vector/hybrid stay distinct */
   --color-graph: #d6a44e;
   --color-graph-dim: #d6a44e22;
   --color-vector: #5fb39a;
@@ -44,15 +44,15 @@
   --color-hybrid: #b394e0;
   --color-hybrid-dim: #b394e022;
 
-  /* Conflict / danger — a warm vermilion, not a cold red */
+  /* Conflict / danger - a warm vermilion, not a cold red */
   --color-flag: #e06a4f;
   --color-flag-dim: #e06a4f1c;
 
-  /* Healthy / ready / online — a warm sage, not a cold mint */
+  /* Healthy / ready / online - a warm sage, not a cold mint */
   --color-ok: #7fbf94;
   --color-ok-dim: #7fbf941c;
 
-  /* Node palette — shared by the graph canvas, entity chips and charts */
+  /* Node palette - shared by the graph canvas, entity chips and charts */
   --color-node-paper: #d6a44e;
   --color-node-person: #5fb39a;
   --color-node-concept: #b394e0;
@@ -141,7 +141,7 @@ body {
   color: #f4ecdd;
 }
 
-/* Serif display — opsz tuned soft for a touch of warmth, not stuffy. */
+/* Serif display - opsz tuned soft for a touch of warmth, not stuffy. */
 .font-display {
   font-family: var(--font-serif);
   font-optical-sizing: auto;
@@ -149,7 +149,7 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* Small-caps mono eyebrow — the recurring "field label" motif. */
+/* Small-caps mono eyebrow - the recurring "field label" motif. */
 .eyebrow {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -158,7 +158,7 @@ body {
   text-transform: uppercase;
 }
 
-/* Graph-paper texture for empty space — a quiet nod to the subject matter. */
+/* Graph-paper texture for empty space - a quiet nod to the subject matter. */
 .dot-grid {
   background-image: radial-gradient(circle, #ffffff09 1px, transparent 1px);
   background-size: 22px 22px;
@@ -257,7 +257,7 @@ body {
 }
 
 /* ── Answer prose ──────────────────────────────────────────────────────────
-   An illuminated drop-cap opens every answer — the editorial signature. */
+   An illuminated drop-cap opens every answer - the editorial signature. */
 .prose-answer > p:first-of-type::first-letter {
   font-family: var(--font-serif);
   font-weight: 500;

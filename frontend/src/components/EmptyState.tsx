@@ -10,7 +10,7 @@ interface EmptyStateProps {
   discovering: boolean;
 }
 
-// The "no sources yet" state — shown in place of the example prompts.
+// The "no sources yet" state - shown in place of the example prompts.
 export function NeedsSources({
   hasDescription,
   onGoToSources,
@@ -23,8 +23,7 @@ export function NeedsSources({
         <Database size={20} className="text-brass/70" />
       </div>
       <p className="max-w-md text-[13px] leading-relaxed text-muted">
-        This workspace has no sources yet. Point it at a few — papers, feeds, PDFs, web pages —
-        and once they're read in you can trace how everything they mention connects.
+        Add sources first. Papers, feeds, PDFs, and web pages become searchable once read.
       </p>
       <div className="mt-6 flex flex-wrap justify-center gap-2">
         <Button variant="secondary" onClick={onGoToSources}>
@@ -33,7 +32,7 @@ export function NeedsSources({
         {hasDescription && (
           <Button variant="primary" onClick={onDiscover} loading={discovering}>
             {!discovering && <Sparkles size={13} />}
-            {discovering ? "Looking…" : "Suggest some for me"}
+            {discovering ? "Looking..." : "Suggest sources"}
           </Button>
         )}
       </div>
@@ -49,7 +48,7 @@ export function ExamplePrompts({
 }: Pick<EmptyStateProps, "onPick"> & { questions?: string[]; loading?: boolean }) {
   const hasQuestions = questions && questions.length > 0;
 
-  // Nothing to show and not loading — render nothing rather than fallback noise.
+  // Nothing to show and not loading - render nothing rather than fallback noise.
   if (!loading && !hasQuestions) return null;
 
   return (

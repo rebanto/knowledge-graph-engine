@@ -146,7 +146,7 @@ function FlowPathCard({ insight }: { insight: FlowPathInsight }) {
             <div key={i} className="flex items-center gap-1.5">
               {step.relation && (
                 <div className="flex items-center gap-1">
-                  <span className="text-faint">—</span>
+                  <span className="text-faint">-</span>
                   <span
                     className="rounded px-1.5 py-0.5 font-mono text-[9.5px] font-medium"
                     style={{ backgroundColor: `${relColor}22`, color: relColor }}

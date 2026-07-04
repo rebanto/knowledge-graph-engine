@@ -9,11 +9,11 @@ import { getMcpConfig } from "../api";
 import type { McpConfig } from "../types";
 
 const ABILITIES: { icon: typeof Search; title: string; body: string }[] = [
-  { icon: Search, title: "Search your documents", body: "Pull the most relevant passages from your sources, with citations." },
-  { icon: Route, title: "Trace connections", body: "Find how two things are linked, step by step, through your graph." },
-  { icon: GitBranch, title: "Explore an entity", body: "Get everything known about one person, org, or idea and its links." },
-  { icon: Users, title: "Weigh disagreements", body: "See where your sources contradict each other instead of guessing." },
-  { icon: ScrollText, title: "Deep research", body: "Run the full multi-agent research pass and get a trust score back." },
+  { icon: Search, title: "Search documents", body: "Return relevant passages with citations." },
+  { icon: Route, title: "Trace connections", body: "Find how two entities are linked." },
+  { icon: GitBranch, title: "Explore an entity", body: "Show one entity and its links." },
+  { icon: Users, title: "Check disagreements", body: "Find source conflicts." },
+  { icon: ScrollText, title: "Deep research", body: "Run the full research pass with a trust score." },
 ];
 
 function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
@@ -113,19 +113,18 @@ export function ConnectPanel(
           </div>
           <div className="min-w-0">
             <h1 className="font-display text-[22px] font-medium leading-tight text-paper">
-              Use this as memory for your AI tools
+              Connect AI tools
             </h1>
             <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
-              Connect Claude Desktop, Claude Code, Cursor, Windsurf, VS Code, or any
-              MCP-compatible assistant to this workspace. Instead of guessing, they can
-              pull verified, connected facts straight from your sources, with citations.
+              Let MCP-compatible assistants query this workspace for cited passages,
+              graph links, and conflicts.
             </p>
           </div>
         </div>
 
         {loading ? (
           <div className="flex items-center gap-2 py-16 text-[13px] text-muted">
-            <Loader2 size={14} className="animate-spin" /> Preparing your connection settings...
+            <Loader2 size={14} className="animate-spin" /> Loading connection settings...
           </div>
         ) : error ? (
           <Card variant="flat" className="flex items-center justify-between gap-3 p-4">
@@ -138,7 +137,7 @@ export function ConnectPanel(
           <>
             <Card variant="flat" className="mb-5 p-4">
               <p className="mb-3 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-faint">
-                <Sparkles size={12} className="text-brass/70" /> What your assistant gains
+                <Sparkles size={12} className="text-brass/70" /> Available tools
               </p>
               <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
                 {ABILITIES.map((a) => (
@@ -176,8 +175,8 @@ export function ConnectPanel(
                 <div className="flex items-start gap-2.5">
                   <ShieldAlert size={15} className="mt-0.5 flex-shrink-0 text-brass" />
                   <p className="text-[12.5px] leading-relaxed text-paper-dim">
-                    Your databases look like they run inside Docker. The config below uses
-                    those internal hostnames; if the connection fails, swap them for{" "}
+                    Your databases appear to run in Docker. The config uses internal
+                    hostnames. If it fails, swap them for{" "}
                     <span className="font-mono text-brass">localhost</span> in the pasted
                     block (e.g. <span className="font-mono">bolt://localhost:7687</span>).
                   </p>
@@ -203,7 +202,7 @@ export function ConnectPanel(
                 Your assistant will read the{" "}
                 <span className="font-medium text-paper">{displayWorkspaceName}</span>{" "}
                 workspace<span className="text-faint"> (id: {data.workspace_id})</span>.
-                Switch workspaces (top-left) to generate a config for a different one.
+                Switch workspaces to generate a different config.
               </p>
             </Card>
 
@@ -282,17 +281,14 @@ export function ConnectPanel(
                   </div>
                   <p className="mt-2 flex items-start gap-1.5 text-[11.5px] text-faint">
                     <ShieldAlert size={12} className="mt-0.5 flex-shrink-0" />
-                    This block includes your server's keys and settings; keep it private;
-                    don't paste it into a shared or public place.
+                    This block includes server keys and settings. Keep it private.
                   </p>
                 </Step>
 
                 <Step n={3} icon={RotateCw} title="Restart the app">
                   <p>
                     Fully restart {activeClient.label} (or reload its MCP servers). It will
-                    launch this engine in the background and the new abilities appear
-                    automatically. Try asking it something about your sources; it'll pull the
-                    answer from here.
+                    launch this engine in the background. Try asking it about your sources.
                   </p>
                 </Step>
 
@@ -300,8 +296,7 @@ export function ConnectPanel(
                   <span className="w-7 flex-shrink-0" />
                   <p className="text-[11.5px] text-faint">
                     Runs entirely on your machine: <span className="font-mono">python -m backend.mcp.server</span>,
-                    launched by the app on demand. Requires this engine's databases to be running,
-                    same as the web app.
+                    launched by the app on demand. Requires the same databases as the web app.
                   </p>
                 </div>
               </Card>

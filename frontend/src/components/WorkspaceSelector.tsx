@@ -167,7 +167,7 @@ export function WorkspaceSelector({
                       className="flex flex-1 items-center justify-center gap-1 rounded bg-brass py-1 text-[12px] font-medium text-ink-900 hover:bg-brass-bright disabled:opacity-40"
                     >
                       {editSaving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
-                      {editSaving ? "Saving…" : "Save"}
+                      {editSaving ? "Saving" : "Save"}
                     </button>
                     <button
                       type="button"
@@ -198,7 +198,7 @@ export function WorkspaceSelector({
                       className="flex flex-1 items-center justify-center gap-1 rounded bg-flag py-1 text-[12px] font-medium text-ink-950 hover:brightness-110 disabled:opacity-40"
                     >
                       {deleteWorking ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                      {deleteWorking ? "Deleting…" : "Delete"}
+                      {deleteWorking ? "Deleting" : "Delete"}
                     </button>
                     <button
                       onClick={cancelDelete}
@@ -260,7 +260,7 @@ export function WorkspaceSelector({
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Optional: a sentence or two on the research area. Used to suggest sources."
+                  placeholder="Optional research area. Used for source suggestions."
                   rows={3}
                   className={`${FIELD} resize-none leading-relaxed`}
                 />
@@ -272,7 +272,7 @@ export function WorkspaceSelector({
                       onChange={(e) => setAutoDiscover(e.target.checked)}
                       className="h-3 w-3 rounded accent-brass"
                     />
-                    Suggest sources once it's created
+                    Suggest sources after creating
                   </label>
                 )}
                 <div className="flex gap-1.5">
@@ -282,7 +282,7 @@ export function WorkspaceSelector({
                     className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-brass py-1.5 text-[12px] font-medium text-ink-900 hover:bg-brass-bright disabled:opacity-40"
                   >
                     {saving ? <Loader2 size={12} className="animate-spin" /> : null}
-                    {saving ? "Creating…" : "Create"}
+                    {saving ? "Creating" : "Create"}
                   </button>
                   <button
                     type="button"

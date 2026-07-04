@@ -64,7 +64,7 @@ export function DeepResearchReport({ report }: { report: DeepReport }) {
         <Card as="section" className="border-flag/30 bg-flag/5 p-3.5">
           <p className="mb-1.5 flex items-center gap-1.5 text-[12px] font-medium text-flag">
             <AlertTriangle size={12} />
-            Claims the judge could not trace to retrieved data
+            Unsupported claims
           </p>
           <ul className="list-disc space-y-1 pl-5 text-[12px] text-paper-dim">
             {unsupported.map((claim, i) => <li key={`${claim}-${i}`}>{claim}</li>)}
