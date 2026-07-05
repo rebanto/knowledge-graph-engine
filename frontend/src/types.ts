@@ -1,6 +1,12 @@
 export type RetrievalRoute = "graph" | "vector" | "hybrid";
 export type RetrievalType = RetrievalRoute | "deep_research";
 
+export interface User {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
 export interface GraphRecord {
   [key: string]: string | number | boolean | null;
 }

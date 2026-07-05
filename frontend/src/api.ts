@@ -3,6 +3,7 @@ import axiosRetry from "axios-retry";
 import type {
   GraphData, QuestionResponse, ReportSummary, Workspace, Source,
   ConversationSummary, ConversationDetail, ResearchGap, Hypothesis,
+  User,
 } from "./types";
 
 // Default to same-origin ("") so requests go through Vite's /api proxy in dev
@@ -13,7 +14,14 @@ const BASE_URL = import.meta.env.VITE_API_URL ?? "";
 const client = axios.create({
   baseURL: BASE_URL,
   timeout: 45_000,
+  withCredentials: true,
 });
+
+let refreshPromise: Promise<User> | null = null;
+
+function isAuthUrl(url?: string) {
+  return (url ?? "").includes("/api/auth/");
+}
 
 // Retry on network errors and 5xx responses. The budget is deliberately long
 // (~18s across 6 tries) so a GET can outlast a full backend restart: this
@@ -28,6 +36,48 @@ axiosRetry(client, {
     (err.response?.status ?? 0) >= 500,
   shouldResetTimeout: true,
 });
+
+client.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const status = error.response?.status;
+    const config = error.config;
+    const retryConfig = config as (typeof config & { __kgreRetried?: boolean }) | undefined;
+    if (status !== 401 || !retryConfig || retryConfig.__kgreRetried || isAuthUrl(retryConfig.url)) {
+      return Promise.reject(error);
+    }
+    retryConfig.__kgreRetried = true;
+    try {
+      refreshPromise ??= client.post<User>("/api/auth/refresh").then((r) => r.data);
+      await refreshPromise;
+      return client(retryConfig);
+    } catch (refreshError) {
+      window.dispatchEvent(new CustomEvent("kgre:logout"));
+      return Promise.reject(refreshError);
+    } finally {
+      refreshPromise = null;
+    }
+  },
+);
+
+export async function register(email: string, password: string) {
+  const { data } = await client.post<User>("/api/auth/register", { email, password });
+  return data;
+}
+
+export async function login(email: string, password: string) {
+  const { data } = await client.post<User>("/api/auth/login", { email, password });
+  return data;
+}
+
+export async function logout() {
+  await client.post("/api/auth/logout");
+}
+
+export async function getMe() {
+  const { data } = await client.get<User>("/api/auth/me");
+  return data;
+}
 
 export async function askQuestion(
   question: string,
@@ -57,7 +107,9 @@ export function streamQuestion(
 ): () => void {
   const params = new URLSearchParams({ question, workspace_id: workspaceId });
   if (conversationId) params.set("conversation_id", conversationId);
-  const es = new EventSource(`${BASE_URL}/api/question/stream?${params}`);
+  const es = new EventSource(`${BASE_URL}/api/question/stream?${params}`, {
+    withCredentials: true,
+  });
 
   // Track whether the stream completed successfully so we can ignore the
   // connection-close error that fires after we call es.close() on done.
@@ -131,7 +183,9 @@ export function streamDeepResearch(
   },
 ): () => void {
   const params = new URLSearchParams({ question, workspace_id: workspaceId });
-  const es = new EventSource(`${BASE_URL}/api/research/deep/stream?${params}`);
+  const es = new EventSource(`${BASE_URL}/api/research/deep/stream?${params}`, {
+    withCredentials: true,
+  });
   let finished = false;
 
   es.addEventListener("status", (e) => {

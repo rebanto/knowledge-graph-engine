@@ -200,7 +200,7 @@ export function ConnectPanel(
               <FolderOpen size={15} className="flex-shrink-0 text-brass/80" />
               <p className="text-[12.5px] text-muted">
                 Your assistant will read the{" "}
-                <span className="font-medium text-paper">{displayWorkspaceName}</span>{" "}
+                <span className="font-medium text-paper">{displayWorkspaceName ?? data.workspace_id}</span>{" "}
                 workspace<span className="text-faint"> (id: {data.workspace_id})</span>.
                 Switch workspaces to generate a different config.
               </p>

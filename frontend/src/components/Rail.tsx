@@ -1,4 +1,5 @@
-import { MessagesSquare, Network, Database, History, SquarePen, Plug } from "lucide-react";
+import { MessagesSquare, Network, Database, History, SquarePen, Plug, LogOut } from "lucide-react";
+import { useAuth } from "../auth";
 import type { Workspace } from "../types";
 
 export type Tab = "ask" | "explore" | "sources" | "connect";
@@ -100,6 +101,7 @@ export function Rail({
   historyCount,
   workspace,
 }: RailProps) {
+  const { user, logout } = useAuth();
   const initials = (workspace?.name ?? "?")
     .split(/\s+/)
     .slice(0, 2)
@@ -148,7 +150,7 @@ export function Rail({
       {/* Workspace switcher - opens the drawer where the active workspace can be
           changed. Distinct from the page nav above so it reads as "where am I"
           rather than "which page". */}
-      <div className="mt-auto">
+      <div className="mt-auto flex flex-col items-center gap-3">
         <button
           onClick={onToggleHistory}
           title={workspace ? `Workspace: ${workspace.name} - ${workspace.domain}` : "Pick a workspace"}
@@ -161,6 +163,21 @@ export function Rail({
             {workspace?.name ?? "Workspace"}
           </span>
         </button>
+        <div className="flex w-[68px] flex-col items-center gap-1 border-t border-ink-700/80 pt-3">
+          <span
+            className="max-w-[66px] truncate text-[10px] text-faint"
+            title={user?.email ?? "Account"}
+          >
+            {user?.email ?? "Account"}
+          </span>
+          <button
+            onClick={() => void logout()}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-ink-750 hover:text-paper-dim"
+            title="Sign out"
+          >
+            <LogOut size={15} />
+          </button>
+        </div>
       </div>
     </aside>
   );

@@ -24,7 +24,9 @@ function writeUrl(workspaceId: string, tab: string, conversationId: string | nul
 import axios from "axios";
 import { Loader2, ArrowRight, Sparkles, Plus } from "lucide-react";
 import { Rail, type Tab } from "./components/Rail";
+import { AuthProvider, useAuth } from "./auth";
 import { Button } from "./components/ui";
+import { LoginScreen } from "./components/LoginScreen";
 import { HistoryDrawer } from "./components/HistoryDrawer";
 import { QuestionInput } from "./components/QuestionInput";
 import { ConversationView } from "./components/ConversationView";
@@ -70,7 +72,7 @@ function buildSourceStats(sources: Source[]): SourceStats {
   };
 }
 
-export default function App() {
+function AppContent() {
   // Read once on mount; lazy useState (not a ref) so render never reads a ref.
   const [initialUrl] = useState(readUrl);
 
@@ -599,5 +601,31 @@ export default function App() {
         ) : null}
       </main>
     </div>
+  );
+}
+
+function AuthGate() {
+  const { status } = useAuth();
+  if (status === "loading") {
+    return (
+      <div className="relative flex h-screen items-center justify-center overflow-hidden bg-ink-950 text-paper">
+        <div className="app-aura" />
+        <div className="app-vignette" />
+        <div className="relative z-10 flex items-center gap-2 text-[13px] text-muted">
+          <Loader2 size={14} className="animate-spin text-brass" />
+          Loading
+        </div>
+      </div>
+    );
+  }
+  if (status === "anonymous") return <LoginScreen />;
+  return <AppContent />;
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
   );
 }
