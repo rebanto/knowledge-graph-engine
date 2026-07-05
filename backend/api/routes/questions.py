@@ -8,7 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
 from backend.db.postgres import get_async_db
-from backend.db.models import Report
+from backend.db.models import Report, User
+from backend.api.deps import (
+    get_current_user,
+    require_readable_workspace,
+    row_delete_allowed,
+    row_visible_in_workspace,
+)
 from backend.db import conversations as conv_store
 from backend.models.schemas import QuestionRequest, QuestionResponse, ReportSummary
 from backend.core.qa_pipeline import answer_question
@@ -29,14 +35,26 @@ router = APIRouter()
 @router.post("/question", response_model=QuestionResponse)
 @limiter.limit(QUESTION_LIMIT)
 async def ask_question(
-    request: Request, req: QuestionRequest, db: AsyncSession = Depends(get_async_db)
+    request: Request,
+    req: QuestionRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
 ):
+    workspace = await require_readable_workspace(db, req.workspace_id, user)
     # Load prior context when this is a follow-up turn in an existing thread.
     ctx = (
         await conv_store.load_thread_context(db, req.conversation_id)
         if req.conversation_id
         else {"conversation": None, "summary": None, "turns": [], "next_index": 0}
     )
+    if req.conversation_id:
+        conversation = ctx["conversation"]
+        if (
+            conversation is None
+            or conversation.workspace_id != req.workspace_id
+            or not row_visible_in_workspace(conversation, workspace, user)
+        ):
+            raise HTTPException(404, "Conversation not found")
 
     result = await answer_question(
         req.question, req.workspace_id, history=ctx["turns"], summary=ctx["summary"]
@@ -45,13 +63,16 @@ async def ask_question(
     # Resolve (or open) the conversation this turn belongs to.
     conversation = ctx["conversation"]
     if conversation is None:
-        conversation = await conv_store.create_conversation(db, req.workspace_id, req.question)
+        conversation = await conv_store.create_conversation(
+            db, req.workspace_id, req.question, user.id
+        )
     turn_index = ctx["next_index"]
 
     count_result = await db.execute(
         select(func.count(Report.id)).where(
             Report.workspace_id == req.workspace_id,
             Report.question == req.question,
+            (Report.user_id == user.id) | (Report.user_id.is_(None)),
         )
     )
     version = (count_result.scalar() or 0) + 1
@@ -59,6 +80,7 @@ async def ask_question(
     report = Report(
         id=str(uuid.uuid4()),
         workspace_id=req.workspace_id,
+        user_id=user.id,
         question=req.question,
         answer=result["answer"],
         retrieval_type=result["type"],
@@ -112,6 +134,7 @@ async def stream_question(
     question: str = Query(...),
     workspace_id: str = Query(default="arxiv_seed"),
     conversation_id: str | None = Query(default=None),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
 ):
     """SSE endpoint that streams progress events then the final answer.
@@ -123,6 +146,17 @@ async def stream_question(
       done        → full QuestionResponse JSON (incl. conversation_id, turn_index)
       error       → {detail: "..."}
     """
+    workspace = await require_readable_workspace(db, workspace_id, user)
+    if conversation_id:
+        ctx_check = await conv_store.load_thread_context(db, conversation_id)
+        conversation = ctx_check["conversation"]
+        if (
+            conversation is None
+            or conversation.workspace_id != workspace_id
+            or not row_visible_in_workspace(conversation, workspace, user)
+        ):
+            raise HTTPException(404, "Conversation not found")
+
     async def generate():
         try:
             # ── Load prior context and condense a follow-up into a standalone ──
@@ -235,19 +269,23 @@ async def stream_question(
             # Resolve (or open) the conversation, then save this turn.
             conversation = ctx["conversation"]
             if conversation is None:
-                conversation = await conv_store.create_conversation(db, workspace_id, question)
+                conversation = await conv_store.create_conversation(
+                    db, workspace_id, question, user.id
+                )
             turn_index = ctx["next_index"]
 
             count_result = await db.execute(
                 select(func.count(Report.id)).where(
                     Report.workspace_id == workspace_id,
                     Report.question == question,
+                    (Report.user_id == user.id) | (Report.user_id.is_(None)),
                 )
             )
             version = (count_result.scalar() or 0) + 1
             report = Report(
                 id=str(uuid.uuid4()),
                 workspace_id=workspace_id,
+                user_id=user.id,
                 question=question,
                 answer=result["answer"],
                 retrieval_type=result["type"],
@@ -294,11 +332,16 @@ async def stream_question(
 @router.get("/reports", response_model=list[ReportSummary])
 async def list_reports(
     workspace_id: str = Query(default="arxiv_seed"),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
 ):
+    workspace = await require_readable_workspace(db, workspace_id, user)
+    filters = [Report.workspace_id == workspace_id]
+    if workspace.owner_user_id is None:
+        filters.append((Report.user_id == user.id) | (Report.user_id.is_(None)))
     result = await db.execute(
         select(Report)
-        .where(Report.workspace_id == workspace_id)
+        .where(*filters)
         .order_by(Report.created_at.desc())
         .limit(50)
     )
@@ -306,10 +349,17 @@ async def list_reports(
 
 
 @router.get("/reports/{report_id}", response_model=QuestionResponse)
-async def get_report(report_id: str, db: AsyncSession = Depends(get_async_db)):
+async def get_report(
+    report_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
     result = await db.execute(select(Report).where(Report.id == report_id))
     report = result.scalar_one_or_none()
     if not report:
+        raise HTTPException(404, "Report not found")
+    workspace = await require_readable_workspace(db, report.workspace_id, user)
+    if not row_visible_in_workspace(report, workspace, user):
         raise HTTPException(404, "Report not found")
     sources = report.sources_used or {}
     return QuestionResponse(
@@ -336,10 +386,19 @@ async def get_report(report_id: str, db: AsyncSession = Depends(get_async_db)):
 
 
 @router.delete("/reports/{report_id}", status_code=204)
-async def delete_report(report_id: str, db: AsyncSession = Depends(get_async_db)):
+async def delete_report(
+    report_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
     result = await db.execute(select(Report).where(Report.id == report_id))
     report = result.scalar_one_or_none()
     if not report:
+        raise HTTPException(404, "Report not found")
+    workspace = await require_readable_workspace(db, report.workspace_id, user)
+    if not row_visible_in_workspace(report, workspace, user):
+        raise HTTPException(404, "Report not found")
+    if not row_delete_allowed(report, workspace, user):
         raise HTTPException(404, "Report not found")
     await db.delete(report)
     await db.commit()

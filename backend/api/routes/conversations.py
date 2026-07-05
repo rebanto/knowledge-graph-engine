@@ -11,7 +11,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.postgres import get_async_db
-from backend.db.models import Conversation, Report
+from backend.db.models import Conversation, Report, User
+from backend.api.deps import (
+    get_current_user,
+    require_readable_workspace,
+    row_delete_allowed,
+    row_visible_in_workspace,
+)
 from backend.models.schemas import (
     ConversationSummary,
     ConversationDetail,
@@ -50,12 +56,17 @@ def _report_to_response(report: Report) -> QuestionResponse:
 @router.get("/conversations", response_model=list[ConversationSummary])
 async def list_conversations(
     workspace_id: str = Query(default="arxiv_seed"),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
 ):
+    workspace = await require_readable_workspace(db, workspace_id, user)
+    filters = [Conversation.workspace_id == workspace_id]
+    if workspace.owner_user_id is None:
+        filters.append((Conversation.user_id == user.id) | (Conversation.user_id.is_(None)))
     convos = (
         await db.execute(
             select(Conversation)
-            .where(Conversation.workspace_id == workspace_id)
+            .where(*filters)
             .order_by(Conversation.updated_at.desc())
             .limit(100)
         )
@@ -102,11 +113,18 @@ async def list_conversations(
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
-async def get_conversation(conversation_id: str, db: AsyncSession = Depends(get_async_db)):
+async def get_conversation(
+    conversation_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
     convo = (
         await db.execute(select(Conversation).where(Conversation.id == conversation_id))
     ).scalar_one_or_none()
     if convo is None:
+        raise HTTPException(404, "Conversation not found")
+    workspace = await require_readable_workspace(db, convo.workspace_id, user)
+    if not row_visible_in_workspace(convo, workspace, user):
         raise HTTPException(404, "Conversation not found")
 
     turns = (
@@ -128,11 +146,20 @@ async def get_conversation(conversation_id: str, db: AsyncSession = Depends(get_
 
 
 @router.delete("/conversations/{conversation_id}", status_code=204)
-async def delete_conversation(conversation_id: str, db: AsyncSession = Depends(get_async_db)):
+async def delete_conversation(
+    conversation_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
     convo = (
         await db.execute(select(Conversation).where(Conversation.id == conversation_id))
     ).scalar_one_or_none()
     if convo is None:
+        raise HTTPException(404, "Conversation not found")
+    workspace = await require_readable_workspace(db, convo.workspace_id, user)
+    if not row_visible_in_workspace(convo, workspace, user):
+        raise HTTPException(404, "Conversation not found")
+    if not row_delete_allowed(convo, workspace, user):
         raise HTTPException(404, "Conversation not found")
 
     # Delete the thread's turns, then the thread row itself.

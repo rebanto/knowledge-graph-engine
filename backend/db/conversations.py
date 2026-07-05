@@ -49,12 +49,15 @@ async def load_thread_context(db: AsyncSession, conversation_id: str) -> dict:
     return {"conversation": convo, "summary": convo.summary, "turns": turns, "next_index": total}
 
 
-async def create_conversation(db: AsyncSession, workspace_id: str, title: str) -> Conversation:
+async def create_conversation(
+    db: AsyncSession, workspace_id: str, title: str, user_id: str | None = None
+) -> Conversation:
     """Create the parent row for a new thread. Title is derived from turn 1."""
     now = datetime.now(timezone.utc)
     convo = Conversation(
         id=str(uuid.uuid4()),
         workspace_id=workspace_id,
+        user_id=user_id,
         title=(title or "Untitled").strip()[:200],
         created_at=now,
         updated_at=now,

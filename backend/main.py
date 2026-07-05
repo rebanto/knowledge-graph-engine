@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 import os
 
+import re
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -10,7 +12,16 @@ from slowapi.errors import RateLimitExceeded
 
 from backend.db.postgres import async_engine, AsyncSessionLocal, Base
 from backend.db.models import Workspace, Source
-from backend.api.routes import questions, graph, workspaces, sources, system, conversations, research
+from backend.api.routes import (
+    auth,
+    questions,
+    graph,
+    workspaces,
+    sources,
+    system,
+    conversations,
+    research,
+)
 from backend.core.llm_client import DailyQuotaExhausted
 from backend.core.ratelimit import limiter
 from backend.core.observability import (
@@ -29,6 +40,22 @@ async def lifespan(app: FastAPI):
         )
         await conn.execute(
             text("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS suggested_questions JSONB")
+        )
+        # Auth / per-user storage. NULL owner_user_id keeps the shared
+        # arxiv_seed demo workspace readable by every logged-in user.
+        await conn.execute(
+            text("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS owner_user_id TEXT")
+        )
+        await conn.execute(text("ALTER TABLE reports ADD COLUMN IF NOT EXISTS user_id TEXT"))
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN IF NOT EXISTS user_id TEXT"))
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_workspaces_owner ON workspaces (owner_user_id)")
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_reports_user ON reports (user_id)")
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_conversations_user ON conversations (user_id)")
         )
         # Phase 3: distributed-worker bookkeeping columns on ingestion_jobs.
         for col_ddl in (
@@ -131,10 +158,44 @@ app.add_middleware(
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 app.add_middleware(RequestIDMiddleware)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+_LOCALHOST_ORIGIN = re.compile(r"^http://(localhost|127\.0\.0\.1):\d+$")
+
+
+def _origin_allowed(origin: str) -> bool:
+    frontend_origin = os.environ.get("FRONTEND_ORIGIN", "").rstrip("/")
+    if frontend_origin and origin.rstrip("/") == frontend_origin:
+        return True
+    return bool(_LOCALHOST_ORIGIN.match(origin))
+
+
+@app.middleware("http")
+async def origin_check_middleware(request: Request, call_next):
+    mutating_get_stream = (
+        request.method == "GET" and request.url.path.endswith("/stream")
+    )
+    needs_check = request.method not in ("GET", "HEAD", "OPTIONS") or mutating_get_stream
+    if needs_check:
+        origin = request.headers.get("origin")
+        referer = request.headers.get("referer")
+        candidate = origin
+        if not candidate and referer:
+            try:
+                from urllib.parse import urlsplit
+
+                parts = urlsplit(referer)
+                candidate = f"{parts.scheme}://{parts.netloc}" if parts.scheme and parts.netloc else None
+            except Exception:
+                candidate = None
+        if candidate and not _origin_allowed(candidate):
+            return JSONResponse(status_code=403, content={"detail": "Origin not allowed"})
+    return await call_next(request)
 
 
 # ── Exception handlers ─────────────────────────────────────────────────────────
@@ -153,6 +214,7 @@ async def handle_quota_exhausted(request: Request, exc: DailyQuotaExhausted):
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 app.include_router(questions.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
 app.include_router(research.router, prefix="/api")
 app.include_router(conversations.router, prefix="/api")
 app.include_router(graph.router, prefix="/api")

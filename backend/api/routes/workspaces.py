@@ -1,11 +1,12 @@
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.deps import get_current_user, get_owned_workspace, get_readable_workspace
 from backend.db.postgres import get_async_db
-from backend.db.models import Workspace, Source, IngestionJob
+from backend.db.models import Workspace, Source, IngestionJob, User
 from backend.db.queue import get_queue
 from backend.ingestion.jobs import run_ingestion_job
 from backend.models.schemas import WorkspaceCreate, WorkspaceUpdate, WorkspaceResponse, SourceResponse
@@ -16,18 +17,30 @@ router = APIRouter()
 
 
 @router.get("/workspaces", response_model=list[WorkspaceResponse])
-async def list_workspaces(db: AsyncSession = Depends(get_async_db)):
-    result = await db.execute(select(Workspace).order_by(Workspace.created_at.asc()))
+async def list_workspaces(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
+    result = await db.execute(
+        select(Workspace)
+        .where(or_(Workspace.owner_user_id == user.id, Workspace.owner_user_id.is_(None)))
+        .order_by(Workspace.created_at.asc())
+    )
     return result.scalars().all()
 
 
 @router.post("/workspaces", response_model=WorkspaceResponse)
-async def create_workspace(req: WorkspaceCreate, db: AsyncSession = Depends(get_async_db)):
+async def create_workspace(
+    req: WorkspaceCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
     workspace = Workspace(
         id=str(uuid.uuid4()),
         name=req.name,
         domain=req.domain,
         description=req.description or None,
+        owner_user_id=user.id,
         created_at=datetime.now(timezone.utc),
     )
     db.add(workspace)
@@ -37,11 +50,11 @@ async def create_workspace(req: WorkspaceCreate, db: AsyncSession = Depends(get_
 
 
 @router.post("/workspaces/{workspace_id}/discover", response_model=list[SourceResponse])
-async def discover_sources(workspace_id: str, db: AsyncSession = Depends(get_async_db)):
-    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
-    workspace = result.scalar_one_or_none()
-    if not workspace:
-        raise HTTPException(404, "Workspace not found")
+async def discover_sources(
+    workspace_id: str,
+    workspace: Workspace = Depends(get_owned_workspace),
+    db: AsyncSession = Depends(get_async_db),
+):
     if not workspace.description:
         raise HTTPException(400, "Set a workspace description before auto-discovering sources")
 
@@ -82,12 +95,11 @@ async def discover_sources(workspace_id: str, db: AsyncSession = Depends(get_asy
 
 @router.put("/workspaces/{workspace_id}", response_model=WorkspaceResponse)
 async def update_workspace(
-    workspace_id: str, req: WorkspaceUpdate, db: AsyncSession = Depends(get_async_db)
+    workspace_id: str,
+    req: WorkspaceUpdate,
+    workspace: Workspace = Depends(get_owned_workspace),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
-    workspace = result.scalar_one_or_none()
-    if not workspace:
-        raise HTTPException(404, "Workspace not found")
     if req.name is not None:
         workspace.name = req.name
     if req.domain is not None:
@@ -100,11 +112,11 @@ async def update_workspace(
 
 
 @router.delete("/workspaces/{workspace_id}", status_code=204)
-async def delete_workspace(workspace_id: str, db: AsyncSession = Depends(get_async_db)):
-    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
-    workspace = result.scalar_one_or_none()
-    if not workspace:
-        raise HTTPException(404, "Workspace not found")
+async def delete_workspace(
+    workspace_id: str,
+    workspace: Workspace = Depends(get_owned_workspace),
+    db: AsyncSession = Depends(get_async_db),
+):
     # Delete related sources and their jobs first
     sources_result = await db.execute(select(Source).where(Source.workspace_id == workspace_id))
     for source in sources_result.scalars().all():
@@ -183,11 +195,11 @@ async def _clear_question_cache(workspace_id: str, db: AsyncSession) -> None:
 
 
 @router.get("/workspaces/{workspace_id}/suggested-questions")
-async def suggested_questions(workspace_id: str, db: AsyncSession = Depends(get_async_db)):
-    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
-    workspace = result.scalar_one_or_none()
-    if not workspace:
-        raise HTTPException(404, "Workspace not found")
+async def suggested_questions(
+    workspace_id: str,
+    workspace: Workspace = Depends(get_readable_workspace),
+    db: AsyncSession = Depends(get_async_db),
+):
 
     # Cache hit: return stored questions without calling Gemini.
     cached = workspace.suggested_questions

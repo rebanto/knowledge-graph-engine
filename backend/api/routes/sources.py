@@ -7,8 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy import select, func, delete as sql_delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.api.deps import get_owned_workspace, get_readable_workspace
 from backend.db.postgres import get_async_db
-from backend.db.models import Source, IngestionJob
+from backend.db.models import Source, IngestionJob, Workspace
 from backend.db.queue import get_queue
 from backend.ingestion.jobs import run_ingestion_job
 from backend.models.schemas import SourceCreate, SourceResponse, SourceJobsResponse
@@ -32,7 +33,11 @@ _STUCK_THRESHOLD = timedelta(minutes=15)
 
 
 @router.get("/workspaces/{workspace_id}/sources", response_model=list[SourceResponse])
-async def list_sources(workspace_id: str, db: AsyncSession = Depends(get_async_db)):
+async def list_sources(
+    workspace_id: str,
+    workspace: Workspace = Depends(get_readable_workspace),
+    db: AsyncSession = Depends(get_async_db),
+):
     result = await db.execute(
         select(Source)
         .where(Source.workspace_id == workspace_id)
@@ -68,6 +73,7 @@ async def create_source(
     request: Request,
     workspace_id: str,
     req: SourceCreate,
+    workspace: Workspace = Depends(get_owned_workspace),
     db: AsyncSession = Depends(get_async_db),
 ):
     # The worker will fetch whatever URL is saved here, so rss/web_url sources
@@ -102,6 +108,7 @@ async def upload_pdf_source(
     request: Request,
     workspace_id: str,
     file: UploadFile = File(...),
+    workspace: Workspace = Depends(get_owned_workspace),
     db: AsyncSession = Depends(get_async_db),
 ):
     contents = await file.read()
@@ -136,6 +143,7 @@ async def list_source_jobs(
     workspace_id: str,
     source_id: str,
     limit: int = 50,
+    workspace: Workspace = Depends(get_readable_workspace),
     db: AsyncSession = Depends(get_async_db),
 ):
     source_result = await db.execute(
@@ -172,6 +180,7 @@ async def list_source_jobs(
 async def retry_source(
     workspace_id: str,
     source_id: str,
+    workspace: Workspace = Depends(get_owned_workspace),
     db: AsyncSession = Depends(get_async_db),
 ):
     result = await db.execute(
@@ -194,6 +203,7 @@ async def retry_source(
 async def reingest_source(
     workspace_id: str,
     source_id: str,
+    workspace: Workspace = Depends(get_owned_workspace),
     db: AsyncSession = Depends(get_async_db),
 ):
     """Force a full re-ingest of one source.
@@ -223,6 +233,7 @@ async def reingest_source(
 async def reingest_workspace(
     request: Request,
     workspace_id: str,
+    workspace: Workspace = Depends(get_owned_workspace),
     db: AsyncSession = Depends(get_async_db),
 ):
     """Force a full re-ingest of every source in the workspace."""
@@ -246,7 +257,10 @@ async def reingest_workspace(
 
 @router.delete("/workspaces/{workspace_id}/sources/{source_id}")
 async def delete_source(
-    workspace_id: str, source_id: str, db: AsyncSession = Depends(get_async_db)
+    workspace_id: str,
+    source_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    workspace: Workspace = Depends(get_owned_workspace),
 ):
     result = await db.execute(
         select(Source).where(Source.id == source_id, Source.workspace_id == workspace_id)
@@ -318,7 +332,9 @@ async def delete_source(
 
 @router.post("/workspaces/{workspace_id}/cleanup")
 async def cleanup_workspace_data(
-    workspace_id: str, db: AsyncSession = Depends(get_async_db)
+    workspace_id: str,
+    workspace: Workspace = Depends(get_owned_workspace),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Remove stale vector/graph data left behind by deleted sources.
 

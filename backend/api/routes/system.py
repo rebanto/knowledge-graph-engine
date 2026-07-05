@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rq import Queue, Worker
 
-from backend.db.models import Workspace
+from backend.api.deps import get_current_user, require_readable_workspace
+from backend.db.models import User, Workspace
 from backend.db.postgres import get_async_db
 from backend.db.redis import get_sync_client
 from backend.coordinator import coordinator_pb2 as pb
@@ -66,7 +67,7 @@ async def _fetch_cluster_status(timeout: float = 2.0):
 
 
 @router.get("/system/queue")
-def queue_status():
+def queue_status(user: User = Depends(get_current_user)):
     """RQ worker health and queue depths — used by the Sources UI to show worker state."""
     conn = get_sync_client()
 
@@ -98,7 +99,7 @@ def queue_status():
 
 
 @router.get("/system/coordinator")
-async def coordinator_status():
+async def coordinator_status(user: User = Depends(get_current_user)):
     """Live status of the Phase 3 distributed worker pool, for the dashboard.
 
     Returns {available: false} when the coordinator isn't running (the default
@@ -237,6 +238,7 @@ def _mcp_clients(server_name: str, entry: dict) -> list[dict]:
 @router.get("/system/mcp-config")
 async def mcp_config(
     workspace_id: str = "arxiv_seed",
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
 ):
     """A ready-to-paste MCP config that turns this engine into grounded memory
@@ -251,10 +253,7 @@ async def mcp_config(
     come from the running server; nothing here is a new secret, but the block
     contains the API key, so the UI warns the user to keep it private.
     """
-    result = await db.execute(select(Workspace).where(Workspace.id == workspace_id))
-    workspace = result.scalar_one_or_none()
-    if not workspace:
-        raise HTTPException(404, "Workspace not found")
+    workspace = await require_readable_workspace(db, workspace_id, user)
 
     server_name = "knowledge-graph-engine"
 

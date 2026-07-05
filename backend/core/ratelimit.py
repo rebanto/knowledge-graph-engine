@@ -12,8 +12,13 @@ import os
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+
+def rate_limit_key(request):
+    return getattr(request.state, "user_id", None) or get_remote_address(request)
+
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=rate_limit_key,
     enabled=os.environ.get("RATE_LIMIT_ENABLED", "true").lower() != "false",
 )
 
@@ -21,3 +26,4 @@ limiter = Limiter(
 QUESTION_LIMIT = os.environ.get("RATE_LIMIT_QUESTION", "30/minute")
 DEEP_RESEARCH_LIMIT = os.environ.get("RATE_LIMIT_DEEP_RESEARCH", "6/minute")
 SOURCE_MUTATION_LIMIT = os.environ.get("RATE_LIMIT_SOURCE_MUTATION", "30/minute")
+AUTH_LIMIT = os.environ.get("RATE_LIMIT_AUTH", "10/minute")

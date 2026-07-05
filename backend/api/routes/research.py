@@ -21,8 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
 from backend.db.postgres import get_async_db
-from backend.db.models import Report
+from backend.db.models import Report, User
 from backend.db import conversations as conv_store
+from backend.api.deps import get_current_user, require_readable_workspace
 from backend.models.schemas import (
     DeepResearchRequest, DeepResearchResponse,
 )
@@ -44,19 +45,23 @@ def _sources_payload(result: dict) -> dict:
     }
 
 
-async def _persist(db: AsyncSession, workspace_id: str, question: str, result: dict):
+async def _persist(
+    db: AsyncSession, workspace_id: str, question: str, result: dict, user_id: str
+):
     """Save the deep-research run as a one-turn conversation + Report."""
-    conversation = await conv_store.create_conversation(db, workspace_id, question)
+    conversation = await conv_store.create_conversation(db, workspace_id, question, user_id)
     count_result = await db.execute(
         select(func.count(Report.id)).where(
             Report.workspace_id == workspace_id,
             Report.question == question,
+            (Report.user_id == user_id) | (Report.user_id.is_(None)),
         )
     )
     version = (count_result.scalar() or 0) + 1
     report = Report(
         id=str(uuid.uuid4()),
         workspace_id=workspace_id,
+        user_id=user_id,
         question=question,
         answer=result["answer"],
         retrieval_type="deep_research",
@@ -77,11 +82,15 @@ async def _persist(db: AsyncSession, workspace_id: str, question: str, result: d
 @router.post("/research/deep", response_model=DeepResearchResponse)
 @limiter.limit(DEEP_RESEARCH_LIMIT)
 async def run_deep_research(
-    request: Request, req: DeepResearchRequest, db: AsyncSession = Depends(get_async_db)
+    request: Request,
+    req: DeepResearchRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
 ):
+    await require_readable_workspace(db, req.workspace_id, user)
     result = await deep_research(req.question, req.workspace_id)
     report, conversation, version = await _persist(
-        db, req.workspace_id, req.question, result
+        db, req.workspace_id, req.question, result, user.id
     )
     return DeepResearchResponse(
         id=report.id,
@@ -104,6 +113,7 @@ async def stream_deep_research(
     request: Request,
     question: str = Query(...),
     workspace_id: str = Query(default="arxiv_seed"),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
 ):
     """SSE stream of the deep-research lifecycle.
@@ -116,6 +126,8 @@ async def stream_deep_research(
       done     → full DeepResearchResponse JSON
       error    → {detail}
     """
+    await require_readable_workspace(db, workspace_id, user)
+
     async def generate():
         # The orchestrator drives progress through an async callback; bridge those
         # callbacks into this generator with a queue so we can `yield` them as SSE.
@@ -129,7 +141,7 @@ async def stream_deep_research(
             try:
                 result = await deep_research(question, workspace_id, on_event=on_event)
                 report, conversation, version = await _persist(
-                    db, workspace_id, question, result
+                    db, workspace_id, question, result, user.id
                 )
                 await queue.put(("done", {
                     "id": report.id,
