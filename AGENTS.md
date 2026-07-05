@@ -398,6 +398,7 @@ This cost flag must be revisited explicitly in Phase 7.
 | Backend API          | FastAPI (Python)                        | Phase 5     | REST API                                           |
 | Frontend             | React + TypeScript                      | Phase 5     | Simple UI — query input + report viewer            |
 | Background workers   | Docker containers (3×)                  | Phase 3     | Coordinator-managed; same Docker network           |
+| Auth                 | FastAPI JWT + HttpOnly cookies + argon2 | Phase 6.5   | Self-hosted sessions stored in Postgres            |
 
 ### Cloud Deployment (Phase 7 — do not build yet)
 
@@ -413,7 +414,7 @@ This cost flag must be revisited explicitly in Phase 7.
 | Worker containers       | ECS Tasks or EC2 instances (auto-scaled)             |
 | FastAPI app             | Amazon ECS / Fargate                                 |
 | File storage            | Amazon S3                                            |
-| Auth                    | Amazon Cognito                                       |
+| Auth                    | Self-hosted JWT in FastAPI (Cognito optional later)  |
 | Orchestration           | AWS Step Functions                                   |
 
 **Do not introduce AWS services until explicitly asked. Build locally first.**
@@ -425,14 +426,17 @@ This cost flag must be revisited explicitly in Phase 7.
 ### PostgreSQL (product data)
 
 ```sql
--- Organizations (multi-tenant isolation)
-organizations (id, name, created_at)
-
 -- Users
-users (id, org_id, email, created_at)
+users (id, email, password_hash, created_at, is_active)
+
+-- Refresh tokens (hashed opaque tokens, rotated on refresh)
+refresh_tokens (id, user_id, token_hash, expires_at, created_at, revoked_at, replaced_by)
 
 -- Workspaces (a research project within a domain)
-workspaces (id, org_id, name, domain, created_at)
+workspaces (id, owner_user_id, name, domain, description, suggested_questions, created_at)
+-- owner_user_id NULL means a public read-only demo workspace. arxiv_seed stays
+-- NULL so every logged-in user can read it; only per-user reports/conversations
+-- are private inside that shared workspace.
 -- domain is a free-text label the user sets, e.g.:
 -- "AI/ML research", "climate policy", "macroeconomics",
 -- "legal precedent", "materials science", "geopolitics"
@@ -446,9 +450,12 @@ ingestion_jobs (id, source_id, document_url, status, error, created_at, complete
 -- Phase 3+: add assigned_worker_id, batch_id, heartbeat_at columns
 
 -- Saved reports
-reports (id, workspace_id, user_id, question, answer, retrieval_type, sources_used, version, created_at)
+reports (id, workspace_id, user_id, question, answer, retrieval_type, sources_used, version, created_at, conversation_id, turn_index, standalone_question)
 -- retrieval_type: "graph", "vector", "hybrid"
 -- version: increments each time the same question is re-run
+
+-- Conversations
+conversations (id, workspace_id, user_id, title, summary, created_at, updated_at)
 ```
 
 ### Neo4j Graph (knowledge data)
@@ -852,6 +859,16 @@ or the graph internals.*
 
 ---
 
+### Phase 6.5 — User auth and per-user storage
+- [x] Self-hosted FastAPI auth with JWT access tokens in HttpOnly cookies
+- [x] Argon2 password hashing and hashed refresh tokens in Postgres
+- [x] Refresh-token rotation with reuse detection
+- [x] Workspace ownership tenancy (`workspaces.owner_user_id`)
+- [x] `arxiv_seed` kept public/read-only, with per-user reports/conversations
+- [x] Frontend auth gate, session refresh, and sign-out affordance
+
+---
+
 ### Phase 7 — AWS deployment
 *Do not start until Phase 5 and 6 are complete and stable locally.*
 
@@ -866,7 +883,7 @@ or the graph internals.*
 - [ ] Coordinator → ECS Task (single task; add leader-election if HA needed)
 - [ ] Workers → ECS Tasks or EC2 (auto-scaled)
 - [ ] Deploy API → ECS/Fargate
-- [ ] Add Cognito auth
+- [ ] Keep built-in JWT auth; evaluate Cognito only if requirements change
 - [ ] Migrate SQS as fallback job queue (if coordinator is unavailable)
 
 ---
@@ -925,6 +942,15 @@ POSTGRES_URL=postgresql://user:password@localhost:5432/kgre
 REDIS_URL=redis://localhost:6379
 
 CHROMA_PERSIST_DIR=./chroma_data
+
+# Auth
+AUTH_SECRET_KEY=           # required; generate with: python -c "import secrets; print(secrets.token_hex(32))"
+ACCESS_TOKEN_TTL_MIN=30
+REFRESH_TOKEN_TTL_DAYS=14
+COOKIE_SECURE=false
+REGISTRATION_ENABLED=true
+RATE_LIMIT_AUTH=10/minute
+FRONTEND_ORIGIN=           # set in production, e.g. https://example.com
 ```
 
 ---
@@ -946,6 +972,15 @@ CHROMA_PERSIST_DIR=./chroma_data
   Fuzzy match on name + type before creating new nodes.
 - **Reports are versioned.** Re-running the same question creates a new version,
   old ones are preserved.
+- **Auth is self-hosted.** The FastAPI app issues JWT access tokens and rotating
+  opaque refresh tokens via HttpOnly cookies. `AUTH_SECRET_KEY` is required at
+  import time. EventSource uses cookies, so do not switch the frontend to
+  Bearer-only auth.
+- **Tenancy is workspace ownership.** A workspace is readable when it is owned by
+  the current user or has `owner_user_id IS NULL`. Only owned workspaces can be
+  mutated. `arxiv_seed` intentionally remains NULL-owner and read-only; reports
+  and conversations carry `user_id` so each user sees only their own history in
+  that shared workspace.
 - **Distributed complexity is layered on top of a working simple version.**
   The coordinator/worker pool (Phase 3) replaces RQ but keeps the per-document
   pipeline identical. The shard router (Phase 4) replaces the single Neo4j

@@ -70,9 +70,16 @@ All configuration is environment variables (loaded from `.env` via
 
 | Variable | Default | Notes |
 |----------|---------|-------|
+| `AUTH_SECRET_KEY` | *(required)* | JWT signing secret. Generate with `python -c "import secrets; print(secrets.token_hex(32))"`. The backend fails fast at import if unset. |
+| `ACCESS_TOKEN_TTL_MIN` | `30` | JWT access-token lifetime. |
+| `REFRESH_TOKEN_TTL_DAYS` | `14` | Opaque refresh-token lifetime; token hashes are stored in Postgres and rotated on refresh. |
+| `COOKIE_SECURE` | `false` | Set `true` behind HTTPS in production. |
+| `REGISTRATION_ENABLED` | `true` | Set `false` to close public signup on a deployed instance. |
+| `FRONTEND_ORIGIN` | *(empty)* | Production origin for cookie/CORS origin checks; local dev falls back to localhost/127.0.0.1. |
 | `ALLOW_PRIVATE_SOURCE_URLS` | `false` | SSRF guard: rss/web sources must resolve to a public address. Set `true` to ingest pages served from localhost / a private network in local dev. |
 | `MAX_PDF_UPLOAD_MB` | `50` | Size cap for uploaded PDFs. Uploads must also start with the `%PDF-` magic bytes. |
-| `RATE_LIMIT_ENABLED` | `true` | Master switch for all API rate limits (slowapi, keyed by client IP). |
+| `RATE_LIMIT_ENABLED` | `true` | Master switch for all API rate limits (slowapi, keyed by user ID when authenticated, otherwise client IP). |
+| `RATE_LIMIT_AUTH` | `10/minute` | Register/login/refresh. |
 | `RATE_LIMIT_QUESTION` | `30/minute` | `/question` and `/question/stream`. |
 | `RATE_LIMIT_DEEP_RESEARCH` | `6/minute` | `/research/deep` and its SSE stream (each run fans out many LLM calls). |
 | `RATE_LIMIT_SOURCE_MUTATION` | `30/minute` | Source create / upload / workspace-wide re-ingest. |

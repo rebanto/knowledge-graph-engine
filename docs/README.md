@@ -37,6 +37,8 @@ divergence is called out explicitly (see [Overview → Plan vs. reality](01-over
 | 16 | [Glossary](16-glossary.md) | Terms used throughout the codebase and these docs. |
 | 17 | [Conversations](17-conversations.md) | Multi-turn follow-ups: query rewriting, the window + rolling-summary memory, threading. |
 | 18 | [Evaluation](18-evaluation.md) | Measuring answer quality: routing accuracy, retrieval hit-rate, faithfulness (LLM-judge), entity-resolution P/R/F1, and the multi-hop graph-vs-vector benchmark. |
+| 19 | [Deep research and MCP](19-deep-research-and-mcp.md) | Multi-agent research orchestration and the local MCP memory server. |
+| 20 | [User auth](20-user-auth.md) | Self-hosted JWT auth, HttpOnly cookies, workspace ownership, and per-user history. |
 
 ---
 
@@ -59,6 +61,9 @@ divergence is called out explicitly (see [Overview → Plan vs. reality](01-over
 - The LLM does exactly two narrow jobs: turn documents into structured
   entities/relationships, and turn structured retrieval results into prose. It
   does **not** invent facts.
+- Users sign in through self-hosted FastAPI auth. Workspaces are private by
+  owner, while `arxiv_seed` remains public read-only; reports and conversations
+  are per-user inside that shared workspace.
 - Everything between — storage, traversal, routing, caching, conflict
   detection, sharding — is ordinary code.
 
