@@ -1,9 +1,23 @@
 from datetime import datetime
 from typing import Any, Literal, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 
 RetrievalRoute = Literal["graph", "vector", "hybrid"]
 RetrievalType = Literal["graph", "vector", "hybrid", "deep_research"]
+
+
+class AuthRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8)
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: EmailStr
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 class QuestionRequest(BaseModel):

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, DateTime, Text
+from sqlalchemy import Boolean, Column, String, Integer, DateTime, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from backend.db.postgres import Base
 
@@ -13,7 +13,30 @@ class Workspace(Base):
     domain = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     suggested_questions = Column(JSONB, nullable=True)
+    owner_user_id = Column(String, nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String, nullable=False, unique=True, index=True)
+    password_hash = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    is_active = Column(Boolean, nullable=False, default=True)
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
+    token_hash = Column(String, nullable=False, unique=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    replaced_by = Column(String, nullable=True)
 
 
 class Conversation(Base):
@@ -29,6 +52,7 @@ class Conversation(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     workspace_id = Column(String, nullable=False, index=True)
+    user_id = Column(String, nullable=True, index=True)
     title = Column(Text, nullable=False)
     # Rolling summary of older turns (everything before the verbatim window).
     # NULL until a conversation grows past CONV_WINDOW_TURNS turns.
@@ -46,6 +70,7 @@ class Report(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     workspace_id = Column(String, nullable=False, index=True)
+    user_id = Column(String, nullable=True, index=True)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)
     retrieval_type = Column(String, nullable=False)

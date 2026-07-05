@@ -16,6 +16,7 @@ import uuid
 from dotenv import load_dotenv
 
 load_dotenv()
+os.environ.setdefault("AUTH_SECRET_KEY", "test-auth-secret-" + ("0" * 48))
 
 
 def make_pdf_bytes(lines: list[str]) -> bytes:
