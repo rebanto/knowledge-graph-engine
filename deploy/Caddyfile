@@ -1,0 +1,15 @@
+{$CADDY_SITE_ADDRESS} {
+	root * /srv
+	encode zstd gzip
+
+	@stream path /api/question/stream* /api/research/deep/stream*
+	reverse_proxy @stream api:8000 {
+		flush_interval -1
+	}
+
+	@api path /api/* /health/*
+	reverse_proxy @api api:8000
+
+	try_files {path} /index.html
+	file_server
+}
