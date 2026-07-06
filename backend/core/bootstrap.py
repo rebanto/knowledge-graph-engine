@@ -8,11 +8,11 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, delete as sql_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.core.observability import log
-from backend.db.models import Source, Workspace
+from backend.db.models import IngestionJob, Source, Workspace
 from backend.db.queue import get_queue
 from backend.ingestion.jobs import run_ingestion_job
 
@@ -45,6 +45,21 @@ async def bootstrap_demo_if_requested(db: AsyncSession) -> bool:
                 created_at=datetime.now(timezone.utc),
             )
             db.add(source)
+            await db.commit()
+        else:
+            # The public demo has no owner, so users cannot re-ingest it to clear
+            # a lingering per-document failure. Drop any stale 'failed' job rows
+            # (and reset the counter) so a successful demo doesn't show a stuck
+            # "N failed" badge nobody can act on. Keeps the 'success' rows / doc
+            # count intact.
+            await db.execute(
+                sql_delete(IngestionJob).where(
+                    IngestionJob.source_id == source.id,
+                    IngestionJob.status == "failed",
+                )
+            )
+            if source.error_count:
+                source.error_count = 0
             await db.commit()
         if source.status in ("pending", "error"):
             _enqueue_demo_source(source.id)
