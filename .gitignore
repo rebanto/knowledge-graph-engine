@@ -19,3 +19,7 @@ vite_*.txt
 
 # Local, machine-specific Claude Code settings (leaks paths/allowlist)
 .claude/settings.local.json
+
+# Agent context / development instructions (kept local, not public)
+AGENTS.md
+CLAUDE.md
