@@ -15,9 +15,11 @@ _sync_url = os.environ["POSTGRES_URL"]
 def _build_async_url(sync_url: str) -> tuple[str, dict[str, Any]]:
     """Convert the sync Postgres URL to an asyncpg URL.
 
-    Neon connection strings include sslmode=require for psycopg2. asyncpg does
-    not accept sslmode as a query parameter, so strip it from the URL and pass
-    the equivalent SSL setting through SQLAlchemy connect_args.
+    Neon connection strings carry libpq-only query params (sslmode=require and
+    channel_binding=require) that psycopg2 understands but asyncpg rejects as
+    query parameters. Strip both from the async URL and translate the SSL intent
+    into SQLAlchemy connect_args. asyncpg negotiates SCRAM channel binding
+    automatically over SSL, so channel_binding needs no replacement.
     """
     url = make_url(sync_url)
     drivername = url.drivername
@@ -28,6 +30,7 @@ def _build_async_url(sync_url: str) -> tuple[str, dict[str, Any]]:
 
     query = dict(url.query)
     sslmode = query.pop("sslmode", None)
+    query.pop("channel_binding", None)
     connect_args: dict[str, Any] = {}
     if sslmode:
         mode = str(sslmode).lower()
