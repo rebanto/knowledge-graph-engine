@@ -15,7 +15,7 @@ import uuid
 import asyncio
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import select, update, delete as sql_delete
 
 from backend.db.postgres import AsyncSessionLocal, async_engine
 from backend.db.models import Source, IngestionJob
@@ -120,6 +120,14 @@ async def _run_async(source_id: str, force: bool = False) -> None:
 
         workspace_id = source.workspace_id
         source.status = "running"
+        # Reset this source's ingest log so the per-source job counts (and the
+        # "N failed" badge in the UI) reflect only the current run. Job rows are
+        # never otherwise cleared, so a single transient failure would linger as
+        # an error forever — even after a clean re-ingest. The real graph/vector
+        # data is idempotent (MERGE/upsert) and lives elsewhere, so wiping the
+        # per-run bookkeeping loses nothing.
+        await db.execute(sql_delete(IngestionJob).where(IngestionJob.source_id == source_id))
+        source.error_count = 0
         await db.commit()
 
         try:
