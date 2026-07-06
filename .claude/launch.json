@@ -1,1 +1,1 @@
-{"version":"0.0.1","configurations":[{"name":"frontend","runtimeExecutable":"npm","runtimeArgs":["run","dev","--","--port","5183","--strictPort"],"cwd":"${workspaceRoot}/frontend","port":5183}]}
+{"version":"0.0.1","configurations":[{"name":"frontend","runtimeExecutable":"npm","runtimeArgs":["run","dev","--","--port","5183","--strictPort"],"cwd":"${workspaceRoot}/frontend","port":5183},{"name":"poster","runtimeExecutable":"python","runtimeArgs":["-m","http.server","5199"],"cwd":"${workspaceRoot}/poster","port":5199}]}

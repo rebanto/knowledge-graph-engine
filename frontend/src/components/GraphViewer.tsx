@@ -13,6 +13,14 @@ import {
 
 const NODE_COLOR = NODE_COLOR_MAP as Record<NodeType, string>;
 
+// Longest label rendered before an ellipsis. Long paper titles otherwise sprawl
+// across neighbouring nodes; the full name is always available on hover / in the
+// detail panel, so the graph itself only needs enough to identify the node.
+const LABEL_MAX = 22;
+function truncateLabel(name: string) {
+  return name.length > LABEL_MAX ? name.slice(0, LABEL_MAX) + "…" : name;
+}
+
 // Edges are colored by semantic GROUP rather than by exact type - a dozen
 // distinct edge colors reads as rainbow noise. The exact type still shows on the
 // edge label when a node is focused, and in the detail panel.
@@ -352,7 +360,7 @@ export function GraphViewer({
       .data(nodes).join("g")
       .attr("pointer-events", "none").attr("opacity", 0);
     labelG.append("text")
-      .text((d) => (d.name.length > 30 ? d.name.slice(0, 30) + "..." : d.name))
+      .text((d) => truncateLabel(d.name))
       .attr("font-size", 11).attr("font-family", "Inter, system-ui, sans-serif")
       .attr("font-weight", 500).attr("fill", PAPER.DEFAULT)
       .attr("paint-order", "stroke").attr("stroke", INK[900]).attr("stroke-width", 3.5)
@@ -390,11 +398,21 @@ export function GraphViewer({
       });
 
       const placed: { x1: number; y1: number; x2: number; y2: number }[] = [];
+      // Seed the obstacle set with every visible node's circle (screen-space) so
+      // labels are never placed on top of a node - the main source of clutter
+      // when a long paper title lands across a neighbouring dot.
+      for (const n of nodes) {
+        if (hiddenT.has(n.type) || n.x == null || n.y == null) continue;
+        const [nx, ny] = t.apply([n.x, n.y]);
+        const nr = rScaleRef.current(n.degree) * t.k + 2;
+        placed.push({ x1: nx - nr, y1: ny - nr, x2: nx + nr, y2: ny + nr });
+      }
       const visible = new Set<string>();
       const place = labelPlaceRef.current;
       place.clear();
       const FONT = 11;
       const H = FONT * 1.4;
+      const PAD = 3; // breathing room between adjacent labels
       // Label budget for the unfocused/unsearched view: keep it modest when zoomed
       // out (just the hubs + whatever clearly fits) and let it climb as the user
       // zooms in. Past a zoom threshold the cap is lifted entirely - collision
@@ -417,18 +435,19 @@ export function GraphViewer({
         if (discretionary && shown >= budget) continue;
 
         const [sx, sy] = t.apply([n.x, n.y]);
-        const w = Math.min(n.name.length, 30) * FONT * 0.56 + 10;
+        const w = Math.min(n.name.length, LABEL_MAX) * FONT * 0.56 + 10;
         const rs = rScaleRef.current(n.degree) * t.k + 5; // screen-space gap
         const rg = rScaleRef.current(n.degree) + 5;        // graph-space gap
 
         // Try four placements around the node and take the first that doesn't
         // collide - lets labels tuck into the gaps of a radial fan instead of all
-        // stacking on the right and getting dropped.
+        // stacking on the right and getting dropped. Boxes are padded so labels
+        // keep a little air between them instead of touching edge-to-edge.
         const cands = [
-          { box: { x1: sx + rs, y1: sy - H / 2, x2: sx + rs + w, y2: sy + H / 2 }, ox:  rg, oy: 0, anchor: "start" },
-          { box: { x1: sx - rs - w, y1: sy - H / 2, x2: sx - rs, y2: sy + H / 2 }, ox: -rg, oy: 0, anchor: "end" },
-          { box: { x1: sx - w / 2, y1: sy + rs, x2: sx + w / 2, y2: sy + rs + H }, ox: 0, oy:  rg + 2, anchor: "middle" },
-          { box: { x1: sx - w / 2, y1: sy - rs - H, x2: sx + w / 2, y2: sy - rs }, ox: 0, oy: -(rg + 2), anchor: "middle" },
+          { box: { x1: sx + rs - PAD, y1: sy - H / 2 - PAD, x2: sx + rs + w + PAD, y2: sy + H / 2 + PAD }, ox:  rg, oy: 0, anchor: "start" },
+          { box: { x1: sx - rs - w - PAD, y1: sy - H / 2 - PAD, x2: sx - rs + PAD, y2: sy + H / 2 + PAD }, ox: -rg, oy: 0, anchor: "end" },
+          { box: { x1: sx - w / 2 - PAD, y1: sy + rs - PAD, x2: sx + w / 2 + PAD, y2: sy + rs + H + PAD }, ox: 0, oy:  rg + 2, anchor: "middle" },
+          { box: { x1: sx - w / 2 - PAD, y1: sy - rs - H - PAD, x2: sx + w / 2 + PAD, y2: sy - rs + PAD }, ox: 0, oy: -(rg + 2), anchor: "middle" },
         ];
         let chosen: typeof cands[number] | null = null;
         for (const c of cands) {
