@@ -58,20 +58,25 @@ log "starting Chroma server"
 chroma run --path "$CHROMA_DIR" --host 127.0.0.1 --port "$CHROMA_PORT" &
 chroma_pid="$!"
 
-log "waiting for Chroma"
-chroma_ready=false
-for ((attempt = 1; attempt <= 90; attempt++)); do
-  if python - <<'PY'
+# Chroma readiness/liveness is probed over HTTP, not by PID: `chroma run`
+# launches the server and its launcher process exits, so $chroma_pid is not a
+# reliable handle on the running server.
+chroma_up() {
+  python - <<'PY' >/dev/null 2>&1
 import os
 import chromadb
 
-client = chromadb.HttpClient(
+chromadb.HttpClient(
     host=os.environ.get("CHROMA_HOST", "127.0.0.1"),
     port=int(os.environ.get("CHROMA_PORT", "8001")),
-)
-client.heartbeat()
+).heartbeat()
 PY
-  then
+}
+
+log "waiting for Chroma"
+chroma_ready=false
+for ((attempt = 1; attempt <= 90; attempt++)); do
+  if chroma_up; then
     chroma_ready=true
     break
   fi
@@ -82,11 +87,7 @@ if [ "$chroma_ready" != "true" ]; then
   log "Chroma did not answer before timeout"
   exit 1
 fi
-
-if ! kill -0 "$chroma_pid" 2>/dev/null; then
-  log "Chroma exited during startup"
-  exit 1
-fi
+log "Chroma is ready"
 
 log "starting periodic Chroma backup"
 (
@@ -105,10 +106,25 @@ log "starting FastAPI on :7860"
 uvicorn backend.main:app --host 0.0.0.0 --port 7860 --workers 1 &
 api_pid="$!"
 
-if ! wait -n "$redis_pid" "$chroma_pid" "$worker_pid" "$api_pid"; then
-  log "a critical process exited with failure"
-  exit 1
-fi
-
-log "a critical process exited"
-exit 1
+# Supervisor loop. The RQ worker and uvicorn are direct children, so a PID
+# check is reliable; Chroma is probed over HTTP. If any critical process dies,
+# exit non-zero so the trap tears the rest down and Hugging Face restarts.
+while true; do
+  sleep 15
+  if ! kill -0 "$api_pid" 2>/dev/null; then
+    log "FastAPI exited"
+    exit 1
+  fi
+  if ! kill -0 "$worker_pid" 2>/dev/null; then
+    log "RQ worker exited"
+    exit 1
+  fi
+  if [ -n "$redis_pid" ] && ! kill -0 "$redis_pid" 2>/dev/null; then
+    log "Redis exited"
+    exit 1
+  fi
+  if ! chroma_up; then
+    log "Chroma became unreachable"
+    exit 1
+  fi
+done
