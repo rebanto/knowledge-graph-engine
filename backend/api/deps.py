@@ -67,6 +67,18 @@ async def require_owned_workspace(
         )
     ).scalar_one_or_none()
     if workspace is None:
+        # Give an actionable message when the target is a shared read-only demo
+        # (owner_user_id IS NULL) the user can already see — "not found" wrongly
+        # implies it's missing. A workspace owned by someone else still 404s so
+        # we don't leak the existence of other users' private workspaces.
+        existing = (
+            await db.execute(select(Workspace).where(Workspace.id == workspace_id))
+        ).scalar_one_or_none()
+        if existing is not None and existing.owner_user_id is None:
+            raise HTTPException(
+                status_code=403,
+                detail="This is a shared read-only demo workspace. Create your own workspace to add or change sources.",
+            )
         raise HTTPException(status_code=404, detail="Workspace not found")
     return workspace
 
