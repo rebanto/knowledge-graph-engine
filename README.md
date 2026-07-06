@@ -38,7 +38,8 @@ answer is checked against the retrieved evidence and scored.
 - **Conversations** — follow-ups are rewritten into standalone questions with
   bounded thread memory, then run through the same grounded pipeline.
 - **Research-gap discovery** — link-prediction over the graph surfaces entity
-  pairs that *should* be connected but aren't, with evidence and generated
+  pairs that *should* be connected but aren't, with ranked strength tiers,
+  shared-intermediary evidence, graph preview highlighting, and generated
   hypotheses.
 - **MCP server** — the whole engine doubles as grounded memory for any AI agent
   via the Model Context Protocol: `semantic_search`, `graph_query`,

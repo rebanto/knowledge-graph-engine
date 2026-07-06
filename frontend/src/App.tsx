@@ -101,6 +101,7 @@ function AppContent() {
   const [discovering, setDiscovering] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const [selectedGap, setSelectedGap] = useState<ResearchGap | null>(null);
+  const [hoverGap, setHoverGap] = useState<ResearchGap | null>(null);
   const cancelStreamRef = useRef<(() => void) | null>(null);
   const sourcePollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pending conversation ID from the URL - opened once the list arrives.
@@ -159,6 +160,7 @@ function AppContent() {
     setProcessingCount(0);
     setSuggestedQuestions([]);
     setSelectedGap(null);
+    setHoverGap(null);
   }
 
   useEffect(() => {
@@ -580,9 +582,10 @@ function AppContent() {
                 workspaceId={workspaceId}
                 selectedGap={selectedGap}
                 onSelectGap={setSelectedGap}
+                onHoverGap={setHoverGap}
               />
               <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[12px] text-muted">Loading graph view...</div>}>
-                <GraphViewer workspaceId={workspaceId} gapFocus={selectedGap} />
+                <GraphViewer workspaceId={workspaceId} gapFocus={selectedGap ?? hoverGap} />
               </Suspense>
             </ErrorBoundary>
           </div>
