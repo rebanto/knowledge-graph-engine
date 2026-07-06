@@ -29,6 +29,7 @@ from backend.db.queue import get_dlq
 from backend.ingestion.dispatcher import fetch_documents_for_source
 from backend.ingestion.worker import process_document
 from backend.ingestion.entity_resolver import EntityResolver
+from backend.core.chroma_backup import trigger_backup_debounced
 
 _CONCURRENCY = 5     # max parallel documents per source
 _MAX_RETRIES = 3
@@ -229,6 +230,12 @@ async def _run_async(source_id: str, force: bool = False) -> None:
                 source.status = "success"
                 source.last_error = None
             await db.commit()
+
+            if source.status == "success":
+                try:
+                    trigger_backup_debounced()
+                except Exception:
+                    pass
         except Exception as exc:
             await _fail_source(source_id, str(exc))
             raise
