@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
 import os
+from pathlib import Path
 
 import re
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import text, select, update
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -107,11 +108,6 @@ async def lifespan(app: FastAPI):
         """))
 
     async with AsyncSessionLocal() as db:
-        result = await db.execute(select(Workspace).where(Workspace.id == "arxiv_seed"))
-        if not result.scalar_one_or_none():
-            db.add(Workspace(id="arxiv_seed", name="ArXiv AI/ML Research", domain="AI/ML research"))
-            await db.commit()
-
         # Crashed-worker recovery: a source can only be 'running' while a worker
         # is actively processing it. If one is still 'running' at startup, the
         # worker that owned it died (kill, restart, stale-loop crash) and no job
@@ -128,6 +124,15 @@ async def lifespan(app: FastAPI):
         if reset.rowcount:
             log.warning("reset_stranded_sources", count=reset.rowcount)
         await db.commit()
+
+        from backend.core.bootstrap import bootstrap_demo_if_requested
+
+        bootstrapped = await bootstrap_demo_if_requested(db)
+        if not bootstrapped:
+            result = await db.execute(select(Workspace).where(Workspace.id == "arxiv_seed"))
+            if not result.scalar_one_or_none():
+                db.add(Workspace(id="arxiv_seed", name="ArXiv AI/ML Research", domain="AI/ML research"))
+                await db.commit()
 
     # Neo4j schema: drop the obsolete global-name uniqueness constraints and
     # create the composite (name|arxiv_id, workspace_id) constraints. This is the
@@ -281,3 +286,53 @@ async def health_ready():
         http_status = 503
 
     return JSONResponse(status_code=http_status, content=status)
+
+
+@app.get("/api/keepalive", include_in_schema=False)
+@limiter.limit(os.environ.get("RATE_LIMIT_KEEPALIVE", "30/minute"))
+async def keepalive(request: Request):
+    """Cheap dependency touch for scheduled uptime pings."""
+    status: dict[str, str] = {}
+    http_status = 200
+
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("SELECT 1"))
+        status["postgres"] = "ok"
+    except Exception as exc:
+        status["postgres"] = f"unreachable: {exc}"
+        http_status = 503
+
+    try:
+        from backend.db.neo4j import get_async_driver
+
+        driver = await get_async_driver()
+        async with driver.session() as session:
+            await session.run("RETURN 1")
+        status["neo4j"] = "ok"
+    except Exception as exc:
+        status["neo4j"] = f"unreachable: {exc}"
+        http_status = 503
+
+    return JSONResponse(status_code=http_status, content=status)
+
+
+def _configure_static_frontend() -> None:
+    static_dir = Path(os.environ.get("STATIC_DIR", "frontend_dist")).resolve()
+    index_path = static_dir / "index.html"
+    if not index_path.exists():
+        return
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        first_segment = full_path.split("/", 1)[0]
+        if first_segment in {"api", "health", "metrics"}:
+            raise HTTPException(status_code=404, detail="Not found")
+
+        target = (static_dir / full_path).resolve()
+        if target.is_file() and (target == static_dir or static_dir in target.parents):
+            return FileResponse(target)
+        return FileResponse(index_path)
+
+
+_configure_static_frontend()
