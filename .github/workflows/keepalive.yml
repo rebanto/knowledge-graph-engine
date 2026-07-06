@@ -1,0 +1,21 @@
+name: Keep Hugging Face Space Awake
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping keepalive endpoint
+        env:
+          KEEPALIVE_URL: ${{ vars.KEEPALIVE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEEPALIVE_URL:-}" ]; then
+            echo "Set the KEEPALIVE_URL repository variable to https://<user>-<space>.hf.space/api/keepalive"
+            exit 1
+          fi
+          curl --fail --show-error --silent --max-time 30 "$KEEPALIVE_URL"
