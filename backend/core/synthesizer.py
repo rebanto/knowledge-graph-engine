@@ -12,7 +12,7 @@ Retrieved data (graph records, entity stats, and document passages):
 Return ONLY valid JSON with this exact structure. Every field is required.
 
 {{
-  "answer": "Your detailed markdown analysis. Requirements: (1) Open with a direct 1–2 sentence answer grounded in the data. (2) Trace specific relationship chains found in the data using arrow notation, e.g.: **Geoffrey Hinton** → AUTHORED → *Deep Residual Learning* → CITED BY 3 subsequent papers in this dataset. (3) Report actual numbers and statistics from the retrieved data. (4) Identify non-obvious connections and patterns between entities. (5) If the data has a "conflicts" array, it lists disputed claims where two sources disagree about the same pair of entities — explicitly flag each one in the prose (e.g. "**A** and **B**: sources disagree — one SUPPORTS, another CONTRADICTS"), and never present a disputed claim as settled fact. (6) If the data has an "entity_influence" array, it gives the PageRank centrality of entities in the graph — use it to say which entity is most central/influential (e.g. "**A** is the most influential node here (PageRank 0.08)"), not merely present. (7) Use **bold** for entity names, *italics* for paper titles. Write at minimum 3 substantive paragraphs when data is rich enough to support it.",
+  "answer": "Your detailed markdown analysis. Requirements: (1) Open with a direct 1–2 sentence answer grounded in the data. (2) Trace specific relationship chains found in the data using arrow notation, e.g.: **Geoffrey Hinton** → AUTHORED → *Deep Residual Learning* → CITED BY 3 subsequent papers in this dataset. (3) Report actual numbers and statistics from the retrieved data. (4) Identify non-obvious connections and patterns between entities. (5) If the data has a non-empty "conflicts" array, it lists disputed claims where two sources disagree about the same pair of entities — explicitly flag each one in the prose (e.g. "**A** and **B**: sources disagree — one SUPPORTS, another CONTRADICTS"), and never present a disputed claim as settled fact. If the question asks about disagreements, conflicts, or claims to treat cautiously but there is no "conflicts" array (or it is empty), that is itself a finding: state plainly that no conflicting claims were detected among the ingested sources — the claims examined are mutually consistent — and then use the other retrieved records to summarize what the sources actually establish about the topic and which entities connect them. Do NOT describe this as missing or empty data. (6) If the data has an "entity_influence" array, it gives the PageRank centrality of entities in the graph — use it to say which entity is most central/influential (e.g. "**A** is the most influential node here (PageRank 0.08)"), not merely present. (7) Use **bold** for entity names, *italics* for paper titles. Write at minimum 3 substantive paragraphs when data is rich enough to support it.",
 
   "key_entities": [
     {{"name": "exact name from the data", "type": "Person|Paper|Concept|Organization|Topic|Event", "role": "one sentence on why this entity matters for the question"}}
@@ -73,7 +73,7 @@ Return ONLY valid JSON with this exact structure. Every field is required.
 
 Hard rules:
 - Every entity name, date, count, and relationship in the answer and insights MUST appear in the retrieved data above.
-- If data is sparse: write a short honest answer and include only a stat_grid with "Results Found: 0".
+- If the retrieved data does not directly answer the question, still be useful: describe what the sources DO cover that is relevant, name the entities that connect them, and scope the gap narrowly to the question (e.g. "the sources don't directly address X, but they do establish Y and Z"). NEVER say or imply that the dataset, workspace, or sources are "empty", "unconnected", "unrelated", or "not provided" — the sources are ingested and connected; that wording wrongly tells the user ingestion failed. Only when the retrieved data is genuinely and entirely empty may you say no matching information was found for this specific question, and even then keep it scoped to the question, never to the workspace as a whole.
 - key_entities: 2–6 items, most important only.
 - insights: 1–3 items maximum, no filler. stat_grid should almost always be present.
 - bar_chart: max 12 bars; data values must be real numbers extracted or computed from the retrieved data.
@@ -87,7 +87,7 @@ Question: {question}
 Data:
 {results}
 
-Write a concise, well-cited prose answer (2–4 paragraphs). Bold entity names."""
+Write a concise, well-cited prose answer (2–4 paragraphs). Bold entity names. If the data doesn't directly answer the question, describe what it does cover and scope the gap to the question — never say the dataset, workspace, or sources are empty, unconnected, or unrelated."""
 
 
 # Wraps the history block in an instruction that lets the synthesizer reference
