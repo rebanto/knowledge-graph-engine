@@ -39,6 +39,7 @@ divergence is called out explicitly (see [Overview → Plan vs. reality](01-over
 | 18 | [Evaluation](18-evaluation.md) | Measuring answer quality: routing accuracy, retrieval hit-rate, faithfulness (LLM-judge), entity-resolution P/R/F1, and the multi-hop graph-vs-vector benchmark. |
 | 19 | [Deep research and MCP](19-deep-research-and-mcp.md) | Multi-agent research orchestration and the local MCP memory server. |
 | 20 | [User auth](20-user-auth.md) | Self-hosted JWT auth, HttpOnly cookies, workspace ownership, and per-user history. |
+| 21 | [Deployment](21-deployment.md) | Card-free Hugging Face Docker Space deployment with AuraDB, Neon, and Chroma snapshots. |
 
 ---
 

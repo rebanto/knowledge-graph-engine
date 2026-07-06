@@ -365,16 +365,17 @@ Reading the numbers:
 Conclusion at this scale (hundreds of entities): sharding is **not** worth the
 operational/cost overhead — single-node latencies are already low. Sharding only
 pays off once a single instance becomes a write/throughput or durability ceiling.
-Re-run this benchmark at production scale before deciding (see AWS cost warning).
+Re-run this benchmark at production scale before deciding (see the card-free
+cloud cost boundary).
 
-### AWS Cost Warning
+### Card-Free Cloud Cost Boundary
 
-On AWS, each Neo4j shard maps to a separate Neptune cluster. Neptune pricing
-is per cluster-hour × instance size. Three clusters triple the database cost.
-**Evaluate the benchmark results before deciding to shard in production.**
-If query latency is acceptable on a single Neptune instance at your data scale,
-keep it unsharded in the cloud phase and shard only if you hit a real ceiling.
-This cost flag must be revisited explicitly in Phase 7.
+This cost flag was revisited again in Phase 7. The production path is now a
+single Hugging Face Docker Space using free managed state: Neo4j AuraDB Free for
+the graph and Neon Postgres Free for relational data. Redis and the ChromaDB
+server run inside the Space container; Chroma persists by snapshotting to a
+private Hugging Face Dataset. AWS and Oracle were dropped from Phase 7 because
+the current constraint is card-free deployment.
 
 ---
 
@@ -400,24 +401,27 @@ This cost flag must be revisited explicitly in Phase 7.
 | Background workers   | Docker containers (3×)                  | Phase 3     | Coordinator-managed; same Docker network           |
 | Auth                 | FastAPI JWT + HttpOnly cookies + argon2 | Phase 6.5   | Self-hosted sessions stored in Postgres            |
 
-### Cloud Deployment (Phase 7 — do not build yet)
+### Cloud Deployment (Phase 7)
 
-| Local Tool              | AWS Equivalent                                       |
-|-------------------------|------------------------------------------------------|
-| Neo4j (single)          | Amazon Neptune (single cluster)                      |
-| Neo4j (sharded × 2-3)  | Amazon Neptune (multiple clusters — costly, see note)|
-| ChromaDB                | Amazon OpenSearch                                    |
-| PostgreSQL              | Amazon RDS                                           |
-| Redis                   | Amazon ElastiCache                                   |
-| Redis Queue             | Amazon SQS                                           |
-| Coordinator container   | ECS Task (single; leader-election if HA needed)      |
-| Worker containers       | ECS Tasks or EC2 instances (auto-scaled)             |
-| FastAPI app             | Amazon ECS / Fargate                                 |
-| File storage            | Amazon S3                                            |
-| Auth                    | Self-hosted JWT in FastAPI (Cognito optional later)  |
-| Orchestration           | AWS Step Functions                                   |
+Phase 7 is intentionally re-scoped for card-free $0 deployment: one Hugging Face
+Docker Space on free `cpu-basic` hardware, HTTPS provided by Hugging Face, with
+free managed external state. Do not add AWS/OCI SDKs or cloud-specific code
+paths.
 
-**Do not introduce AWS services until explicitly asked. Build locally first.**
+| Component            | Production target                                           |
+|----------------------|-------------------------------------------------------------|
+| Runtime host         | Hugging Face Docker Space (`cpu-basic`, app port 7860)      |
+| Graph database       | Neo4j AuraDB Free (`neo4j+s://...`)                         |
+| Relational database  | Neon Postgres Free pooled URL with `sslmode=require`        |
+| Vector store         | ChromaDB server inside the Space container                  |
+| Chroma persistence   | Private Hugging Face Dataset latest snapshot                |
+| Cache / queue        | Redis inside the Space container, localhost only            |
+| API + frontend       | FastAPI serves `/api/*` and the built React SPA same-origin |
+| Worker               | Single RQ worker process inside the Space container         |
+
+Production uses `USE_SHARDING=false` and the single RQ worker path. The
+distributed coordinator pool and the sharded Neo4j router stay local-only opt-in
+layers unless a future benchmark proves they are needed at production scale.
 
 ---
 
@@ -695,7 +699,7 @@ Fetch last 90 days of papers to seed the graph.
 
 ## Build Phases
 
-**Current state: Phases 1–6 complete. Phase 7 (AWS) not started.**
+**Current state: Phases 1–7 complete for the card-free Hugging Face Space deployment path.**
 
 The full local system is built and tested: the single-worker pipeline and query
 layer (Phases 1–2), the distributed coordinator/worker pool with durable job
@@ -869,22 +873,31 @@ or the graph internals.*
 
 ---
 
-### Phase 7 — AWS deployment
-*Do not start until Phase 5 and 6 are complete and stable locally.*
+### Phase 7 — $0 card-free Hugging Face Space deployment
+*Production is one Docker Space plus free managed state; local dev remains Docker Compose.*
 
-- [ ] Migrate Neo4j → Neptune
-  - **Cost warning:** if Phase 4 sharding is kept, each shard = one Neptune
-    cluster. Three Neptune clusters are expensive. Re-evaluate benchmark
-    results here. If single-node query latency is acceptable at production
-    data scale, keep Neptune unsharded and skip multi-cluster setup.
-- [ ] Migrate ChromaDB → Amazon OpenSearch
-- [ ] Migrate PostgreSQL → Amazon RDS
-- [ ] Migrate Redis → Amazon ElastiCache
-- [ ] Coordinator → ECS Task (single task; add leader-election if HA needed)
-- [ ] Workers → ECS Tasks or EC2 (auto-scaled)
-- [ ] Deploy API → ECS/Fargate
-- [ ] Keep built-in JWT auth; evaluate Cognito only if requirements change
-- [ ] Migrate SQS as fallback job queue (if coordinator is unavailable)
+- [x] Extend the root Dockerfile with a `frontend` build stage and final `space`
+  runtime stage for Hugging Face Docker Spaces.
+- [x] Pre-download `all-MiniLM-L6-v2` and
+  `cross-encoder/ms-marco-MiniLM-L-6-v2` into a fixed Hugging Face cache; prod
+  uses `USE_RERANKER=true`.
+- [x] Run Redis, ChromaDB server, the single RQ worker, and FastAPI in one Space
+  container, supervised by `scripts/space_entrypoint.sh`.
+- [x] Serve the built React app from FastAPI when `STATIC_DIR` exists, preserving
+  `/api/*`, `/health/*`, `/metrics`, and SSE routes.
+- [x] Use Neo4j AuraDB Free and Neon Postgres Free; normalize Neon
+  `sslmode=require` for asyncpg.
+- [x] Persist Chroma across ephemeral Space restarts via a private Hugging Face
+  Dataset latest snapshot (`backend/core/chroma_backup.py`).
+- [x] Add `/api/keepalive` and a GitHub Actions cron that pings the Space every
+  6 hours using the `KEEPALIVE_URL` repo variable.
+- [x] Add idempotent `BOOTSTRAP_DEMO=arxiv_seed` startup seeding through the
+  normal RQ ingestion path, including re-enqueue of pending/error demo sources
+  after an ephemeral Redis reset.
+- [x] Add `.env.space.example`, `scripts/deploy_hf.ps1`,
+  `scripts/deploy_hf.sh`, and `docs/21-deployment.md`.
+- [x] Keep AWS/OCI and managed AWS services out of Phase 7; those require
+  payment-card paths and are not part of this deployment.
 
 ---
 
@@ -928,7 +941,12 @@ NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=
 
+# Keep CHROMA_HOST set in any multi-process API/worker deployment.
+CHROMA_HOST=localhost
+CHROMA_PORT=8001
+
 # Phase 4+: sharded Neo4j (set NUM_SHARDS and one URI per shard)
+USE_SHARDING=false
 NUM_SHARDS=3
 NEO4J_SHARD_0_URI=bolt://neo4j-0:7687
 NEO4J_SHARD_1_URI=bolt://neo4j-1:7688
@@ -950,14 +968,30 @@ REFRESH_TOKEN_TTL_DAYS=14
 COOKIE_SECURE=false
 REGISTRATION_ENABLED=true
 RATE_LIMIT_AUTH=10/minute
-FRONTEND_ORIGIN=           # set in production, e.g. https://example.com
+FRONTEND_ORIGIN=           # set in production, e.g. https://<user>-<space>.hf.space
+
+# Hugging Face Space deployment (see .env.space.example)
+HF_TOKEN=                  # write token for private Dataset snapshot repo
+CHROMA_BACKUP_REPO=        # e.g. username/kgre-chroma-backup
+STATIC_DIR=/app/frontend_dist
+BOOTSTRAP_DEMO=arxiv_seed
+BOOTSTRAP_ARXIV_QUERY=cs.AI,cs.LG,cs.CL
+RATE_LIMIT_KEEPALIVE=30/minute
+
+# Production defaults for the Space path
+USE_RERANKER=true
+ALLOW_PRIVATE_SOURCE_URLS=false
+RATE_LIMIT_ENABLED=true
 ```
 
 ---
 
 ## Key Decisions Already Made
 
-- **Local first, AWS later.** Do not introduce cloud services until Phase 7.
+- **Local first, card-free Space production second.** Phase 7 runs as one
+  Hugging Face Docker Space with Neo4j AuraDB Free, Neon Postgres Free, and
+  Chroma snapshots in a private Hugging Face Dataset. Do not add AWS/OCI SDKs or
+  provider-specific runtime code paths.
 - **Neo4j over Neptune locally.** Same Cypher query language, free, Docker.
 - **ChromaDB over OpenSearch locally.** Simpler, same Docker workflow. Runs as a
   shared server (not in-process): the API and ingestion worker are separate
@@ -992,10 +1026,9 @@ FRONTEND_ORIGIN=           # set in production, e.g. https://example.com
   can be processed twice (due to worker reassignment). All writes must be safe
   to replay: MERGE in Neo4j, upsert in ChromaDB, conditional UPDATE in
   PostgreSQL.
-- **Benchmark before committing to Neptune sharding.** Phase 4 produces real
-  latency data. Use it to decide whether multi-cluster Neptune is worth the
-  cost in Phase 7. Do not assume sharding is necessary at production scale
-  until the numbers say so.
+- **AWS/OCI are out of Phase 7.** The current production path is card-free. Do
+  not migrate to Neptune, RDS, OpenSearch, ElastiCache, ECS, SQS, S3, or OCI
+  equivalents without a new explicit requirement.
 - **Inputs are hardened at the API boundary** (`backend/core/security.py` +
   `backend/core/ratelimit.py`). rss/web source URLs must be http(s) and resolve
   to a public address (SSRF guard; `ALLOW_PRIVATE_SOURCE_URLS=true` opts out in
@@ -1017,7 +1050,9 @@ FRONTEND_ORIGIN=           # set in production, e.g. https://example.com
 - Do not start Phase 3 before Phases 1 and 2 are verified working end-to-end.
 - Do not start Phase 4 before Phase 3 is stable (workers, coordinator,
   heartbeat timeout, reassignment all tested).
-- Do not introduce AWS services before Phase 7.
+- Do not introduce AWS/OCI services, SDKs, or cloud-specific code paths for
+  Phase 7; the accepted production path is the Hugging Face Docker Space unless
+  the user explicitly re-scopes it.
 - Do not use CREATE in Neo4j for entity/relationship writes after Phase 3 —
   always MERGE.
 - Do not change `NUM_SHARDS` after data has been written to the graph. If

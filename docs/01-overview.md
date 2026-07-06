@@ -99,10 +99,10 @@ technology choices and the completion status differ.
 
 ## What is NOT built / out of scope
 
-- **No AWS / cloud deployment.** Phase 7 is untouched by design.
-- **No auth / multi-user isolation enforced.** The data model has
-  `organizations`/`users` in the plan, but the running code does not implement
-  authentication; workspaces are the only tenancy boundary in practice.
+- **No AWS / OCI deployment.** Phase 7 is the card-free Hugging Face Docker
+  Space path with AuraDB, Neon, and Chroma snapshots.
+- **No organizations / teams yet.** Auth and per-user workspace ownership are
+  implemented, but organization membership is deferred.
 - **No LangChain / LlamaIndex.** The pipeline is built directly, on purpose.
 - The coordinator is a **single process with no failover** — acceptable for
   local dev, called out in the plan as needing leader-election for production.

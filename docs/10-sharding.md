@@ -120,13 +120,12 @@ operational/cost overhead** — single-node latencies are already low. Sharding
 pays off only once a single instance becomes a real write/throughput or
 durability ceiling. Re-run the benchmark at production scale before deciding.
 
-## AWS cost warning (Phase 7)
+## Phase 7 deployment note
 
-On AWS each shard maps to a separate **Neptune cluster**, priced per
-cluster-hour × instance size. Three clusters triple the DB cost. The benchmark
-above is the input to that decision — if single-Neptune latency is acceptable at
-production scale, keep it unsharded. This flag must be revisited explicitly in
-Phase 7.
+The card-free production target is one Hugging Face Docker Space with Neo4j
+AuraDB Free, not a sharded managed graph service. Production therefore runs with
+`USE_SHARDING=false`. Keep the shard router as a local benchmarkable option and
+re-run this script at production scale before adding operational complexity.
 
 ## Test harnesses
 

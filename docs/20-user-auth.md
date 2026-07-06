@@ -10,7 +10,7 @@ AGENTS.md first for overall architecture.
 
 | Decision | Choice | Why |
 |---|---|---|
-| Auth provider | **Self-hosted JWT in FastAPI** — not Cognito | The free AWS deployment target is the existing docker-compose stack on a single EC2 instance (free tier / signup credits). Cognito adds AWS lock-in, breaks local dev parity, and buys nothing at this scale. Self-hosted auth runs identically on the laptop and on EC2. This supersedes the "Cognito" row in the Phase 7 table of AGENTS.md — update that table as part of this work. |
+| Auth provider | **Self-hosted JWT in FastAPI** — not Cognito | The Phase 7 deployment is a card-free Hugging Face Docker Space, so Cognito is out of scope and would break local dev parity. Self-hosted auth runs identically on the laptop and in the Space. |
 | Token transport | **HttpOnly cookies** (access + refresh), with `Authorization: Bearer` also accepted | The frontend streams via `EventSource` (`/api/question/stream`, `/api/research/deep/stream`), which **cannot set headers**. Same-origin cookies flow automatically on SSE. Bearer support keeps programmatic/MCP clients possible. |
 | Password hashing | **argon2** via `argon2-cffi` | Modern default; passlib is unmaintained. |
 | JWT library | **PyJWT** (`pyjwt`), HS256, secret from `AUTH_SECRET_KEY` env | No asymmetric keys needed for a single-service deployment. |
@@ -275,27 +275,18 @@ No router exists — gate at the top of `App.tsx`.
 
 ---
 
-## 10. AWS free-tier constraints this design satisfies (Phase 7 context)
+## 10. Phase 7 deployment constraints this design satisfies
 
-The Phase 7 table's managed services (Neptune, RDS, OpenSearch, ElastiCache,
-Cognito) are **not** free — Neptune has no free tier at all. The free
-deployment is: the existing docker-compose stack on **one EC2 instance**
-(legacy 750 h/month t-class free tier, or the post-2025 signup-credit plan)
-behind Caddy or nginx for TLS. Auth must therefore:
+The Phase 7 target is a Hugging Face Docker Space with Neon Postgres and Neo4j
+AuraDB Free. Auth must therefore:
 
-- have **zero AWS dependencies** — it's all FastAPI + Postgres (✓ this design);
-- be stateless per request apart from Postgres (any single container restart
-  keeps sessions — refresh tokens are in Postgres, access tokens are
-  self-validating JWTs) (✓);
+- have **zero cloud-provider auth dependencies** — it is all FastAPI + Postgres;
+- be stateless per request apart from Postgres, so Space restarts keep sessions
+  because refresh tokens are in Postgres and access tokens are self-validating
+  JWTs;
 - flip to production with env only: `COOKIE_SECURE=true`,
-  `FRONTEND_ORIGIN=https://…`, `REGISTRATION_ENABLED` as desired, long random
-  `AUTH_SECRET_KEY` (✓).
-
-Note for the eventual deployment (not now): the compose memory limits sum to
-~6 GB with all profiles; the free single-node profile (one Neo4j, no
-sharding/distributed) needs ~4 GB — pick instance size accordingly. Update the
-AGENTS.md Phase 7 table: Cognito row → "self-hosted JWT (built in Phase 6.5);
-Cognito optional if ever needed".
+  `FRONTEND_ORIGIN=https://<user>-<space>.hf.space`, `REGISTRATION_ENABLED` as
+  desired, and a long random `AUTH_SECRET_KEY`.
 
 ---
 

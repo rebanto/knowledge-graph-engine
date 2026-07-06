@@ -1,3 +1,9 @@
+---
+title: Knowledge Graph Research Engine
+sdk: docker
+app_port: 7860
+---
+
 # Knowledge Graph Research Engine
 
 A research intelligence platform that answers complex questions by querying a
