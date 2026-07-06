@@ -16,3 +16,6 @@ dist/
 # Local server output logs (dev.ps1 redirects)
 uvicorn_*.txt
 vite_*.txt
+
+# Local, machine-specific Claude Code settings (leaks paths/allowlist)
+.claude/settings.local.json
