@@ -75,8 +75,12 @@ async def bootstrap_demo_if_requested(db: AsyncSession) -> bool:
 
 
 def _enqueue_demo_source(source_id: str) -> None:
+    # force=True so a recovery re-enqueue (the source was stranded/errored by an
+    # interrupted first run) reprocesses cleanly instead of resuming from a stale
+    # checkpoint that may not exist in the freshly-fetched paper set. Idempotent:
+    # Neo4j MERGE + Chroma upsert mean replays never duplicate.
     try:
-        get_queue().enqueue(run_ingestion_job, source_id, job_timeout=1800)
+        get_queue().enqueue(run_ingestion_job, source_id, force=True, job_timeout=1800)
         log.info("demo_bootstrap_enqueued", workspace_id=DEMO_WORKSPACE_ID, source_id=source_id)
     except Exception as exc:
         log.warning("demo_bootstrap_enqueue_failed", error=str(exc))

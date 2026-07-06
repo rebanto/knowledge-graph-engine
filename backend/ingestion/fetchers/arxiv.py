@@ -1,3 +1,4 @@
+import os
 import re
 import ssl
 import asyncio
@@ -9,6 +10,12 @@ import aiohttp
 import certifi
 
 ARXIV_API = "https://export.arxiv.org/api/query"
+
+# Default number of papers fetched per arXiv source. Overridable with
+# ARXIV_MAX_RESULTS so resource-constrained deployments (e.g. the free Hugging
+# Face Space on free-tier Gemini) can keep the demo ingest small enough to
+# finish inside the ingestion timeout / stuck-detection window.
+_DEFAULT_MAX_RESULTS = 50
 
 # Verify TLS against certifi's CA bundle rather than the OS store, which is
 # missing/stale on many Windows Python installs (SSL: CERTIFICATE_VERIFY_FAILED).
@@ -103,7 +110,12 @@ def _build_params(query: str, max_results: int, days_back: int) -> tuple[dict, s
 
 # ── Public fetcher ────────────────────────────────────────────────────────────
 
-async def fetch_arxiv(query: str, max_results: int = 50, days_back: int = 90) -> list[dict]:
+async def fetch_arxiv(query: str, max_results: int | None = None, days_back: int = 90) -> list[dict]:
+    if max_results is None:
+        try:
+            max_results = int(os.environ.get("ARXIV_MAX_RESULTS", _DEFAULT_MAX_RESULTS))
+        except (TypeError, ValueError):
+            max_results = _DEFAULT_MAX_RESULTS
     params, mode = _build_params(query, max_results, days_back)
 
     connector = aiohttp.TCPConnector(ssl=_SSL_CONTEXT)
