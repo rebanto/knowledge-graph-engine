@@ -24,14 +24,38 @@ log() {
   printf '[space-entrypoint] %s\n' "$*"
 }
 
+stop_one() {
+  local name="$1"
+  local pid="$2"
+  local grace_seconds="${3:-10}"
+
+  if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+    return
+  fi
+
+  kill "$pid" 2>/dev/null
+  for ((i = 1; i <= grace_seconds; i++)); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      wait "$pid" 2>/dev/null
+      return
+    fi
+    sleep 1
+  done
+
+  log "$name did not stop after ${grace_seconds}s; killing"
+  kill -KILL "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null
+}
+
 stop_children() {
   set +e
   log "stopping child processes"
-  for pid in "$api_pid" "$worker_pid" "$chroma_pid" "$redis_pid" "$backup_pid"; do
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-      kill "$pid" 2>/dev/null
-    fi
-  done
+  stop_one "backup" "$backup_pid" 3
+  stop_one "FastAPI" "$api_pid" 10
+  # Keep Redis up while RQ exits so its scheduler can release queue locks cleanly.
+  stop_one "RQ worker" "$worker_pid" 20
+  stop_one "Chroma" "$chroma_pid" 10
+  stop_one "Redis" "$redis_pid" 10
   wait 2>/dev/null
 }
 
@@ -53,6 +77,35 @@ redis-server \
   --maxmemory "${REDIS_MAXMEMORY:-256mb}" \
   --maxmemory-policy allkeys-lru &
 redis_pid="$!"
+
+redis_up() {
+  python - <<'PY' >/dev/null 2>&1
+import os
+import redis
+
+redis.Redis.from_url(
+    os.environ.get("REDIS_URL", "redis://127.0.0.1:6379"),
+    socket_connect_timeout=1,
+    socket_timeout=1,
+).ping()
+PY
+}
+
+log "waiting for Redis"
+redis_ready=false
+for ((attempt = 1; attempt <= 30; attempt++)); do
+  if redis_up; then
+    redis_ready=true
+    break
+  fi
+  sleep 1
+done
+
+if [ "$redis_ready" != "true" ]; then
+  log "Redis did not answer before timeout"
+  exit 1
+fi
+log "Redis is ready"
 
 log "starting Chroma server"
 chroma run --path "$CHROMA_DIR" --host 127.0.0.1 --port "$CHROMA_PORT" &
@@ -98,13 +151,42 @@ log "starting periodic Chroma backup"
 ) &
 backup_pid="$!"
 
-log "starting RQ worker"
-rq worker ingestion ingestion_bulk --with-scheduler &
-worker_pid="$!"
+api_up() {
+  python - <<'PY' >/dev/null 2>&1
+import urllib.request
+
+with urllib.request.urlopen("http://127.0.0.1:7860/health/live", timeout=2) as resp:
+    raise SystemExit(0 if resp.status == 200 else 1)
+PY
+}
 
 log "starting FastAPI on :7860"
 uvicorn backend.main:app --host 0.0.0.0 --port 7860 --workers 1 &
 api_pid="$!"
+
+log "waiting for FastAPI"
+api_ready=false
+for ((attempt = 1; attempt <= 90; attempt++)); do
+  if ! kill -0 "$api_pid" 2>/dev/null; then
+    log "FastAPI exited during startup"
+    exit 1
+  fi
+  if api_up; then
+    api_ready=true
+    break
+  fi
+  sleep 1
+done
+
+if [ "$api_ready" != "true" ]; then
+  log "FastAPI did not answer before timeout"
+  exit 1
+fi
+log "FastAPI is ready"
+
+log "starting RQ worker"
+rq worker ingestion ingestion_bulk --with-scheduler &
+worker_pid="$!"
 
 # Supervisor loop. The RQ worker and uvicorn are direct children, so a PID
 # check is reliable; Chroma is probed over HTTP. If any critical process dies,

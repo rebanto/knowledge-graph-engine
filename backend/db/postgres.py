@@ -39,7 +39,12 @@ def _build_async_url(sync_url: str) -> tuple[str, dict[str, Any]]:
         elif mode == "disable":
             connect_args["ssl"] = False
 
-    return str(url.set(drivername=drivername, query=query)), connect_args
+    # SQLAlchemy hides passwords in str(URL). The async engine needs the real
+    # password, so render explicitly without masking.
+    async_url = url.set(drivername=drivername, query=query).render_as_string(
+        hide_password=False
+    )
+    return async_url, connect_args
 
 
 _async_url, _async_connect_args = _build_async_url(_sync_url)
