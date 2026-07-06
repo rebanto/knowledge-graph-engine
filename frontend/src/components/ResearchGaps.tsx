@@ -367,7 +367,7 @@ export function ResearchGaps({ workspaceId, selectedGap, onSelectGap, onHoverGap
                     {isSelected && (
                       <p className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-brass">
                         <Eye size={12} />
-                        Shown on graph ->
+                        Shown on graph {"->"}
                       </p>
                     )}
                   </div>
