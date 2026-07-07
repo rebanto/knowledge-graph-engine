@@ -2,11 +2,12 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import get_current_user, get_owned_workspace, get_readable_workspace
 from backend.db.postgres import get_async_db
-from backend.db.models import Workspace, Source, IngestionJob, User
+from backend.db.models import Workspace, WorkspaceDismissal, Source, IngestionJob, User
 from backend.db.queue import get_queue
 from backend.ingestion.jobs import run_ingestion_job
 from backend.models.schemas import WorkspaceCreate, WorkspaceUpdate, WorkspaceResponse, SourceResponse
@@ -21,9 +22,13 @@ async def list_workspaces(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
 ):
+    dismissed = select(WorkspaceDismissal.workspace_id).where(
+        WorkspaceDismissal.user_id == user.id
+    )
     result = await db.execute(
         select(Workspace)
         .where(or_(Workspace.owner_user_id == user.id, Workspace.owner_user_id.is_(None)))
+        .where(~Workspace.id.in_(dismissed))
         .order_by(Workspace.created_at.asc())
     )
     return result.scalars().all()
@@ -47,6 +52,34 @@ async def create_workspace(
     await db.commit()
     await db.refresh(workspace)
     return workspace
+
+
+@router.post("/workspaces/{workspace_id}/dismiss", status_code=204)
+async def dismiss_workspace(
+    workspace_id: str,
+    workspace: Workspace = Depends(get_readable_workspace),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
+    if workspace.owner_user_id == user.id:
+        raise HTTPException(
+            400,
+            "You own this workspace - delete it instead of dismissing.",
+        )
+
+    stmt = (
+        insert(WorkspaceDismissal)
+        .values(
+            user_id=user.id,
+            workspace_id=workspace_id,
+            created_at=datetime.now(timezone.utc),
+        )
+        .on_conflict_do_nothing(
+            index_elements=[WorkspaceDismissal.user_id, WorkspaceDismissal.workspace_id]
+        )
+    )
+    await db.execute(stmt)
+    await db.commit()
 
 
 @router.post("/workspaces/{workspace_id}/discover", response_model=list[SourceResponse])

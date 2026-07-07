@@ -16,20 +16,33 @@ export function NeedsSources({
   onGoToSources,
   onDiscover,
   discovering,
-}: Pick<EmptyStateProps, "hasDescription" | "onGoToSources" | "onDiscover" | "discovering">) {
+  readOnly = false,
+  onCreateWorkspace,
+}: Pick<EmptyStateProps, "hasDescription" | "onGoToSources" | "onDiscover" | "discovering"> & {
+  readOnly?: boolean;
+  onCreateWorkspace?: () => void;
+}) {
   return (
     <div className="animate-rise-in mt-6 flex flex-col items-center text-center">
       <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl border border-ink-700 bg-ink-800">
         <Database size={20} className="text-brass/70" />
       </div>
       <p className="max-w-md text-[13px] leading-relaxed text-muted">
-        Add sources first. Papers, feeds, PDFs, and web pages become searchable once read.
+        {readOnly
+          ? "This read-only demo does not have sources available here. Create your own workspace to add papers, feeds, PDFs, and web pages."
+          : "Add sources first. Papers, feeds, PDFs, and web pages become searchable once read."}
       </p>
       <div className="mt-6 flex flex-wrap justify-center gap-2">
-        <Button variant="secondary" onClick={onGoToSources}>
-          Add sources
-        </Button>
-        {hasDescription && (
+        {readOnly ? (
+          <Button variant="primary" onClick={onCreateWorkspace}>
+            Create workspace
+          </Button>
+        ) : (
+          <Button variant="secondary" onClick={onGoToSources}>
+            Add sources
+          </Button>
+        )}
+        {!readOnly && hasDescription && (
           <Button variant="primary" onClick={onDiscover} loading={discovering}>
             {!discovering && <Sparkles size={13} />}
             {discovering ? "Looking..." : "Suggest sources"}

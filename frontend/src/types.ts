@@ -265,6 +265,7 @@ export interface Workspace {
   name: string;
   domain: string;
   description?: string | null;
+  read_only: boolean;
   created_at: string;
 }
 

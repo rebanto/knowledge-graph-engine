@@ -24,7 +24,8 @@ interface HistoryDrawerProps {
   onWorkspaceChange: (id: string) => void;
   onCreateWorkspace: (name: string, domain: string, description: string, autoDiscover: boolean) => Promise<void>;
   onUpdateWorkspace: (id: string, name: string, domain: string, description: string) => Promise<void>;
-  onDeleteWorkspace: (id: string) => Promise<void>;
+  onRemoveWorkspace: (workspace: Workspace) => Promise<void>;
+  createWorkspaceSignal?: number;
 }
 
 export function HistoryDrawer({
@@ -40,7 +41,8 @@ export function HistoryDrawer({
   onWorkspaceChange,
   onCreateWorkspace,
   onUpdateWorkspace,
-  onDeleteWorkspace,
+  onRemoveWorkspace,
+  createWorkspaceSignal = 0,
 }: HistoryDrawerProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -73,7 +75,8 @@ export function HistoryDrawer({
         onSelect={onWorkspaceChange}
         onCreate={onCreateWorkspace}
         onUpdate={onUpdateWorkspace}
-        onDelete={onDeleteWorkspace}
+        onRemove={onRemoveWorkspace}
+        createWorkspaceSignal={createWorkspaceSignal}
       />
 
       <div className="px-3">

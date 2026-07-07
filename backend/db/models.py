@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Boolean, Column, String, Integer, DateTime, Text
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.hybrid import hybrid_property
 from backend.db.postgres import Base
 
 
@@ -14,6 +15,18 @@ class Workspace(Base):
     description = Column(Text, nullable=True)
     suggested_questions = Column(JSONB, nullable=True)
     owner_user_id = Column(String, nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    @hybrid_property
+    def read_only(self) -> bool:
+        return self.owner_user_id is None
+
+
+class WorkspaceDismissal(Base):
+    __tablename__ = "workspace_dismissals"
+
+    user_id = Column(String, primary_key=True, index=True)
+    workspace_id = Column(String, primary_key=True, index=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 

@@ -211,6 +211,7 @@ class WorkspaceResponse(BaseModel):
     name: str
     domain: str
     description: str | None = None
+    read_only: bool
     created_at: datetime
 
     class Config:

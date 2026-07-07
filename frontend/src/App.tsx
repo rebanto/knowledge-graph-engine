@@ -39,7 +39,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { WorkspacePulse, type SourceStats } from "./components/WorkspacePulse";
 import {
   streamQuestion, listConversations, getConversation, deleteConversation,
-  listWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace,
+  listWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace, dismissWorkspace,
   listSources, discoverSources, getSuggestedQuestions,
 } from "./api";
 import type { ConversationSummary, ConversationDetail, ResearchGap, Source, Workspace } from "./types";
@@ -77,6 +77,7 @@ function AppContent() {
   const [initialUrl] = useState(readUrl);
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
   const [workspaceId, setWorkspaceId] = useState(initialUrl.w);
   const [tab, setTab] = useState<Tab>(initialUrl.t);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -102,6 +103,7 @@ function AppContent() {
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const [selectedGap, setSelectedGap] = useState<ResearchGap | null>(null);
   const [hoverGap, setHoverGap] = useState<ResearchGap | null>(null);
+  const [createWorkspaceSignal, setCreateWorkspaceSignal] = useState(0);
   const cancelStreamRef = useRef<(() => void) | null>(null);
   const sourcePollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pending conversation ID from the URL - opened once the list arrives.
@@ -109,11 +111,16 @@ function AppContent() {
 
   useEffect(() => {
     listWorkspaces()
-      .then(setWorkspaces)
-      .catch((err) => setError(describeError(err)));
+      .then((items) => {
+        setWorkspaces(items);
+        if (items.length === 0) setWorkspaceId("");
+      })
+      .catch((err) => setError(describeError(err)))
+      .finally(() => setWorkspacesLoaded(true));
   }, []);
 
   const refreshConversations = useCallback(async () => {
+    if (!workspaceId) return;
     try {
       setConversations(await listConversations(workspaceId));
     } catch (err) {
@@ -122,6 +129,7 @@ function AppContent() {
   }, [workspaceId]);
 
   const refreshSources = useCallback(async () => {
+    if (!workspaceId) return;
     try {
       const sources = await listSources(workspaceId);
       setSourceCount(sources.length);
@@ -169,6 +177,10 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshConversations();
     refreshSources();
+    if (!workspaceId) {
+      setSuggestedQuestions([]);
+      return;
+    }
     getSuggestedQuestions(workspaceId)
       .then(setSuggestedQuestions)
       .catch(() => setSuggestedQuestions([]));
@@ -200,7 +212,13 @@ function AppContent() {
   }
 
   const activeWorkspace = workspaces.find((w) => w.id === workspaceId) ?? null;
+  const activeReadOnly = activeWorkspace?.read_only ?? false;
   const hasSources = sourceCount === null ? true : sourceCount > 0;
+
+  function openCreateWorkspaceFlow() {
+    setHistoryOpen(true);
+    setCreateWorkspaceSignal((v) => v + 1);
+  }
 
   // The single "back to a blank question" action, reused by the rail's New
   // button and the inline new-thread buttons. Always lands on a fresh Ask view.
@@ -349,19 +367,25 @@ function AppContent() {
     setWorkspaces((prev) => prev.map((w) => (w.id === id ? updated : w)));
   }
 
-  async function handleDeleteWorkspace(id: string) {
-    await deleteWorkspace(id);
+  async function handleRemoveWorkspace(workspace: Workspace) {
+    if (workspace.read_only) {
+      await dismissWorkspace(workspace.id);
+    } else {
+      await deleteWorkspace(workspace.id);
+    }
     setWorkspaces((prev) => {
-      const remaining = prev.filter((w) => w.id !== id);
-      if (workspaceId === id) {
+      const remaining = prev.filter((w) => w.id !== workspace.id);
+      if (workspaceId === workspace.id) {
         const next = remaining[0];
-        if (next) setWorkspaceId(next.id);
+        setWorkspaceId(next?.id ?? "");
       }
       return remaining;
     });
-    if (workspaceId === id) {
+    if (workspaceId === workspace.id) {
       setConversations([]);
       setActiveConvo(null);
+      setSourceCount(null);
+      setSourceStats(null);
     }
   }
 
@@ -467,11 +491,34 @@ function AppContent() {
         onWorkspaceChange={setWorkspaceId}
         onCreateWorkspace={handleCreateWorkspace}
         onUpdateWorkspace={handleUpdateWorkspace}
-        onDeleteWorkspace={handleDeleteWorkspace}
+        onRemoveWorkspace={handleRemoveWorkspace}
+        createWorkspaceSignal={createWorkspaceSignal}
       />
 
       <main className="relative z-10 flex min-w-0 flex-1 flex-col">
-        {tab === "ask" ? (
+        {!workspacesLoaded ? (
+          <div className="flex min-w-0 flex-1 items-center justify-center text-[12px] text-muted">
+            <Loader2 size={14} className="mr-2 animate-spin text-brass" />
+            Loading workspaces
+          </div>
+        ) : !activeWorkspace ? (
+          <div className="dot-grid min-w-0 flex-1 overflow-y-auto scrollbar-thin">
+            <div className="flex min-h-full flex-col items-center justify-center px-6 py-16 text-center">
+              <div className="animate-rise-in w-full max-w-md">
+                <h1 className="text-glow mb-4 font-display text-[30px] font-medium leading-[1.1] tracking-tight text-paper">
+                  Create a workspace
+                </h1>
+                <p className="text-[13px] leading-relaxed text-muted">
+                  Workspaces hold the sources your research graph can read. Create one to start adding your own papers, feeds, PDFs, and web pages.
+                </p>
+                <Button variant="primary" className="mt-6" onClick={openCreateWorkspaceFlow}>
+                  <Plus size={13} />
+                  New workspace
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : tab === "ask" ? (
           activeConvo ? (
             // ── In a thread: slim follow-up bar pinned on top, turns below ──────
             <>
@@ -568,6 +615,8 @@ function AppContent() {
                       onGoToSources={() => setTab("sources")}
                       onDiscover={handleDiscover}
                       discovering={discovering}
+                      readOnly={activeReadOnly}
+                      onCreateWorkspace={openCreateWorkspaceFlow}
                     />
                   )}
                 </div>
@@ -592,7 +641,11 @@ function AppContent() {
         ) : tab === "sources" ? (
           <div className="min-h-0 min-w-0 flex-1">
             <ErrorBoundary>
-              <SourceManager workspaceId={workspaceId} />
+              <SourceManager
+                workspaceId={workspaceId}
+                readOnly={activeReadOnly}
+                onCreateWorkspace={openCreateWorkspaceFlow}
+              />
             </ErrorBoundary>
           </div>
         ) : tab === "connect" ? (

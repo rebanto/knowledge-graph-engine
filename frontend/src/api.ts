@@ -301,6 +301,10 @@ export async function deleteWorkspace(workspaceId: string) {
   await client.delete(`/api/workspaces/${workspaceId}`);
 }
 
+export async function dismissWorkspace(workspaceId: string) {
+  await client.post(`/api/workspaces/${workspaceId}/dismiss`);
+}
+
 export async function deleteReport(reportId: string) {
   await client.delete(`/api/reports/${reportId}`);
 }

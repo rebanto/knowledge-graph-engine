@@ -213,6 +213,7 @@ interface SourceCardProps {
   expanded: boolean;
   retrying: boolean;
   deleting: boolean;
+  readOnly: boolean;
   onToggleExpand: () => void;
   onRetry: () => void;
   onDelete: () => void;
@@ -220,6 +221,7 @@ interface SourceCardProps {
 
 function SourceCard({
   src, jobData, loadingJobs, expanded, retrying, deleting,
+  readOnly,
   onToggleExpand, onRetry, onDelete,
 }: SourceCardProps) {
   const sm = STATUS_META[src.status] ?? STATUS_META.error;
@@ -306,31 +308,33 @@ function SourceCard({
         </div>
 
         {/* Action buttons */}
-        <div className="flex flex-shrink-0 items-center gap-0.5">
-          {canRetry && (
+        {!readOnly && (
+          <div className="flex flex-shrink-0 items-center gap-0.5">
+            {canRetry && (
+              <button
+                onClick={onRetry}
+                disabled={retrying}
+                title="Read this source again"
+                className="flex items-center gap-1 rounded-md px-2 py-1.5 text-[11px] text-muted transition-colors hover:bg-ink-750 hover:text-paper-dim disabled:opacity-40"
+              >
+                {retrying
+                  ? <Loader2 size={11} className="animate-spin" />
+                  : <RotateCcw size={11} />}
+                <span>Re-read</span>
+              </button>
+            )}
             <button
-              onClick={onRetry}
-              disabled={retrying}
-              title="Read this source again"
-              className="flex items-center gap-1 rounded-md px-2 py-1.5 text-[11px] text-muted transition-colors hover:bg-ink-750 hover:text-paper-dim disabled:opacity-40"
+              onClick={onDelete}
+              disabled={deleting}
+              title="Remove source"
+              className="rounded-md p-1.5 text-faint transition-colors hover:bg-ink-750 hover:text-flag disabled:opacity-40"
             >
-              {retrying
-                ? <Loader2 size={11} className="animate-spin" />
-                : <RotateCcw size={11} />}
-              <span>Re-read</span>
+              {deleting
+                ? <Loader2 size={13} className="animate-spin" />
+                : <Trash2 size={13} />}
             </button>
-          )}
-          <button
-            onClick={onDelete}
-            disabled={deleting}
-            title="Remove source"
-            className="rounded-md p-1.5 text-faint transition-colors hover:bg-ink-750 hover:text-flag disabled:opacity-40"
-          >
-            {deleting
-              ? <Loader2 size={13} className="animate-spin" />
-              : <Trash2 size={13} />}
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Expand toggle */}
@@ -382,7 +386,15 @@ function SourceCard({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function SourceManager({ workspaceId }: { workspaceId: string }) {
+export function SourceManager({
+  workspaceId,
+  readOnly,
+  onCreateWorkspace,
+}: {
+  workspaceId: string;
+  readOnly: boolean;
+  onCreateWorkspace: () => void;
+}) {
   const [sources, setSources] = useState<Source[]>([]);
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const [filter, setFilter] = useState<FilterTab>("all");
@@ -427,8 +439,9 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
   // Silently purge stale graph/vector data left behind by deleted sources.
   // Runs on workspace load, after delete, and when the user hits Refresh.
   const syncQuietly = useCallback(async () => {
+    if (readOnly) return;
     try { await cleanupWorkspace(workspaceId); } catch { /* ignore */ }
-  }, [workspaceId]);
+  }, [readOnly, workspaceId]);
 
   // Reset list state the moment the workspace switches (render-time adjustment,
   // per react.dev "adjusting state when props change") so stale sources never
@@ -618,7 +631,16 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
         </div>
 
         {/* Add source - collapsed trigger or expanded form */}
-        {!addOpen ? (
+        {readOnly ? (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brass/25 bg-brass-dim px-4 py-3">
+            <p className="min-w-0 flex-1 text-[12.5px] leading-relaxed text-brass/85">
+              This is a read-only demo workspace. Sources can't be added or removed here - create your own workspace to add sources.
+            </p>
+            <Button variant="primary" size="sm" onClick={onCreateWorkspace}>
+              Create workspace
+            </Button>
+          </div>
+        ) : !addOpen ? (
           <button
             onClick={() => setAddOpen(true)}
             className="mb-5 flex w-full items-center gap-2 rounded-xl border border-dashed border-ink-600 px-4 py-3 text-[13px] text-muted transition-colors hover:border-brass/40 hover:text-paper-dim"
@@ -761,6 +783,7 @@ export function SourceManager({ workspaceId }: { workspaceId: string }) {
                 expanded={expandedId === src.id}
                 retrying={!!retrying[src.id]}
                 deleting={!!deleting[src.id]}
+                readOnly={readOnly}
                 onToggleExpand={() => handleToggleExpand(src.id)}
                 onRetry={() => handleRetry(src.id)}
                 onDelete={() => handleDelete(src.id)}

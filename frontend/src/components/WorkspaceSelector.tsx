@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, Plus, Loader2, Pencil, Trash2, Check } from "lucide-react";
 import type { Workspace } from "../types";
+import { Badge } from "./ui";
 
 interface WorkspaceSelectorProps {
   workspaces: Workspace[];
@@ -8,7 +9,8 @@ interface WorkspaceSelectorProps {
   onSelect: (id: string) => void;
   onCreate: (name: string, domain: string, description: string, autoDiscover: boolean) => Promise<void>;
   onUpdate: (id: string, name: string, domain: string, description: string) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  onRemove: (workspace: Workspace) => Promise<void>;
+  createWorkspaceSignal?: number;
 }
 
 const FIELD =
@@ -20,7 +22,8 @@ export function WorkspaceSelector({
   onSelect,
   onCreate,
   onUpdate,
-  onDelete,
+  onRemove,
+  createWorkspaceSignal = 0,
 }: WorkspaceSelectorProps) {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -42,6 +45,14 @@ export function WorkspaceSelector({
   const [deleteWorking, setDeleteWorking] = useState(false);
 
   const active = workspaces.find((w) => w.id === activeId);
+
+  useEffect(() => {
+    if (createWorkspaceSignal <= 0) return;
+    setOpen(true);
+    setCreating(true);
+    setEditingId(null);
+    setDeletingId(null);
+  }, [createWorkspaceSignal]);
 
   function reset() {
     setName("");
@@ -91,9 +102,11 @@ export function WorkspaceSelector({
 
   async function confirmDelete(id: string, e: React.MouseEvent) {
     e.stopPropagation();
+    const workspace = workspaces.find((w) => w.id === id);
+    if (!workspace) return;
     setDeleteWorking(true);
     try {
-      await onDelete(id);
+      await onRemove(workspace);
       setDeletingId(null);
       if (workspaces.length <= 1) setOpen(false);
     } finally {
@@ -121,9 +134,12 @@ export function WorkspaceSelector({
         className="flex w-full items-center justify-between rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-2 text-left transition-colors hover:border-ink-600"
       >
         <div className="min-w-0">
-          <p className="truncate text-[12.5px] font-medium text-paper-dim">
-            {active?.name ?? "Pick a workspace"}
-          </p>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className="truncate text-[12.5px] font-medium text-paper-dim">
+              {active?.name ?? "Pick a workspace"}
+            </p>
+            {active?.read_only && <Badge tone="brass" size="sm" className="flex-shrink-0">Demo</Badge>}
+          </div>
           <p className="truncate text-[10.5px] text-faint">{active?.domain}</p>
         </div>
         <ChevronDown size={14} className="flex-shrink-0 text-muted" />
@@ -182,23 +198,40 @@ export function WorkspaceSelector({
             }
 
             if (deletingId === w.id) {
+              const readOnly = w.read_only;
               return (
                 <div
                   key={w.id}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex flex-col gap-1.5 rounded-md bg-flag-dim border border-flag/30 p-2 mb-0.5"
+                  className={`flex flex-col gap-1.5 rounded-md border p-2 mb-0.5 ${
+                    readOnly ? "border-brass/25 bg-brass-dim" : "border-flag/30 bg-flag-dim"
+                  }`}
                 >
                   <p className="text-[11.5px] text-paper-dim">
-                    Delete <span className="font-medium text-paper">"{w.name}"</span>? Its sources and reports go with it.
+                    {readOnly ? (
+                      <>
+                        Remove <span className="font-medium text-paper">"{w.name}"</span> from your account? The shared demo and its data stay available to other users.
+                      </>
+                    ) : (
+                      <>
+                        Delete <span className="font-medium text-paper">"{w.name}"</span>? Its sources and reports go with it.
+                      </>
+                    )}
                   </p>
                   <div className="flex gap-1.5">
                     <button
                       onClick={(e) => confirmDelete(w.id, e)}
                       disabled={deleteWorking}
-                      className="flex flex-1 items-center justify-center gap-1 rounded bg-flag py-1 text-[12px] font-medium text-ink-950 hover:brightness-110 disabled:opacity-40"
+                      className={`flex flex-1 items-center justify-center gap-1 rounded py-1 text-[12px] font-medium disabled:opacity-40 ${
+                        readOnly
+                          ? "bg-brass text-ink-900 hover:bg-brass-bright"
+                          : "bg-flag text-ink-950 hover:brightness-110"
+                      }`}
                     >
                       {deleteWorking ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                      {deleteWorking ? "Deleting" : "Delete"}
+                      {deleteWorking
+                        ? readOnly ? "Removing" : "Deleting"
+                        : readOnly ? "Remove" : "Delete"}
                     </button>
                     <button
                       onClick={cancelDelete}
@@ -219,20 +252,33 @@ export function WorkspaceSelector({
                     w.id === activeId ? "bg-ink-700 text-paper" : "text-muted hover:bg-ink-750"
                   }`}
                 >
-                  <span className="block truncate pr-12">{w.name}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 pr-12">
+                    <span className="truncate">{w.name}</span>
+                    {w.read_only && <Badge tone="brass" size="sm" className="flex-shrink-0">Demo</Badge>}
+                  </span>
                 </button>
                 <div className="absolute right-1 hidden gap-0.5 group-hover:flex">
-                  <button
-                    onClick={(e) => startEdit(w, e)}
-                    title="Rename workspace"
-                    className="rounded p-1 text-muted hover:bg-ink-650 hover:text-paper-dim transition-colors"
-                  >
-                    <Pencil size={11} />
-                  </button>
+                  {!w.read_only && (
+                    <button
+                      onClick={(e) => startEdit(w, e)}
+                      title="Rename workspace"
+                      className="rounded p-1 text-muted hover:bg-ink-650 hover:text-paper-dim transition-colors"
+                    >
+                      <Pencil size={11} />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => startDelete(w.id, e)}
-                    title="Delete workspace"
-                    className="rounded p-1 text-muted hover:bg-flag/15 hover:text-flag transition-colors"
+                    title={
+                      w.read_only
+                        ? "Shared read-only demo - this only removes it from your account."
+                        : "Delete workspace"
+                    }
+                    className={`rounded p-1 text-muted transition-colors ${
+                      w.read_only
+                        ? "hover:bg-brass/15 hover:text-brass"
+                        : "hover:bg-flag/15 hover:text-flag"
+                    }`}
                   >
                     <Trash2 size={11} />
                   </button>
