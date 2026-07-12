@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import re
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
@@ -7,10 +8,31 @@ from pypdf import PdfReader
 
 _pdf_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pdf")
 
+# The upload route stores files as "{uuid4}_{original_name}.pdf" to avoid
+# collisions; that prefix must not leak into the document title (it becomes the
+# Paper node name and the citation label shown to the user).
+_UPLOAD_PREFIX_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}_"
+)
 
-def _read_pdf(file_path: str) -> str:
+
+def _read_pdf(file_path: str) -> tuple[str, str]:
+    """Return (text, metadata_title) for a PDF."""
     reader = PdfReader(file_path)
-    return "\n".join(page.extract_text() or "" for page in reader.pages)
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    meta_title = ""
+    try:
+        meta_title = (reader.metadata.title or "").strip() if reader.metadata else ""
+    except Exception:
+        pass
+    return text, meta_title
+
+
+def _derive_title(file_path: str, meta_title: str) -> str:
+    """Prefer the PDF's embedded title; fall back to the de-uuid'd filename."""
+    if meta_title:
+        return meta_title
+    return _UPLOAD_PREFIX_RE.sub("", Path(file_path).stem)
 
 
 # Below this many extracted characters we suspect the PDF is scanned/image-only
@@ -22,10 +44,10 @@ _OCR_TRIGGER_CHARS = 20
 
 async def fetch_pdf(file_path: str, source_url: str = "") -> list[dict]:
     loop = asyncio.get_event_loop()
-    text = await loop.run_in_executor(_pdf_executor, _read_pdf, file_path)
+    text, meta_title = await loop.run_in_executor(_pdf_executor, _read_pdf, file_path)
     text = (text or "").strip()
 
-    title = Path(file_path).stem
+    title = _derive_title(file_path, meta_title)
 
     # If the embedded text layer is empty/near-empty the PDF is likely scanned or
     # image-only. Try Gemini document OCR before giving up. We keep whichever
